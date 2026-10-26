@@ -10,9 +10,10 @@ public class GameNetwork : Singleton<GameNetwork>
     
     private Queue<GameServerMessage> messageQueue = new Queue<GameServerMessage>();
     
-    private async void SendGameMessage(string message)
+    // 서버가 없어진 상태다. 요청을 받을 호스트가 연결되기 전까지는 보내지 않고 로그만 남긴다.
+    private void SendGameMessage(string message)
     {
-        await WebSocketNetwork.Instance.SendMessage(message);
+        Debug.LogWarning($"[GameNetwork] 요청을 받을 호스트가 아직 없어 보내지 않았습니다: {message}");
     }
 
     public void ReceiveGameMessage(GameMessageType parsedType, string json)
@@ -160,7 +161,7 @@ public class GameNetwork : Singleton<GameNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendGameMessage(json);
     }
     
     public void SendDrawCardRequest()
@@ -171,7 +172,7 @@ public class GameNetwork : Singleton<GameNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendGameMessage(json);
     }
     
     public void SendChooseDestinationRequest(int destinationPosition)
@@ -183,7 +184,7 @@ public class GameNetwork : Singleton<GameNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendGameMessage(json);
     }
     
     public void SendRollDiceRequest()
@@ -194,7 +195,7 @@ public class GameNetwork : Singleton<GameNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendGameMessage(json);
     }
 
     public void SendSellPropertiesRequest(List<int> propertyIds)
@@ -206,7 +207,7 @@ public class GameNetwork : Singleton<GameNetwork>
         };
         
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendGameMessage(json);
     }
     
     public void SendAcquirePropertyRequest(int propertyId, bool isAccept)
@@ -219,7 +220,7 @@ public class GameNetwork : Singleton<GameNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendGameMessage(json);
     }
     
     public void SendPurchasePropertyRequest(int propertyId, bool isAccept)
@@ -232,7 +233,7 @@ public class GameNetwork : Singleton<GameNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendGameMessage(json);
     }
     
     public event Action<GameState> OnSync;
@@ -272,7 +273,7 @@ public class GameNetwork : Singleton<GameNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendGameMessage(json);
     }
 }
 

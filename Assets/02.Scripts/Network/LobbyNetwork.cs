@@ -13,6 +13,11 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
 
     [SerializeField] private string lobbySceneName = "UI_LobbyScene";
     private bool isLobbySceneActive = false;
+
+    protected override void OnAwake()
+    {
+        Application.runInBackground = true; // 창이 뒤로 가도 멈추지 않게 한다 (PC 두 대로 테스트할 때 필요). WebSocketNetwork가 하던 일
+    }
     
     private void OnEnable()
     {
@@ -30,9 +35,10 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
         isLobbySceneActive = (scene.name == lobbySceneName);
     }
     
-    private async void SendGameMessage(string message)
+    // 서버가 없어진 상태다. 요청을 받을 호스트가 연결되기 전까지는 보내지 않고 로그만 남긴다.
+    private void SendLobbyMessage(string message)
     {
-        await WebSocketNetwork.Instance.SendMessage(message);
+        Debug.LogWarning($"[LobbyNetwork] 요청을 받을 호스트가 아직 없어 보내지 않았습니다: {message}");
     }
 
     /// <summary>쌓여 있는 서버 메시지를 모두 버린다. 로그아웃하거나 연결이 끊겼을 때, 지난 접속의 메시지가 다음 접속에 처리되지 않게 한다.</summary>
@@ -203,7 +209,7 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendLobbyMessage(json);
     }
     
     public void SendEnterRoomRequest(string roomId)
@@ -215,7 +221,7 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendLobbyMessage(json);
     }
     
     public void SendLeaveRoomRequest()
@@ -226,7 +232,7 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendLobbyMessage(json);
     }
     
     public void SendSetReadyRequest(bool ready)
@@ -238,9 +244,10 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendLobbyMessage(json);
     }
     
+
     public void SendSetPortraitRequest(int portraitId)
     {
         SetPortraitRequest message = new SetPortraitRequest
@@ -250,7 +257,7 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendLobbyMessage(json);
     }
 
     public void SendStartGameRequest()
@@ -261,7 +268,7 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendLobbyMessage(json);
     }
     
     public void SendChatRequest(string content)
@@ -273,7 +280,7 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendLobbyMessage(json);
     }
 
     public void SendRoomListRequest()
@@ -284,7 +291,7 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendLobbyMessage(json);
     }
     
     public void SendRoomConfigRequest(GameConfig config, int maxPlayers, int botCount)
@@ -298,7 +305,7 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
         };
 
         string json = JsonConvert.SerializeObject(message);
-        WebSocketNetwork.Instance.SendMessage(json);
+        SendLobbyMessage(json);
     }
 }
 
