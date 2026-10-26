@@ -35,12 +35,17 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
         isLobbySceneActive = (scene.name == lobbySceneName);
     }
     
-    // 서버가 없어진 상태다. 요청을 받을 호스트가 연결되기 전까지는 보내지 않고 로그만 남긴다.
+    /// <summary>
+    /// 요청을 받는 쪽. 정하지 않으면 이 PC 안의 로컬 호스트가 받는다.
+    /// (Photon을 붙이면 방장은 로컬 호스트가, 참가자는 방장에게 보내는 쪽이 받게 바뀐다)
+    /// </summary>
+    public IHostRequestReceiver Host { get; set; }
+
     private void SendLobbyMessage(string message)
     {
-        Debug.LogWarning($"[LobbyNetwork] 요청을 받을 호스트가 아직 없어 보내지 않았습니다: {message}");
+        IHostRequestReceiver receiver = Host ?? LocalLobbyHost.Instance;
+        receiver.OnRequest(LocalPlayer.Id, message);
     }
-
     /// <summary>쌓여 있는 서버 메시지를 모두 버린다. 로그아웃하거나 연결이 끊겼을 때, 지난 접속의 메시지가 다음 접속에 처리되지 않게 한다.</summary>
     public void ClearQueue()
     {

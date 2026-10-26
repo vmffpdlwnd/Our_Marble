@@ -10,10 +10,21 @@ public class GameNetwork : Singleton<GameNetwork>
     
     private Queue<GameServerMessage> messageQueue = new Queue<GameServerMessage>();
     
-    // 서버가 없어진 상태다. 요청을 받을 호스트가 연결되기 전까지는 보내지 않고 로그만 남긴다.
+    /// <summary>
+    /// 요청을 받는 쪽. 게임을 진행하는 호스트가 정해지면 여기에 넣는다.
+    /// 아직 없으면 요청을 보내지 않고 경고만 남긴다.
+    /// </summary>
+    public IHostRequestReceiver Host { get; set; }
+
     private void SendGameMessage(string message)
     {
-        Debug.LogWarning($"[GameNetwork] 요청을 받을 호스트가 아직 없어 보내지 않았습니다: {message}");
+        if (Host == null)
+        {
+            Debug.LogWarning($"[GameNetwork] 요청을 받을 호스트가 아직 없어 보내지 않았습니다: {message}");
+            return;
+        }
+
+        Host.OnRequest(LocalPlayer.Id, message);
     }
 
     public void ReceiveGameMessage(GameMessageType parsedType, string json)
