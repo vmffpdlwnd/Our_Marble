@@ -2075,7 +2075,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 884571782}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 52726a4242d99144e989194c6ae79730, type: 3}
+  m_Script: {fileID: 11500000, guid: 5d82a8e8d3a568a4aa8237a667798280, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameNetwork
 --- !u!4 &884571784
