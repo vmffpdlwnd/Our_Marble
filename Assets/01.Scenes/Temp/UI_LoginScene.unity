@@ -1866,50 +1866,6 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 4606297056078379439, guid: 4678e3e39f97ce74aad6d02b543f5614, type: 3}
   m_PrefabInstance: {fileID: 363539989}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &366300830
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 366300831}
-  - component: {fileID: 366300832}
-  m_Layer: 0
-  m_Name: WebSocketNetwork
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &366300831
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 366300830}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 787606793}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &366300832
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 366300830}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 52726a4242d99144e989194c6ae79730, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::WebSocketNetwork
 --- !u!1 &379093569
 GameObject:
   m_ObjectHideFlags: 0
@@ -3601,8 +3557,6 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 887974018}
-  - {fileID: 366300831}
   - {fileID: 1901843582}
   - {fileID: 632926752}
   m_Father: {fileID: 0}
@@ -3744,52 +3698,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 859367593}
   m_CullTransparentMesh: 1
---- !u!1 &887974017
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 887974018}
-  - component: {fileID: 887974019}
-  m_Layer: 0
-  m_Name: HttpNetwork
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &887974018
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 887974017}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 787606793}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &887974019
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 887974017}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e3679f920e4edb146b072d2f93837875, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HttpNetwork
-  EC2PublicAdress: our-marble-alb-207542667.ap-northeast-2.elb.amazonaws.com
-  isLocal: 0
 --- !u!1 &902134073
 GameObject:
   m_ObjectHideFlags: 0
@@ -3883,10 +3791,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 917164151}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ac0cd13d34a2a954b9e60146b61fe9c1, type: 3}
+  m_Script: {fileID: 11500000, guid: cd47f14193f18d147b74990856032aa4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LoginManager
-  uiRoot: {fileID: 1686478960}
+  uiRoot: {fileID: 0}
 --- !u!1 &1003132561
 GameObject:
   m_ObjectHideFlags: 0
