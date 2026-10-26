@@ -801,7 +801,6 @@ public class LobbyManager : MonoBehaviour
         if (exitConfirm != null)
         {
             exitConfirm.Show(LoadLoginScene, "로그인 화면으로 돌아갈까요?");
-            //WebSocketNetwork.Instance.closeWebSocketSession();
         }
         else
         {

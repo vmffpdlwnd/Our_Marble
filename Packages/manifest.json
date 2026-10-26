@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "com.endel.nativewebsocket": "https://github.com/endel/NativeWebSocket.git#upm-2",
     "com.unity.2d.sprite": "1.0.0",
     "com.unity.multiplayer.center": "1.0.1",
     "com.unity.nuget.newtonsoft-json": "3.2.2",

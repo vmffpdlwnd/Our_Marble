@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 이 PC에서 플레이하는 사람의 정보. 서버 접속(WebSocketNetwork)이 들고 있던 내 playerId와 닉네임을 대신한다.
+/// 이 PC에서 플레이하는 사람의 정보. 원래 서버 접속 코드가 들고 있던 내 playerId와 닉네임을 대신한다.
 /// 타이틀 화면에서 닉네임을 정하면 Set()으로 채우고, 타이틀로 돌아가면 Clear()로 비운다.
 /// </summary>
 public static class LocalPlayer

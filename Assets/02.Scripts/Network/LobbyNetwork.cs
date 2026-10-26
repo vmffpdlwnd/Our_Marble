@@ -16,7 +16,7 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
 
     protected override void OnAwake()
     {
-        Application.runInBackground = true; // 창이 뒤로 가도 멈추지 않게 한다 (PC 두 대로 테스트할 때 필요). WebSocketNetwork가 하던 일
+        Application.runInBackground = true; // 창이 뒤로 가도 멈추지 않게 한다 (PC 두 대로 테스트할 때 필요).
     }
     
     private void OnEnable()
