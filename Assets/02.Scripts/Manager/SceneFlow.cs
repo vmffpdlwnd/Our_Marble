@@ -29,7 +29,7 @@ public static class SceneFlow
     /// <summary>로그인 화면으로 간다. (로비의 나가기, 연결 끊김) notice를 주면 로그인 화면에서 토스트로 띄운다.</summary>
     public static bool ToLogin(string notice = null)
     {
-        LocalPlayer.Clear(); // 타이틀로 돌아가면 닉네임을 다시 정한다. WebSocketNetwork.Instance.closeWebSocketSession();
+        LocalPlayer.Clear(); // 타이틀로 돌아가면 닉네임을 다시 정한다.
         LobbyNetwork.Instance.ClearQueue(); // 이 접속에서 쌓인 로비 메시지는 다음 접속에 넘기지 않는다
         pendingLoginNotice = notice;
         if (Load(LoginScenePath, false)) return true;
