@@ -73,8 +73,7 @@ public class LobbyManager : MonoBehaviour
 
     private static LobbyNetwork Net => LobbyNetwork.Instance;
 
-    // TODO: LobbyNetwork(또는 로그인 세션)에서 내 playerId를 가져오는 실제 속성 이름으로 바꾼다
-    private static long MyPlayerId => WebSocketNetwork.Instance.LocalPlayerId;
+    private static long MyPlayerId => LocalPlayer.Id;
 
     // ───────────── 상태 ─────────────
 
@@ -230,8 +229,8 @@ public class LobbyManager : MonoBehaviour
         
         if (inRoom)
             SetConnectionTrue();
-        else if (WebSocketNetwork.Instance != null && WebSocketNetwork.Instance.IsOpen)
-            SetConnection(ConnectionState.Connected, false); // 게임에서 나가기로 돌아온 경우: 이미 연결돼 있고 CONNECTED가 다시 오지 않는다
+        else if (LocalPlayer.IsSet)
+            SetConnection(ConnectionState.Connected, false); // 게임에서 나가기로 돌아온 경우: 이미 닉네임이 정해져 있고 CONNECTED가 다시 오지 않는다
         else
             SetConnection(ConnectionState.Disconnected, false);
         
@@ -1259,7 +1258,7 @@ public class LobbyManager : MonoBehaviour
         marbleText.text = "-";
         RefreshProfilePortrait();
         
-        string nickname = WebSocketNetwork.Instance.LocalNickname;
+        string nickname = LocalPlayer.Nickname;
         if (!string.IsNullOrEmpty(nickname)) RefreshNickname(nickname);
     }
     

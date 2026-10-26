@@ -1317,7 +1317,7 @@ public class GameManager : Singleton<GameManager>
         // 이 화면을 조작하는 사람 플레이어를 지정하고, 플레이어 정보 카드를 GameState에 맞춰 채웁니다. UI의 값들을 GameState에 맞게 갱신합니다. 
         if (UIManager.Instance != null)
         {
-            UIManager.Instance.SetLocalPlayer(WebSocketNetwork.Instance.LocalPlayerId);
+            UIManager.Instance.SetLocalPlayer(LocalPlayer.Id);
             UIManager.Instance.SetMaxRound(maxRound); // 최대 라운드는 GameManager가 관리하고 UI에 알려줍니다.
             UIManager.Instance.InitPlayers();
             
@@ -1418,7 +1418,7 @@ public class GameManager : Singleton<GameManager>
 
     private bool IsLocalPlayerTurn()
     {
-        return gameState.CurrentPlayerId == WebSocketNetwork.Instance.LocalPlayerId;
+        return gameState.CurrentPlayerId == LocalPlayer.Id;
     }
 
     /// <summary>
