@@ -30,6 +30,7 @@ public static class SceneFlow
     public static bool ToLogin(string notice = null)
     {
         LocalPlayer.Clear(); // 타이틀로 돌아가면 닉네임을 다시 정한다.
+        LocalLobbyHost.Reset(); // 방 정보도 모두 버린다
         LobbyNetwork.Instance.ClearQueue(); // 이 접속에서 쌓인 로비 메시지는 다음 접속에 넘기지 않는다
         pendingLoginNotice = notice;
         if (Load(LoginScenePath, false)) return true;
