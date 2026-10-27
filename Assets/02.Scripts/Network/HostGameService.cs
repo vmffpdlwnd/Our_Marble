@@ -148,15 +148,10 @@ public class HostGameService : IHostRequestReceiver
             case "ROLL_DICE": HandleRollDice(senderId); break;
             case "PURCHASE_PROPERTY": HandlePurchaseProperty(senderId, JsonConvert.DeserializeObject<PropertyDecisionRequest>(json)); break;
             case "BUILD": HandleBuild(senderId, JsonConvert.DeserializeObject<PropertyDecisionRequest>(json)); break;
-
-            // 아래 요청은 이어지는 작업에서 처리한다
-            case "CHOOSE_DESTINATION":
-            case "DRAW_CARD":
-            case "ACQUIRE_PROPERTY":
-            case "SELL_PROPERTIES":
-                Debug.LogWarning($"[HostGameService] 아직 처리하지 않는 요청입니다: {type}");
-                SendError(senderId, "NOT_IMPLEMENTED", "아직 지원하지 않는 요청이에요");
-                break;
+            case "ACQUIRE_PROPERTY": HandleAcquireProperty(senderId, JsonConvert.DeserializeObject<PropertyDecisionRequest>(json)); break;
+            case "SELL_PROPERTIES": HandleSellProperties(senderId, JsonConvert.DeserializeObject<SellPropertiesRequest>(json)); break;
+            case "DRAW_CARD": HandleDrawCard(senderId); break;
+            case "CHOOSE_DESTINATION": HandleChooseDestination(senderId, JsonConvert.DeserializeObject<ChooseDestinationRequest>(json)); break;
 
             default:
                 Debug.LogWarning($"[HostGameService] 알 수 없는 요청입니다: {type}");
@@ -274,16 +269,151 @@ public class HostGameService : IHostRequestReceiver
         ProcessEndTurn();
     }
 
+    // GameManager.HandlePropertyAcquired
+    // 남의 땅에 통행료를 내고 인수 단계(PROPERTY_ACQUIRED)에 있을 때, 인수 또는 거절을 받는다.
+    private void HandleAcquireProperty(long senderId, PropertyDecisionRequest request)
+    {
+        if (!Validate(senderId, GameMessageType.PROPERTY_ACQUIRED, out PlayerState player, request.propertyId)) return;
+        if (!ValidateOnProperty(senderId, player, request.propertyId)) return;
+
+        PropertyState property = GetProperty(request.propertyId);
+        PlayerState owner = null;
+        long amount = 0;
+
+        // 8. 기능별 검증. 거절은 확인할 것이 없다.
+        if (request.isAccept)
+        {
+            owner = property.OwnerId.HasValue ? GetPlayer(property.OwnerId.Value) : null;
+            if (owner == null || owner.PlayerId == senderId) { SendError(senderId, "NOT_OTHERS_PROPERTY", "다른 사람의 땅이 아니에요"); return; }
+
+            amount = PropertyManager.Instance.GetAcquireValue(property);
+            if (player.Money < amount) { SendError(senderId, "NOT_ENOUGH_MONEY", "현금이 부족해요"); return; }
+        }
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.PROPERTY_ACQUIRED,
+            new PropertyAcquiredBroadcast { playerId = senderId, propertyId = request.propertyId, isAccept = request.isAccept });
+
+        if (request.isAccept)
+        {
+            player.Money -= amount;   // 인수자 현금 차감
+            owner.Money += amount;    // 원래 주인 현금 증가
+            property.OwnerId = senderId; // 주인만 바뀌고 건물 단계는 그대로다
+            Debug.Log($"[HostGameService] 인수: {player.Nickname} {request.propertyId}번 땅 ← {owner.Nickname} (-{amount}, 현금 {player.Money})");
+        }
+        else
+        {
+            Debug.Log($"[HostGameService] 인수 안 함: {player.Nickname} {request.propertyId}번 땅");
+        }
+
+        ProcessEndTurn();
+    }
+
+    // GameManager.HandlePropertiesSold
+    // 통행료를 낼 현금이 모자라 매각 단계(PROPERTIES_SOLD)에 있을 때, 팔 땅 목록을 받는다.
+    // 판 돈으로 통행료를 낸 뒤에는 인수를 선택할 수 없고 턴이 끝난다.
+    private void HandleSellProperties(long senderId, SellPropertiesRequest request)
+    {
+        List<int> propertyIds = request.propertyIds ?? new List<int>();
+
+        if (!Validate(senderId, GameMessageType.PROPERTIES_SOLD, out PlayerState player, propertyIds: propertyIds)) return;
+
+        // 7. 통행료를 낼 땅 위에 있어야 한다. 그 땅의 주인이 통행료를 받는다.
+        TileData tile = BoardManager.Instance.GetTileData(player.Position);
+        PropertyState landed = tile != null && tile.Type == TileType.PROPERTY ? GetProperty(tile.PropertyId) : null;
+        if (landed == null || !landed.OwnerId.HasValue || landed.OwnerId.Value == senderId)
+        {
+            SendError(senderId, "NOT_ON_PROPERTY", "통행료를 낼 땅 위에 있지 않아요");
+            return;
+        }
+
+        PlayerState receiver = GetPlayer(landed.OwnerId.Value);
+        long toll = PropertyManager.Instance.GetToll(landed);
+
+        // 8. 기능별 검증: 같은 땅을 두 번 팔 수 없고, 모두 내 땅이어야 하며, 판 돈을 합쳐 통행료를 낼 수 있어야 한다
+        if (propertyIds.Distinct().Count() != propertyIds.Count) { SendError(senderId, "DUPLICATE_PROPERTY", "같은 땅이 두 번 들어 있어요"); return; }
+
+        long totalAmount = 0;
+        foreach (int id in propertyIds)
+        {
+            PropertyState property = GetProperty(id);
+            if (property.OwnerId != senderId) { SendError(senderId, "NOT_OWNER", "내 땅이 아닌 땅이 들어 있어요"); return; }
+            totalAmount += PropertyManager.Instance.GetSellValue(property);
+        }
+
+        if (player.Money + totalAmount < toll) { SendError(senderId, "NOT_ENOUGH_MONEY", "판 돈을 합쳐도 통행료가 모자라요"); return; }
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.PROPERTIES_SOLD, new PropertiesSoldBroadcast { playerId = senderId, propertyIds = propertyIds });
+
+        // 판 땅은 주인 없음 + 땅 단계로 돌아가고, 판 돈을 받아 통행료를 낸다
+        foreach (int id in propertyIds)
+        {
+            PropertyState property = GetProperty(id);
+            property.BuildingLevel = BuildingLevel.Land;
+            property.OwnerId = null;
+        }
+
+        player.Money = player.Money + totalAmount - toll;
+        receiver.Money += toll;
+        Debug.Log($"[HostGameService] 매각: {player.Nickname} 땅 {propertyIds.Count}개 (+{totalAmount}), 통행료 {toll} 납부 (현금 {player.Money})");
+
+        ProcessEndTurn();
+    }
+
+    // GameManager.HandleCardDrawn
+    // 황금열쇠 칸에 도착해 카드 단계(CARD_DRAWN)에 있을 때, 카드를 뽑는다. 카드는 매번 전체 중 무작위다.
+    private void HandleDrawCard(long senderId)
+    {
+        if (!Validate(senderId, GameMessageType.CARD_DRAWN, out PlayerState player)) return;
+
+        // 8. 기능별 검증: 뽑을 카드가 있어야 한다
+        List<int> cardIds = CardManager.Instance.GetCardIds();
+        if (cardIds == null || cardIds.Count == 0) { SendError(senderId, "NO_CARDS", "뽑을 카드가 없어요"); return; }
+
+        int cardId = cardIds[random.Next(cardIds.Count)];
+        CardData card = CardManager.Instance.FindCard(cardId);
+        if (card == null) { SendError(senderId, "NO_CARDS", "뽑을 카드가 없어요"); return; }
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.CARD_DRAWN, new CardDrawnBroadcast { playerId = senderId, cardId = cardId });
+        Debug.Log($"[HostGameService] 황금열쇠: {player.Nickname} '{card.cardName}' ({card.effectType})");
+
+        ExecuteCardEffect(player, card);
+    }
+
+    // GameManager.HandleDestinationChosen
+    // 세계여행 칸에서 차례를 시작해 목적지 단계(DESTINATION_CHOSEN)에 있을 때, 목적지를 받는다.
+    private void HandleChooseDestination(long senderId, ChooseDestinationRequest request)
+    {
+        if (!Validate(senderId, GameMessageType.DESTINATION_CHOSEN, out PlayerState player)) return;
+
+        // 8. 기능별 검증: 보드 안의 칸이어야 하고, 세계여행 칸 자체는 목적지로 고를 수 없다
+        int to = request.destinationPosition;
+        TileData destination = to >= 0 && to < BoardManager.Instance.TileCount ? BoardManager.Instance.GetTileData(to) : null;
+        if (destination == null) { SendError(senderId, "INVALID_DESTINATION", "갈 수 없는 칸이에요"); return; }
+        if (destination.Type == TileType.WORLD_TRAVEL) { SendError(senderId, "INVALID_DESTINATION", "세계여행 칸은 목적지로 고를 수 없어요"); return; }
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.DESTINATION_CHOSEN, new DestinationChosenBroadcast { playerId = senderId, destinationPosition = to });
+
+        int from = player.Position;
+        Debug.Log($"[HostGameService] 세계여행: {player.Nickname} {from}번 → {to}번 칸");
+
+        MovePlayer(player, to, to < from); // 출발 지점을 지나면 월급
+    }
+
     // ───────────── 검증 (기획서 5장 "검증 순서") ─────────────
 
     // 1. 진행 중인 게임이 있는가  2. (땅 번호가 있다면) 존재하는 땅인가  3. 요청자의 차례인가  4. 파산하지 않았는가  5. 요청이 현재 단계에 맞는가
     // (7번은 ValidateOnProperty, 8번은 각 요청 처리에서 하고, 6번 제한 시간은 자동 진행 작업에서 넣는다)
-    private bool Validate(long senderId, GameMessageType expectedPhase, out PlayerState player, int? propertyId = null)
+    private bool Validate(long senderId, GameMessageType expectedPhase, out PlayerState player, int? propertyId = null, IEnumerable<int> propertyIds = null)
     {
         player = GetPlayer(senderId);
 
         if (state.IsGameOver) { SendError(senderId, "GAME_OVER", "이미 끝난 게임이에요"); return false; }
         if (propertyId.HasValue && GetProperty(propertyId.Value) == null) { SendError(senderId, "NO_SUCH_PROPERTY", "존재하지 않는 땅이에요"); return false; }
+        if (propertyIds != null && propertyIds.Any(id => GetProperty(id) == null)) { SendError(senderId, "NO_SUCH_PROPERTY", "존재하지 않는 땅이에요"); return false; }
         if (player == null) { SendError(senderId, "NOT_IN_GAME", "이 게임의 참가자가 아니에요"); return false; }
         if (state.CurrentPlayerId != senderId) { SendError(senderId, "NOT_YOUR_TURN", "내 차례가 아니에요"); return false; }
         if (player.IsBankrupt) { SendError(senderId, "BANKRUPT", "파산해서 요청할 수 없어요"); return false; }
@@ -463,7 +593,7 @@ public class HostGameService : IHostRequestReceiver
                 break;
 
             case TileType.GOLDEN_KEY:
-                state.WaitingType = GameMessageType.CARD_DRAWN; // 카드 뽑기 요청은 이어지는 작업에서 처리한다
+                state.WaitingType = GameMessageType.CARD_DRAWN; // 카드 뽑기 요청을 기다린다
                 break;
 
             case TileType.PROPERTY:
@@ -498,9 +628,154 @@ public class HostGameService : IHostRequestReceiver
         }
         else
         {
-            // 남의 땅: 통행료, 인수, 매각, 파산은 이어지는 작업에서 처리한다
-            Debug.LogWarning("[HostGameService] 남의 땅 도착 처리(통행료)는 아직 구현되지 않았습니다.");
+            // 남의 땅: 통행료를 낸다
+            PlayerState owner = GetPlayer(property.OwnerId.Value);
+            long toll = PropertyManager.Instance.GetToll(property);
+            Debug.Log($"[HostGameService] 남의 땅: {propertyId}번 (주인 {owner.Nickname}, 통행료 {toll})");
+
+            if (player.Money >= toll)
+            {
+                PayToll(player, owner, toll);
+
+                // 통행료를 내고도 인수할 돈이 있으면 인수를 선택할 수 있다
+                long acquireValue = PropertyManager.Instance.GetAcquireValue(property);
+                if (player.Money >= acquireValue)
+                    state.WaitingType = GameMessageType.PROPERTY_ACQUIRED;
+                else
+                    ProcessEndTurn();
+            }
+            else if (player.Money + PropertyManager.Instance.GetTotalSellValue(player.PlayerId, state.PropertyStates) >= toll)
+            {
+                // 현금이 모자라지만 땅을 팔면 낼 수 있다. 팔 땅을 고르는 단계로 들어간다.
+                Debug.Log($"[HostGameService] 현금 부족: {player.Nickname} 땅을 팔아서 통행료를 내야 합니다.");
+                state.WaitingType = GameMessageType.PROPERTIES_SOLD;
+            }
+            else
+            {
+                // 전부 팔아도 모자라면 파산한다. 더블이어도 다음 플레이어로 넘어간다.
+                Debug.Log($"[HostGameService] 현금과 땅을 모두 팔아도 통행료를 낼 수 없습니다: {player.Nickname} 파산");
+                Bankrupt(player, owner);
+                StartTurn(GetNextPlayerId());
+            }
         }
+    }
+
+    // GameManager.HandleTollPaid (통행료는 알림 없이 양쪽이 같은 규칙으로 반영한다)
+    private void PayToll(PlayerState payer, PlayerState receiver, long amount)
+    {
+        payer.Money -= amount;
+        receiver.Money += amount;
+        Debug.Log($"[HostGameService] 통행료: {payer.Nickname} → {receiver.Nickname} {amount}");
+    }
+
+    // GameManager.HandleBankruptcy
+    // 파산: 가진 땅을 매각가로 현금화하고, 현금과 함께 통행료를 받을 사람에게 전부 넘긴다. 땅은 주인 없음 + 땅 단계로 돌아간다.
+    private void Bankrupt(PlayerState payer, PlayerState receiver)
+    {
+        long liquidated = 0;
+        foreach (PropertyState property in state.PropertyStates)
+        {
+            if (property.OwnerId != payer.PlayerId) continue;
+
+            liquidated += PropertyManager.Instance.GetSellValue(property);
+            property.OwnerId = null;
+            property.BuildingLevel = BuildingLevel.Land;
+        }
+
+        receiver.Money += payer.Money + liquidated;
+        payer.Money = 0;
+
+        ProcessBankruptcy(payer);
+    }
+
+    // GameManager.ProcessBankruptcy
+    private void ProcessBankruptcy(PlayerState player)
+    {
+        if (player.IsBankrupt) return; // 이미 파산한 플레이어는 다시 처리하지 않는다
+
+        // 최종 등수는 파산하는 시점에 남아 있던 인원 수다. (예: 4명 중 첫 파산은 4위)
+        player.FinalRank = state.PlayerStates.Count(p => !p.IsBankrupt);
+        player.IsBankrupt = true;
+        Debug.Log($"[HostGameService] 파산: {player.Nickname} (최종 {player.FinalRank}위)");
+
+        if (state.PlayerStates.Count(p => !p.IsBankrupt) <= 1)
+            EndGame("남은 플레이어가 1명입니다.");
+    }
+
+    // GameManager.ExecuteCardEffect
+    // 뽑은 카드의 효과를 반영하고, 다음 흐름(턴 종료 또는 도착 칸 처리)까지 진행한다.
+    private void ExecuteCardEffect(PlayerState player, CardData card)
+    {
+        switch (card.effectType)
+        {
+            case CardEffectType.Bonus: // 은행에서 돈을 받는다
+                player.Money += card.amount;
+                ProcessEndTurn();
+                break;
+
+            case CardEffectType.Penalty: // 은행 또는 적립금에 돈을 낸다. 현금 한도 안에서만 낸다. (매각, 파산 없음)
+                long paid = DeductMoneyWithinBalance(player, card.amount);
+                if (card.penaltyToFestivalPool) state.WelfareFund += paid;
+                Debug.Log($"[HostGameService] 카드 벌금: {player.Nickname} {card.amount} 중 {paid} 납부 (현금 {player.Money})");
+                ProcessEndTurn();
+                break;
+
+            case CardEffectType.MoveTo: // 지정한 칸으로 앞으로 이동한다. 출발 지점을 지나면 월급
+                int target = card.targetTileId;
+                MovePlayer(player, target, target < player.Position);
+                break;
+
+            case CardEffectType.MoveBy: // N칸 이동한다. 음수면 뒤로 가고, 뒤로 갈 때는 월급이 없다
+                ExecuteMoveBy(player, card.steps);
+                break;
+
+            case CardEffectType.GoToInspection: // 무인도로 바로 이동한다. 월급 없음, 더블이어도 추가 턴 없음
+                int island = FindIslandTileIndex();
+                if (island < 0)
+                {
+                    Debug.LogError("[HostGameService] 무인도 카드 실패: 무인도 칸 없음");
+                    ProcessEndTurn();
+                }
+                else
+                {
+                    MovePlayerDirectly(player, island);
+                }
+                break;
+
+            default:
+                Debug.LogError($"[HostGameService] 처리하지 않은 CardEffectType: {card.effectType}");
+                ProcessEndTurn(); // 턴이 멈추지 않도록 종료
+                break;
+        }
+    }
+
+    // GameManager.ExecuteMoveByEffect
+    private void ExecuteMoveBy(PlayerState player, int steps)
+    {
+        int boardSize = BoardManager.Instance.TileCount;
+        if (boardSize <= 0)
+        {
+            Debug.LogError("[HostGameService] MoveBy 카드 실패: 보드 데이터 없음");
+            ProcessEndTurn();
+            return;
+        }
+
+        int from = player.Position;
+        int to = ((from + steps) % boardSize + boardSize) % boardSize;
+        bool shouldReceiveSalary = steps > 0 && from + steps >= boardSize;
+
+        if (steps > 0)
+            MovePlayer(player, to, shouldReceiveSalary);
+        else
+            MovePlayerDirectly(player, to);
+    }
+
+    // GameManager.DeductMoneyWithinBalance (현금 한도 안에서만 뺀다. 실제로 뺀 금액을 돌려준다)
+    private long DeductMoneyWithinBalance(PlayerState player, long amount)
+    {
+        long paid = Math.Min(amount, Math.Max(0, player.Money));
+        player.Money -= paid;
+        return paid;
     }
 
     // GameManager.ProcessEndTurn
