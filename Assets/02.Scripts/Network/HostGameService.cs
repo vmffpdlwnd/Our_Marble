@@ -146,12 +146,12 @@ public class HostGameService : IHostRequestReceiver
         {
             case "GAME_STATE_REQUEST": HandleGameStateRequest(senderId); break;
             case "ROLL_DICE": HandleRollDice(senderId); break;
+            case "PURCHASE_PROPERTY": HandlePurchaseProperty(senderId, JsonConvert.DeserializeObject<PropertyDecisionRequest>(json)); break;
+            case "BUILD": HandleBuild(senderId, JsonConvert.DeserializeObject<PropertyDecisionRequest>(json)); break;
 
             // 아래 요청은 이어지는 작업에서 처리한다
             case "CHOOSE_DESTINATION":
             case "DRAW_CARD":
-            case "PURCHASE_PROPERTY":
-            case "BUILD":
             case "ACQUIRE_PROPERTY":
             case "SELL_PROPERTIES":
                 Debug.LogWarning($"[HostGameService] 아직 처리하지 않는 요청입니다: {type}");
@@ -197,15 +197,93 @@ public class HostGameService : IHostRequestReceiver
         ApplyDiceResult(player, dice1, dice2);
     }
 
+    // GameManager.HandlePropertyPurchased
+    // 빈 땅에 도착해 구매 단계(PROPERTY_PURCHASED)에 있을 때, 구매 또는 거절을 받는다.
+    private void HandlePurchaseProperty(long senderId, PropertyDecisionRequest request)
+    {
+        if (!Validate(senderId, GameMessageType.PROPERTY_PURCHASED, out PlayerState player, request.propertyId)) return;
+        if (!ValidateOnProperty(senderId, player, request.propertyId)) return;
+
+        PropertyState property = GetProperty(request.propertyId);
+        long price = PropertyManager.Instance.GetLandPrice(request.propertyId);
+
+        // 8. 기능별 검증. 거절은 확인할 것이 없다. (살 돈이 없는 사람은 거절만 보낼 수 있다)
+        if (request.isAccept)
+        {
+            if (property.OwnerId != null) { SendError(senderId, "ALREADY_OWNED", "이미 주인이 있는 땅이에요"); return; }
+            if (player.Money < price) { SendError(senderId, "NOT_ENOUGH_MONEY", "현금이 부족해요"); return; }
+        }
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.PROPERTY_PURCHASED,
+            new PropertyPurchasedBroadcast { playerId = senderId, propertyId = request.propertyId, isAccept = request.isAccept });
+
+        if (request.isAccept)
+        {
+            player.Money -= price;
+            property.OwnerId = senderId;
+            property.BuildingLevel = BuildingLevel.Land; // 새로 산 땅은 건물 없음
+            Debug.Log($"[HostGameService] 구매: {player.Nickname} {request.propertyId}번 땅 (-{price}, 현금 {player.Money})");
+        }
+        else
+        {
+            Debug.Log($"[HostGameService] 구매 안 함: {player.Nickname} {request.propertyId}번 땅");
+        }
+
+        ProcessEndTurn();
+    }
+
+    // GameManager.HandleBuilt
+    // 내 땅에 도착해 건설 단계(BUILT)에 있을 때, 건설 또는 거절을 받는다.
+    private void HandleBuild(long senderId, PropertyDecisionRequest request)
+    {
+        if (!Validate(senderId, GameMessageType.BUILT, out PlayerState player, request.propertyId)) return;
+        if (!ValidateOnProperty(senderId, player, request.propertyId)) return;
+
+        PropertyState property = GetProperty(request.propertyId);
+        long cost = 0;
+
+        // 8. 기능별 검증. 거절은 확인할 것이 없다. (건설할 수 없는 땅에서도 거절은 보낼 수 있다)
+        if (request.isAccept)
+        {
+            PropertyData data = PropertyManager.Instance.GetData(request.propertyId);
+
+            if (property.OwnerId != senderId) { SendError(senderId, "NOT_OWNER", "내 땅이 아니에요"); return; }
+            if (data == null || !data.CanBuild) { SendError(senderId, "CANNOT_BUILD", "건설할 수 없는 땅이에요"); return; }
+            if (property.BuildingLevel >= BuildingLevel.Hotel) { SendError(senderId, "MAX_LEVEL", "이미 최고 단계예요"); return; }
+
+            cost = PropertyManager.Instance.GetBuildCost(request.propertyId, property.BuildingLevel + 1);
+            if (player.Money < cost) { SendError(senderId, "NOT_ENOUGH_MONEY", "현금이 부족해요"); return; }
+        }
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.BUILT,
+            new BuiltBroadcast { playerId = senderId, propertyId = request.propertyId, isAccept = request.isAccept });
+
+        if (request.isAccept)
+        {
+            player.Money -= cost;
+            property.BuildingLevel = property.BuildingLevel + 1;
+            Debug.Log($"[HostGameService] 건설: {player.Nickname} {request.propertyId}번 땅 → {property.BuildingLevel} (-{cost}, 현금 {player.Money})");
+        }
+        else
+        {
+            Debug.Log($"[HostGameService] 건설 안 함: {player.Nickname} {request.propertyId}번 땅");
+        }
+
+        ProcessEndTurn();
+    }
+
     // ───────────── 검증 (기획서 5장 "검증 순서") ─────────────
 
-    // 1. 진행 중인 게임이 있는가  3. 요청자의 차례인가  4. 파산하지 않았는가  5. 요청이 현재 단계에 맞는가
-    // (2, 7, 8번은 땅 요청에서 하고, 6번 제한 시간은 자동 진행 작업에서 넣는다)
-    private bool Validate(long senderId, GameMessageType expectedPhase, out PlayerState player)
+    // 1. 진행 중인 게임이 있는가  2. (땅 번호가 있다면) 존재하는 땅인가  3. 요청자의 차례인가  4. 파산하지 않았는가  5. 요청이 현재 단계에 맞는가
+    // (7번은 ValidateOnProperty, 8번은 각 요청 처리에서 하고, 6번 제한 시간은 자동 진행 작업에서 넣는다)
+    private bool Validate(long senderId, GameMessageType expectedPhase, out PlayerState player, int? propertyId = null)
     {
         player = GetPlayer(senderId);
 
         if (state.IsGameOver) { SendError(senderId, "GAME_OVER", "이미 끝난 게임이에요"); return false; }
+        if (propertyId.HasValue && GetProperty(propertyId.Value) == null) { SendError(senderId, "NO_SUCH_PROPERTY", "존재하지 않는 땅이에요"); return false; }
         if (player == null) { SendError(senderId, "NOT_IN_GAME", "이 게임의 참가자가 아니에요"); return false; }
         if (state.CurrentPlayerId != senderId) { SendError(senderId, "NOT_YOUR_TURN", "내 차례가 아니에요"); return false; }
         if (player.IsBankrupt) { SendError(senderId, "BANKRUPT", "파산해서 요청할 수 없어요"); return false; }
@@ -215,6 +293,18 @@ public class HostGameService : IHostRequestReceiver
             return false;
         }
 
+        return true;
+    }
+
+    // 7. (구매·건설·인수) 요청자의 말이 그 땅 위에 있는가
+    private bool ValidateOnProperty(long senderId, PlayerState player, int propertyId)
+    {
+        TileData tile = BoardManager.Instance.GetTileData(player.Position);
+        if (tile == null || tile.Type != TileType.PROPERTY || tile.PropertyId != propertyId)
+        {
+            SendError(senderId, "NOT_ON_PROPERTY", "그 땅 위에 있지 않아요");
+            return false;
+        }
         return true;
     }
 
@@ -377,9 +467,39 @@ public class HostGameService : IHostRequestReceiver
                 break;
 
             case TileType.PROPERTY:
-                // 구매·건설·통행료·인수·매각은 이어지는 작업에서 처리한다
-                Debug.LogWarning("[HostGameService] 땅 도착 처리는 아직 구현되지 않았습니다.");
+                ProcessPropertyArrival(player, tile.PropertyId);
                 break;
+        }
+    }
+
+    // GameManager.ProcessArrival의 PROPERTY 부분
+    // 땅에 도착했을 때 어떤 입력을 기다릴지 정한다.
+    private void ProcessPropertyArrival(PlayerState player, int propertyId)
+    {
+        PropertyState property = GetProperty(propertyId);
+        PropertyData data = PropertyManager.Instance.GetData(propertyId);
+
+        if (property == null || data == null)
+        {
+            Debug.LogError($"[HostGameService] 땅 데이터 없음: propertyId {propertyId}");
+            ProcessEndTurn();
+            return;
+        }
+
+        if (property.OwnerId == null)
+        {
+            // 살 돈이 없어도 구매 단계로 들어간다. (선택창에서 거절만 보낼 수 있다)
+            state.WaitingType = GameMessageType.PROPERTY_PURCHASED;
+        }
+        else if (property.OwnerId.Value == player.PlayerId)
+        {
+            // 건설할 수 없는 땅이어도 건설 단계로 들어간다. (선택창에서 거절만 보낼 수 있다)
+            state.WaitingType = GameMessageType.BUILT;
+        }
+        else
+        {
+            // 남의 땅: 통행료, 인수, 매각, 파산은 이어지는 작업에서 처리한다
+            Debug.LogWarning("[HostGameService] 남의 땅 도착 처리(통행료)는 아직 구현되지 않았습니다.");
         }
     }
 
@@ -487,6 +607,8 @@ public class HostGameService : IHostRequestReceiver
     }
 
     private PlayerState GetPlayer(long playerId) => state.PlayerStates.Find(p => p.PlayerId == playerId);
+
+    private PropertyState GetProperty(int propertyId) => state.PropertyStates.Find(p => p.PropertyId == propertyId);
 
     // ───────────── 알림 보내기 ─────────────
 
