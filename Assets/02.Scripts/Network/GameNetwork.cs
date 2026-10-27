@@ -11,20 +11,21 @@ public class GameNetwork : Singleton<GameNetwork>
     private Queue<GameServerMessage> messageQueue = new Queue<GameServerMessage>();
     
     /// <summary>
-    /// 요청을 받는 쪽. 게임을 진행하는 호스트가 정해지면 여기에 넣는다.
-    /// 아직 없으면 요청을 보내지 않고 경고만 남긴다.
+    /// 요청을 받는 쪽. 정하지 않으면 이 PC에서 시작된 게임을 진행하는 호스트가 받는다.
+    /// (Photon을 붙이면 방장은 그 호스트가, 참가자는 방장에게 보내는 쪽이 받게 바뀐다)
     /// </summary>
     public IHostRequestReceiver Host { get; set; }
 
     private void SendGameMessage(string message)
     {
-        if (Host == null)
+        IHostRequestReceiver receiver = Host ?? HostGameService.GetOrCreate();
+        if (receiver == null)
         {
-            Debug.LogWarning($"[GameNetwork] 요청을 받을 호스트가 아직 없어 보내지 않았습니다: {message}");
+            Debug.LogWarning($"[GameNetwork] 요청을 받을 호스트가 없어 보내지 않았습니다: {message}");
             return;
         }
 
-        Host.OnRequest(LocalPlayer.Id, message);
+        receiver.OnRequest(LocalPlayer.Id, message);
     }
 
     public void ReceiveGameMessage(GameMessageType parsedType, string json)
