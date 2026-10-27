@@ -100,7 +100,7 @@ public partial class HostGameService : IHostRequestReceiver
                 IsBot = p.bot,
                 PortraitId = p.portraitId,
             })
-        .ToList();  
+        .ToList();
         // 선턴을 무작위로 정한다. 턴 순서는 이 목록의 순서다.
         for (int i = players.Count - 1; i > 0; i--)
         {
