@@ -17,6 +17,7 @@ using UnityEngine;
 /// 파일이 길어서 역할별로 나누어 둔 partial class다.
 ///   HostGameService.cs          생성, 요청 받기, 검증, 알림 보내기
 ///   HostGameService.Property.cs 땅과 경제: 구매, 건설, 인수, 매각, 통행료, 파산
+///   HostGameService.AutoPlay.cs 자동 진행: 봇 차례, 제한 시간, AFK (시간은 HostAutoPlayRunner가 흘려 준다)
 ///   HostGameService.Flow.cs     진행: 주사위, 이동, 도착, 턴 전환, 카드, 세계여행, 종료
 /// </summary>
 public partial class HostGameService : IHostRequestReceiver
@@ -52,6 +53,7 @@ public partial class HostGameService : IHostRequestReceiver
         }
 
         current = new HostGameService(room, DeliverToLocalClient);
+        HostAutoPlayRunner.Create(current); // 봇 차례와 제한 시간을 돌린다
         return current;
     }
 
@@ -90,7 +92,6 @@ public partial class HostGameService : IHostRequestReceiver
 
         GameConfig config = room.config ?? new GameConfig();
 
-        // 턴 순서는 방의 자리 순서다. (방장이 첫 차례, 봇은 맨 뒤) 무작위 선턴은 자동 진행 작업에서 넣는다.
         List<PlayerState> players = room.Players
             .Select(p => new PlayerState(p.playerId)
             {
@@ -99,7 +100,13 @@ public partial class HostGameService : IHostRequestReceiver
                 IsBot = p.bot,
                 PortraitId = p.portraitId,
             })
-            .ToList();
+        .ToList();  
+        // 선턴을 무작위로 정한다. 턴 순서는 이 목록의 순서다.
+        for (int i = players.Count - 1; i > 0; i--)
+        {
+            int j = random.Next(i + 1);
+            (players[i], players[j]) = (players[j], players[i]);
+        } 
 
         // 이 보드에 있는 땅마다 주인 없는 땅 상태를 만든다
         List<PropertyState> properties = BoardManager.Instance.BoardData.Tiles
@@ -146,6 +153,8 @@ public partial class HostGameService : IHostRequestReceiver
         }
 
         Debug.Log($"[HostGameService] 요청 수신: {type} (보낸 사람 {senderId})");
+
+        afkPlayers.Remove(senderId); // 요청을 보내면 AFK가 풀린다. (재접속의 GAME_STATE_REQUEST도 같다)
 
         switch (type)
         {
@@ -226,6 +235,7 @@ public partial class HostGameService : IHostRequestReceiver
     // 게임에 참가한 사람 모두에게 (봇 제외, 파산한 사람도 지켜볼 수 있게 포함)
     private void Broadcast(GameMessageType type, object message)
     {
+        actionSerial++; // 요청이 처리됐다. 기다린 시간을 새로 세게 한다
         string json = JsonConvert.SerializeObject(message);
         foreach (PlayerState player in state.PlayerStates.Where(p => !p.IsBot).ToList())
             deliver(player.PlayerId, type, json);
