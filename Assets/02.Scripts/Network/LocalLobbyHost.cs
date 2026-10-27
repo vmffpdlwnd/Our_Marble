@@ -270,6 +270,13 @@ public class LocalLobbyHost : IHostRequestReceiver
         return room == null ? null : ToSnapshot(room);
     }
 
+    /// <summary>플레이어가 들어가 있는 방이 게임 중이면 그 방의 모습. 아니면 null. 게임 씬이 열릴 때 게임을 만드는 데 쓴다.</summary>
+    public RoomSnapshot GetPlayingRoom(long playerId)
+    {
+        Room room = RoomOf(playerId);
+        return room != null && room.Status == RoomStatus.PLAYING ? ToSnapshot(room) : null;
+    }
+
     /// <summary>게임이 끝났다. 대기방으로 되돌리고(준비 해제) 방 모두에게 알린다.</summary>
     public void FinishGame(string roomId)
     {
