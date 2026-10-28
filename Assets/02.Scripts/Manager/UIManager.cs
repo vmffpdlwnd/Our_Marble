@@ -1279,9 +1279,8 @@ public class UIManager : MonoBehaviour
     private float timerRemaining, timerTotal;
     private int timerEpoch;            // 제한시간을 새로 시작할 때마다 늘려서, 지난 시간 종료 처리가 새로 열린 창을 닫지 않게 한다
 
-    // 잠수 중이면(GameManager.isAfk) 짧은 제한시간, 아니면 방 설정의 제한 시간 (호스트가 대신 진행하는 시간과 같다)
-    private float CurrentSelectSeconds => Game != null && Game.isAfk ? afkSelectSeconds
-        : State != null && State.Config != null && State.Config.limitTimeSeconds > 0 ? State.Config.limitTimeSeconds : selectSeconds;
+    // 잠수 중이면(GameManager.isAfk) 짧은 제한시간, 아니면 평소 제한시간
+    private float CurrentSelectSeconds => Game != null && Game.isAfk ? afkSelectSeconds : selectSeconds;
 
     private void HookSelectionTimer(UIView window, SelectionKind kind)
     {

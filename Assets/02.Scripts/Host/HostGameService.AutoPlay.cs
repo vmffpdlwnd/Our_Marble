@@ -5,13 +5,15 @@ using UnityEngine;
 /// HostGameService의 자동 진행: 봇 차례, 제한 시간 초과, AFK. (나뉜 파일 설명은 HostGameService.cs 참고)
 /// 시간은 HostAutoPlayRunner가 매 프레임 Tick으로 흘려 준다. (기획서 7장)
 ///
-/// 대신 진행과 봇은 사람과 같은 처리 함수(Handle...)를 호출한다. 달라지는 것은 수락 여부와 매각할 땅뿐이다.
+/// 대신 진행(제한 시간 초과, AFK)과 봇은 같은 전략이 판단하고, 사람과 같은 처리 함수(Handle...)를 호출한다. (원본 서버와 같다)
 /// 거절도 같은 경로로 호출해야 턴이 멈추지 않는다.
 /// </summary>
 public partial class HostGameService
 {
-    private const float BotDelaySeconds = 3f; // 봇 차례: 3초 뒤 진행
-    private const float AfkDelaySeconds = 3f; // AFK인 사람: 3초 뒤 대신 진행
+    // 원본 서버의 BOT_DELAY_SECONDS, AFK_DELAY_SECONDS와 같다.
+    // 화면의 선택창은 이보다 먼저 닫힌다. (AFK 5초, 일반 30초) 호스트가 먼저 움직이면 화면과 겹쳐 입력이 거절된다.
+    private const float BotDelaySeconds = 6f; // 봇 차례: 6초 뒤 진행
+    private const float AfkDelaySeconds = 6f; // AFK인 사람: 6초 뒤 대신 진행
 
     private readonly HashSet<long> afkPlayers = new HashSet<long>(); // 제한 시간을 넘긴 사람. 요청을 보내거나 재접속하면 풀린다
     private IBotStrategy botStrategy;
@@ -108,17 +110,17 @@ public partial class HostGameService
                 HandleChooseDestination(id, new ChooseDestinationRequest { type = "CHOOSE_DESTINATION", destinationPosition = ChooseDestination(actor) });
                 break;
 
-            // 구매, 건설, 인수는 봇만 전략이 판단하고, 제한 시간을 넘긴 사람은 거절한다
+            // 구매, 건설, 인수는 봇과 제한 시간을 넘긴 사람 모두 같은 전략이 판단한다
             case GameMessageType.PROPERTY_PURCHASED:
-                HandlePurchaseProperty(id, Decision("PURCHASE_PROPERTY", propertyId, isBot && WantsToPurchase(actor, propertyId)));
+                HandlePurchaseProperty(id, Decision("PURCHASE_PROPERTY", propertyId, WantsToPurchase(actor, propertyId)));
                 break;
 
             case GameMessageType.BUILT:
-                HandleBuild(id, Decision("BUILD", propertyId, isBot && WantsToBuild(actor, propertyId)));
+                HandleBuild(id, Decision("BUILD", propertyId, WantsToBuild(actor, propertyId)));
                 break;
 
             case GameMessageType.PROPERTY_ACQUIRED:
-                HandleAcquireProperty(id, Decision("ACQUIRE_PROPERTY", propertyId, isBot && WantsToAcquire(actor, propertyId)));
+                HandleAcquireProperty(id, Decision("ACQUIRE_PROPERTY", propertyId, WantsToAcquire(actor, propertyId)));
                 break;
 
             case GameMessageType.PROPERTIES_SOLD:
@@ -168,7 +170,7 @@ public partial class HostGameService
         return actor.Money >= price && Strategy.ShouldAcquire(state, actor.PlayerId, propertyId, price);
     }
 
-    // 통행료를 낼 땅 목록. 봇은 전략이 고르고, 제한 시간을 넘긴 사람은 매각가가 싼 땅부터 부족분만큼 판다. (화면의 자동 선택과 같다)
+    // 통행료를 낼 땅 목록. 봇과 제한 시간을 넘긴 사람 모두 전략이 고른다.
     private List<int> ChooseSellProperties(PlayerState actor)
     {
         TileData tile = BoardManager.Instance.GetTileData(actor.Position);
@@ -176,11 +178,7 @@ public partial class HostGameService
         if (landed == null) return new List<int>();
 
         long toll = PropertyManager.Instance.GetToll(landed);
-
-        if (actor.IsBot)
-            return Strategy.ChooseSellProperties(state, actor.PlayerId, toll, PropertyManager.Instance.GetSellValue);
-
-        return PropertyManager.Instance.AutoChooseSellProperties(actor.PlayerId, toll - actor.Money, state.PropertyStates, SellSelectionMode.CheapestFirst);
+        return Strategy.ChooseSellProperties(state, actor.PlayerId, toll, PropertyManager.Instance.GetSellValue);
     }
 
     // 세계여행 목적지. 전략이 고른 곳이 갈 수 없는 칸이면 갈 수 있는 첫 칸으로 간다.
