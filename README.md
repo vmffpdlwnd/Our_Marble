@@ -3,6 +3,8 @@
 > [Our-Marble/our-marble-client](https://github.com/Our-Marble/our-marble-client)를 포크한 프로젝트입니다.
 > 원본의 화면·연출·규칙을 바탕으로, **별도 서버 없이 방장 PC가 호스트가 되는 멀티플레이**로 개조합니다.
 
+**[지금 플레이하기 (itch.io)](https://vmffpdlwnd35.itch.io/our-marble)** · 브라우저에서 바로 실행됩니다.
+
 ## 소개
 
 "모두의 마블"을 모티브로 한 **2~4인 온라인 보드게임**입니다. 서버 프로그램 없이 게임 파일 하나만 켜서 친구와 바로 플레이하는 것이 목표입니다.
@@ -23,23 +25,25 @@
 ## 진행 상태
 
 - [x] 포크 및 기획서 작성
-- [x] 서버 의존 코드 파악
-- [ ] 싱글 모드로 규칙 동작 확인
-- [ ] 규칙 로직 C# 이식
-- [ ] Photon Fusion 연결
-- [ ] 제한 시간·봇·재접속
-- [ ] 테스트와 배포
+- [x] 서버 의존 코드 제거
+- [x] 싱글 모드 (봇과 한 판 완주)
+- [x] 규칙 로직 C# 이식
+- [x] 제한 시간, AFK, 봇
+- [x] v1.0 배포 (itch.io)
+- [ ] 규칙 분리 (`Rules/`)
+- [ ] 폴더와 씬 정리
+- [ ] Photon Fusion 연결 (멀티, 재접속, 호스트 이전)
+- [ ] v1.1 배포
 
-## 현재 상태와 주의
+## 현재 상태
 
-개조 작업 중이라 **아직 실행해서 플레이할 수 있는 상태가 아닙니다.**
-
-- 원본의 로그인·WebSocket 코드가 남아 있고, `HttpNetwork`의 기본 설정은 원본 팀의 배포 서버를 가리킵니다. 싱글 모드 작업에서 이 코드를 걷어낼 예정입니다.
-- 원본 레포에 라이선스 파일이 보이지 않습니다. 공개 배포 전에 원본 팀에 확인이 필요합니다.
+**v1.0은 혼자(봇과 함께) 하는 버전입니다.** 서버 코드는 모두 제거되어 브라우저(WebGL)에서 서버 없이 실행됩니다. 친구와 함께 하는 멀티플레이는 개발 중입니다.
 
 ## 기술 스택
 
-Unity 6 (6000.3), C#, URP 2D, uGUI, TextMesh Pro, DOTween, Photon Fusion
+Unity 6 (6000.3), C#, URP 2D, uGUI, TextMesh Pro, DOTween, Newtonsoft.Json
+
+멀티플레이용 Photon Fusion은 도입 예정입니다.
 
 ## 원작 팀
 
@@ -60,3 +64,10 @@ Unity 6 (6000.3), C#, URP 2D, uGUI, TextMesh Pro, DOTween, Photon Fusion
   - `Packages/packages-lock.json`
   - TextMeshPro 폰트 에셋 `*SDF.asset`
 - 같은 파일이 계속 잡히면 `git update-index --skip-worktree <경로>`로 숨깁니다.
+
+## 빌드 (WebGL)
+
+- Build Settings에 씬을 `UI_LoginScene`, `UI_LobbyScene`, `BoardLayout 2` 순서로 등록해 둡니다. (`SceneFlow`가 등록된 씬만 불러옵니다)
+- Web 빌드 설정에서 Compression Format을 **Disabled**로 둡니다. (itch.io 업로드용)
+- 결과는 `Builds/` 폴더 안에 만듭니다. (`.gitignore`에 포함)
+- itch.io에는 결과 폴더의 **내용물**(`index.html` 등)을 zip으로 묶어 올립니다.
