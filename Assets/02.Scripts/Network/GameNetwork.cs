@@ -144,6 +144,7 @@ public class GameNetwork : Singleton<GameNetwork>
                     
                 Debug.LogError($"에러 메시지 수신. code: {gameErrorResponse.code}, message: {gameErrorResponse.message}");
                 Debug.Log($"GameState 동기화 요청을 서버에게 보내야합니다.");
+                OnGameError?.Invoke(gameErrorResponse.code, gameErrorResponse.message);
                 break;
             }
             default:
@@ -162,6 +163,7 @@ public class GameNetwork : Singleton<GameNetwork>
     public event Action<long, List<int>> OnPropertiesSold;
     public event Action<long, int, bool> OnPropertyAcquired;
     public event Action<long, int, bool> OnPropertyPurchased;
+    public event Action<string, string> OnGameError; // 호스트가 내 요청을 거절했다 (code, message)
    
     public void SendBuildRequest(int propertyId, bool isAccept)
     {

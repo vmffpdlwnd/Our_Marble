@@ -650,6 +650,18 @@ public class UIManager : MonoBehaviour
         }, onCompleted);
     }
 
+    // 호스트가 대신 굴렸을 때 부릅니다. 굴리기 버튼이 남아 있어도 눌리지 않게 잠급니다.
+    public void LockDiceRoll()
+    {
+        if (diceRoll != null) diceRoll.LockRoll();
+    }
+
+    // 호스트가 내 요청을 거절했을 때 부릅니다. 결과를 기다리며 구르던 주사위를 멈춥니다.
+    public void CancelDiceRolling()
+    {
+        if (diceResult != null) diceResult.CancelRolling();
+    }
+
     // 무인도에 갇혔을 때 탈출 방법을 고르는 창을 띄워주는 함수입니다.
     // 주사위 더블 / 비용 지불 / 카드 사용 중 누른 것에 해당하는 콜백을 호출합니다.
     // (GameManager에 탈출 함수가 아직 없어서 콜백으로 받습니다. 현금이 모자라면 비용 지불, 카드가 없으면 카드 사용이 잠깁니다.)

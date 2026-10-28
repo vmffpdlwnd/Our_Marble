@@ -65,6 +65,7 @@ public class GameManager : Singleton<GameManager>
         subscribedNetwork.OnPropertiesSold += HandlePropertiesSold;
         subscribedNetwork.OnPropertyAcquired += HandlePropertyAcquired;
         subscribedNetwork.OnPropertyPurchased += HandlePropertyPurchased;
+        subscribedNetwork.OnGameError += HandleGameError;
 
         subscribedNetwork.OnSync += SyncGameState;
     }
@@ -81,6 +82,7 @@ public class GameManager : Singleton<GameManager>
         subscribedNetwork.OnPropertiesSold -= HandlePropertiesSold;
         subscribedNetwork.OnPropertyAcquired -= HandlePropertyAcquired;
         subscribedNetwork.OnPropertyPurchased -= HandlePropertyPurchased;
+        subscribedNetwork.OnGameError -= HandleGameError;
 
         subscribedNetwork.OnSync -= SyncGameState;
         subscribedNetwork = null;
@@ -1453,6 +1455,15 @@ public class GameManager : Singleton<GameManager>
         return propertyState;
     }
 
+        // 호스트가 내 요청을 거절했다. (예: 내가 누르기 직전에 호스트가 대신 진행해서 이미 단계가 넘어간 경우)
+    // 결과를 기다리며 구르던 주사위가 그대로 남지 않게 멈춘다.
+    private void HandleGameError(string code, string message)
+    {
+        sendAndWaiting = false;
+        if (UIManager.Instance != null)
+            UIManager.Instance.CancelDiceRolling();
+    }
+
     private void HandleRoutine()
     {
         // 브로드캐스트 메시지를 하나 받았으면, 그 결과 처리(연출, 이동, 도착 처리)가 끝나 다음 Prompt에 도달할 때까지
@@ -1466,6 +1477,11 @@ public class GameManager : Singleton<GameManager>
 
         UIManager.Instance.CloseSelectionPopups();
         
+        // 내가 보낸 요청이 아닌데 알림이 왔다면 호스트가 대신 진행한 것이다.
+        // 굴리기 버튼이 남아 있으면 눌러도 거절당하므로 잠근다. (다음 내 차례에 ShowRollDicePopup이 다시 연다)
+        if (!sendAndWaiting)
+            UIManager.Instance.LockDiceRoll();
+            
         isAfk = !sendAndWaiting;
         sendAndWaiting = false;
     }
