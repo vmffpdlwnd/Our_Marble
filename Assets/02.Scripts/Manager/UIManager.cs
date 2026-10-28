@@ -627,7 +627,7 @@ public class UIManager : MonoBehaviour
         if (playerId != LocalPlayerId) StopSelectionTimer();
     }
 
-    // 요청에 실패하거나 결과가 오지 않을 때, 구르고 있는 주사위를 멈추고 창을 닫습니다.
+    // 호스트가 내 요청을 거절했을 때 부릅니다. 결과를 기다리며 구르던 주사위를 멈춥니다.
     public void CancelDiceRolling() { if (diceResult != null) diceResult.CancelRolling(); }
 
     // 주사위 굴림 연출을 재생합니다. GameManager.HandleDiceRolled에서 부릅니다.
@@ -648,6 +648,12 @@ public class UIManager : MonoBehaviour
         {
             if (mine && diceRoll != null) diceRoll.ResolveIslandRoll(dice1 == dice2);
         }, onCompleted);
+    }
+
+    // 호스트가 대신 굴렸을 때 부릅니다. 굴리기 버튼이 남아 있어도 눌리지 않게 잠급니다.
+    public void LockDiceRoll()
+    {
+        if (diceRoll != null) diceRoll.LockRoll();
     }
 
     // 무인도에 갇혔을 때 탈출 방법을 고르는 창을 띄워주는 함수입니다.
@@ -1267,9 +1273,8 @@ public class UIManager : MonoBehaviour
     private float timerRemaining, timerTotal;
     private int timerEpoch;            // 제한시간을 새로 시작할 때마다 늘려서, 지난 시간 종료 처리가 새로 열린 창을 닫지 않게 한다
 
-    // 잠수 중이면(GameManager.isAfk) 짧은 제한시간, 아니면 방 설정의 제한 시간 (호스트가 대신 진행하는 시간과 같다)
-    private float CurrentSelectSeconds => Game != null && Game.isAfk ? afkSelectSeconds
-        : State != null && State.Config != null && State.Config.limitTimeSeconds > 0 ? State.Config.limitTimeSeconds : selectSeconds;
+    // 잠수 중이면(GameManager.isAfk) 짧은 제한시간, 아니면 평소 제한시간
+    private float CurrentSelectSeconds => Game != null && Game.isAfk ? afkSelectSeconds : selectSeconds;
 
     private void HookSelectionTimer(UIView window, SelectionKind kind)
     {

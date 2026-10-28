@@ -31,14 +31,24 @@ public partial class HostGameService
     {
         if (!Validate(senderId, GameMessageType.CARD_DRAWN, out PlayerState player)) return;
 
-        // 8. 기능별 검증: 뽑을 카드가 있어야 한다
+        // 뽑을 카드가 없으면 턴이 멈추지 않도록 알림 없이 턴을 종료한다. (원본 서버와 같다)
         List<int> cardIds = CardManager.Instance.GetCardIds();
-        if (cardIds == null || cardIds.Count == 0) { SendError(senderId, "NO_CARDS", "뽑을 카드가 없어요"); return; }
+        CardData card = null;
+        int cardId = 0;
+        if (cardIds != null && cardIds.Count > 0)
+        {
+            cardId = cardIds[random.Next(cardIds.Count)];
+            card = CardManager.Instance.FindCard(cardId);
+        }
 
-        int cardId = cardIds[random.Next(cardIds.Count)];
-        CardData card = CardManager.Instance.FindCard(cardId);
-        if (card == null) { SendError(senderId, "NO_CARDS", "뽑을 카드가 없어요"); return; }
-
+        if (card == null)
+        {
+            Debug.LogWarning("[HostGameService] 뽑을 카드가 없어 턴을 종료합니다.");
+            state.WaitingType = null;
+            ProcessEndTurn();
+            return;
+        }
+        
         state.WaitingType = null;
         Broadcast(GameMessageType.CARD_DRAWN, new CardDrawnBroadcast { playerId = senderId, cardId = cardId });
         Debug.Log($"[HostGameService] 황금열쇠: {player.Nickname} '{card.cardName}' ({card.effectType})");
