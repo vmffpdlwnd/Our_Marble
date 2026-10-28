@@ -627,7 +627,7 @@ public class UIManager : MonoBehaviour
         if (playerId != LocalPlayerId) StopSelectionTimer();
     }
 
-    // 요청에 실패하거나 결과가 오지 않을 때, 구르고 있는 주사위를 멈추고 창을 닫습니다.
+    // 호스트가 내 요청을 거절했을 때 부릅니다. 결과를 기다리며 구르던 주사위를 멈춥니다.
     public void CancelDiceRolling() { if (diceResult != null) diceResult.CancelRolling(); }
 
     // 주사위 굴림 연출을 재생합니다. GameManager.HandleDiceRolled에서 부릅니다.
@@ -654,12 +654,6 @@ public class UIManager : MonoBehaviour
     public void LockDiceRoll()
     {
         if (diceRoll != null) diceRoll.LockRoll();
-    }
-
-    // 호스트가 내 요청을 거절했을 때 부릅니다. 결과를 기다리며 구르던 주사위를 멈춥니다.
-    public void CancelDiceRolling()
-    {
-        if (diceResult != null) diceResult.CancelRolling();
     }
 
     // 무인도에 갇혔을 때 탈출 방법을 고르는 창을 띄워주는 함수입니다.
