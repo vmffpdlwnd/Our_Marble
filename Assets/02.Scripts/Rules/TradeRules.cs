@@ -270,7 +270,8 @@ public static class TradeRules
     }
 
     // GameManager.HandleTollPaid (통행료는 알림 없이 양쪽이 같은 규칙으로 반영한다)
-    private static void PayToll(PlayerState payer, PlayerState receiver, long amount)
+    /// <summary>통행료를 이체한다. 낸 사람의 현금에서 빼고 받는 사람의 현금에 더한다.</summary>
+    public static void PayToll(PlayerState payer, PlayerState receiver, long amount)
     {
         payer.Money -= amount;
         receiver.Money += amount;
@@ -299,6 +300,16 @@ public static class TradeRules
         receiver.Money += payer.Money + liquidated;
         payer.Money = 0;
 
+        return MarkBankrupt(state, payer);
+    }
+
+    // GameManager.ProcessBankruptcy
+    /// <summary>
+    /// 파산 표시만 한다. 최종 등수는 파산하는 시점에 남아 있던 인원 수이고, 이미 파산한 플레이어는 다시 처리하지 않는다.
+    /// 남은 플레이어가 1명 이하가 되면 게임을 끝내야 한다고 알린다. (재산 이전은 Bankrupt가 한다)
+    /// </summary>
+    public static BankruptResult MarkBankrupt(GameState state, PlayerState payer)
+    {
         if (payer.IsBankrupt) return BankruptResult.AlreadyBankrupt; // 이미 파산한 플레이어는 다시 처리하지 않는다
 
         payer.FinalRank = state.PlayerStates.Count(p => !p.IsBankrupt);
