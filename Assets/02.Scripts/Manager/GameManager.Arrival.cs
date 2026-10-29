@@ -57,99 +57,110 @@ public partial class GameManager
             case TileArrivalKind.Property: // 자산 유형의 타일에 도착
                 int propertyId = arrivalTile.PropertyId;
                 PropertyState propertyState = GetPropertyState(propertyId);
-                PropertyData propertyData = PropertyManager.Instance.GetData(propertyId);
 
-                if (propertyState == null || propertyData == null)
+                // 땅에 도착했을 때 어떤 입력을 기다릴지, 남의 땅이면 통행료 이체까지는 규칙(TradeRules.ArriveAtProperty)이 합니다.
+                // 규칙은 상태만 바꾸고, 로그와 선택창, 연출은 결과(Kind)대로 아래에서 합니다.
+                PropertyArrival propertyArrival = TradeRules.ArriveAtProperty(gameState, gameData, player, propertyId);
+
+                switch (propertyArrival.Kind)
                 {
-                    Debug.LogError($"[GameManager] 땅 데이터 없음: propertyId {propertyId}");
-                    ProcessEndTurn();
-                    break;
-                }
+                    case PropertyArrivalKind.MissingData:
+                        Debug.LogError($"[GameManager] 땅 데이터 없음: propertyId {propertyId}");
+                        ProcessEndTurn();
+                        break;
 
-                if (propertyState.OwnerId == null) // 주인 없는 땅인 경우
-                {
-                    long landPrice = PropertyManager.Instance.GetLandPrice(propertyState.PropertyId);
-                    bool canAffordToPurchase = player.Money >= landPrice;
-                    if (canAffordToPurchase) // 땅 구매할 돈이 충분하면
+                    case PropertyArrivalKind.Purchase: // 주인 없는 땅인 경우
                     {
-                        Log($"  빈 땅: {CityName(propertyId)} 구매 가능 (땅값 {Won(landPrice)})");
-                        HandlePurchasePropertyPrompt(playerId, propertyId, true);
-                    }
-                    else // 땅 구매할 돈이 충분하지 않으면
-                    {
-                        Log($"  빈 땅: {CityName(propertyId)} 구매 불가능 (땅값 {Won(landPrice)})");
-                        HandlePurchasePropertyPrompt(playerId, propertyId, false);
-                    }
-                }
-                else if (propertyState.OwnerId.Value == playerId) // 본인 소유의 땅인 경우
-                {
-                    bool canBuild = propertyData.CanBuild;
-
-                    // 건설 불가 자산 Case 처리
-                    if (!canBuild)
-                    {
-                        Log($"  내 땅: {CityName(propertyId)} 현재 BuildingLevel : {BuildingLevel.Land} / 건설 불가능 - 건설 불가 칸");
-                        HandleBuildPrompt(playerId, propertyId, false);
-                        return;
-                    }
-
-                    // 이미 최고 레벨인 Case 처리
-                    BuildingLevel currentLevel = propertyState.BuildingLevel;
-                    bool isMaxLevel = currentLevel == BuildingLevel.Hotel;
-                    if (isMaxLevel)
-                    {
-                        Log($"  내 땅: {CityName(propertyId)} 현재 BuildingLevel : {currentLevel} / 건설 불가능 - 이미 최고 단계");
-                        HandleBuildPrompt(playerId, propertyId, false);
-                        return;
-                    }
-
-                    // 돈이 부족한 Case 처리
-                    long buildCost = PropertyManager.Instance.GetBuildCost(propertyId, (BuildingLevel)(currentLevel + 1));
-                    if (player.Money < buildCost)
-                    {
-                        Log($"  내 땅: {CityName(propertyId)} 현재 BuildingLevel : {currentLevel}) / 건설 불가능 - 현금 부족 (건설 비용 : {Won(buildCost)})");
-                        HandleBuildPrompt(playerId, propertyId, false);
-                        return;
-                    }
-
-                    // 건설 가능한 Case 처리
-                    Log($"  내 땅: {CityName(propertyId)} 현재 BuildingLevel : {currentLevel}) 건설 가능 (비용 {Won(buildCost)})");
-                    HandleBuildPrompt(playerId, propertyId, true);
-                }
-                else // 타인 소유의 땅인 경우
-                {
-                    long ownerId = propertyState.OwnerId.Value;
-                    long toll = PropertyManager.Instance.GetToll(propertyState);
-                    Log($"  남의 땅: {CityName(propertyId)} (주인 {P(ownerId)}, 통행료 {Won(toll)})");
-                    if (player.Money >= toll) // 통행료 납부 가능하면
-                    {
-                        HandleTollPaid(playerId, ownerId, toll); // 통행료 납부 처리. GameState를 갱신합니다.
-
-                        long acquireValue = PropertyManager.Instance.GetAcquireValue(propertyState);
-                        if (player.Money >= acquireValue) // 납부하고도 인수할 돈이 있다면 
+                        long landPrice = gameData.Properties.GetLandPrice(propertyState.PropertyId);
+                        bool canAffordToPurchase = TradeRules.CheckPurchase(gameData, player, propertyState, true) == TradeError.None;
+                        if (canAffordToPurchase) // 땅 구매할 돈이 충분하면
                         {
-                            Log($"  인수 가능 (인수가 {Won(acquireValue)})");
-                            HandleAcquirePropertyPrompt(playerId, propertyId, acquireValue); // 인수 선택지 UI를 표시합니다. ( 호출에 필요한 매개변수는 GameState 와 Data를 조회하여 얻습니다. )
+                            Log($"  빈 땅: {CityName(propertyId)} 구매 가능 (땅값 {Won(landPrice)})");
+                            HandlePurchasePropertyPrompt(playerId, propertyId, true);
                         }
-                        else
+                        else // 땅 구매할 돈이 충분하지 않으면
                         {
-                            Log($"  인수 불가 (인수가 {Won(acquireValue)}, 현금 {Won(player.Money)})");
-                            ProcessEndTurn();
+                            Log($"  빈 땅: {CityName(propertyId)} 구매 불가능 (땅값 {Won(landPrice)})");
+                            HandlePurchasePropertyPrompt(playerId, propertyId, false);
                         }
+                        break;
                     }
-                    else if (player.Money + PropertyManager.Instance.GetTotalSellValue(playerId, gameState.PropertyStates) >= toll) // 통행료 납부 불가지만, 자산을 팔면 납부 가능하면
+
+                    case PropertyArrivalKind.Build: // 본인 소유의 땅인 경우
                     {
-                        Log($"  현금 부족: 자산을 팔아서 통행료를 내야 합니다.");
-                        HandleSellPropertiesPrompt(playerId, ownerId, toll); // 자산 매각 선택지 UI를 표시합니다. ( 호출에 필요한 매개변수는 GameState 와 Data를 조회하여 얻습니다. )
+                        BuildingLevel currentLevel = propertyState.BuildingLevel;
+                        TradeError buildError = TradeRules.CheckBuild(gameData, player, propertyState, true);
+                        switch (buildError)
+                        {
+                            // 건설 불가 자산 Case 처리
+                            case TradeError.CannotBuild:
+                                Log($"  내 땅: {CityName(propertyId)} 현재 BuildingLevel : {BuildingLevel.Land} / 건설 불가능 - 건설 불가 칸");
+                                HandleBuildPrompt(playerId, propertyId, false);
+                                break;
+
+                            // 이미 최고 레벨인 Case 처리
+                            case TradeError.MaxLevel:
+                                Log($"  내 땅: {CityName(propertyId)} 현재 BuildingLevel : {currentLevel} / 건설 불가능 - 이미 최고 단계");
+                                HandleBuildPrompt(playerId, propertyId, false);
+                                break;
+
+                            // 돈이 부족한 Case 처리
+                            case TradeError.NotEnoughMoney:
+                                Log($"  내 땅: {CityName(propertyId)} 현재 BuildingLevel : {currentLevel}) / 건설 불가능 - 현금 부족 (건설 비용 : {Won(gameData.Properties.GetBuildCost(propertyId, (BuildingLevel)(currentLevel + 1)))})");
+                                HandleBuildPrompt(playerId, propertyId, false);
+                                break;
+
+                            // 건설 가능한 Case 처리
+                            default:
+                                Log($"  내 땅: {CityName(propertyId)} 현재 BuildingLevel : {currentLevel}) 건설 가능 (비용 {Won(gameData.Properties.GetBuildCost(propertyId, (BuildingLevel)(currentLevel + 1)))})");
+                                HandleBuildPrompt(playerId, propertyId, true);
+                                break;
+                        }
+                        break;
                     }
-                    else
+
+                    default: // 타인 소유의 땅인 경우 (통행료는 규칙이 이미 이체했습니다)
                     {
-                        Log($"  현금과 자산을 모두 팔아도 통행료를 낼 수 없습니다. 파산!");
-                        HandleBankruptcy(playerId, ownerId); // 재산 현금화 -> 수납자 지급 -> 파산 처리. GameState를 갱신합니다.                  
-                        HandleTurnChanged(GetNextPlayerId()); // 강제로 턴을 넘깁니다.
+                        long ownerId = propertyArrival.Owner.PlayerId;
+                        long toll = propertyArrival.Toll;
+                        Log($"  남의 땅: {CityName(propertyId)} (주인 {P(ownerId)}, 통행료 {Won(toll)})");
+
+                        switch (propertyArrival.Kind)
+                        {
+                            case PropertyArrivalKind.TollPaidAcquire: // 통행료 납부하고도 인수할 돈이 있다면
+                            {
+                                ShowTollPaid(playerId, ownerId, toll); // 통행료 이동 연출을 재생합니다.
+
+                                long acquireValue = gameData.Properties.GetAcquireValue(propertyState);
+                                Log($"  인수 가능 (인수가 {Won(acquireValue)})");
+                                HandleAcquirePropertyPrompt(playerId, propertyId, acquireValue); // 인수 선택지 UI를 표시합니다.
+                                break;
+                            }
+
+                            case PropertyArrivalKind.TollPaidEnd: // 통행료는 냈지만 인수할 돈은 없다면
+                            {
+                                ShowTollPaid(playerId, ownerId, toll); // 통행료 이동 연출을 재생합니다.
+
+                                long acquireValue = gameData.Properties.GetAcquireValue(propertyState);
+                                Log($"  인수 불가 (인수가 {Won(acquireValue)}, 현금 {Won(player.Money)})");
+                                ProcessEndTurn();
+                                break;
+                            }
+
+                            case PropertyArrivalKind.Sell: // 통행료 납부 불가지만, 자산을 팔면 납부
+                                Log($"  현금 부족: 자산을 팔아서 통행료를 내야 합니다.");
+                                HandleSellPropertiesPrompt(playerId, ownerId, toll); // 자산 매각 선택지 UI를 표시합니다.
+                                break;
+
+                            case PropertyArrivalKind.Bankrupt: // 전부 팔아도 모자라면 파산
+                                Log($"  현금과 자산을 모두 팔아도 통행료를 낼 수 없습니다. 파산!");
+                                HandleBankruptcy(playerId, ownerId); // 재산 현금화 -> 수납자 지급 -> 파산 처리. GameState를 갱신합니다.
+                                HandleTurnChanged(GetNextPlayerId()); // 강제로 턴을 넘깁니다.
+                                break;
+                        }
+                        break;
                     }
                 }
-
                 break;
         }
         

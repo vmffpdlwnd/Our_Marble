@@ -10,32 +10,27 @@ public partial class GameManager
     {
         // playerId에 해당하는 GameState.PlayerStates의 PlayerState.IsBankrupt 값을 true로 갱신합니다.
         var player = GetPlayerState(playerId);
-        if (player == null || player.IsBankrupt) return; // 이미 파산한 플레이어는 다시 처리하지 않습니다.
+        if (player == null) return;
 
-        // 최종 등수를 정합니다. 파산하는 시점에 남아 있던 인원 수가 등수입니다. (예: 4명 중 첫 파산 → 4위)
-        int aliveCount = 0;
-        foreach (var p in gameState.PlayerStates)
-        {
-            if (!p.IsBankrupt) aliveCount++;
-        }
-        player.FinalRank = aliveCount;
+        // 최종 등수를 정하고 파산 표시를 하는 일은 규칙(TradeRules.MarkBankrupt)이 합니다. (이미 파산한 플레이어는 다시 처리하지 않습니다.)
+        ShowBankrupt(player, TradeRules.MarkBankrupt(gameState, player));
+    }
 
-        player.IsBankrupt = true;
-        Log($"[파산] {P(playerId)}가 파산했습니다. (최종 {player.FinalRank}위)");
+    // 파산 결과를 화면에 보여줍니다. GameState는 규칙이 이미 갱신했습니다.
+    private void ShowBankrupt(PlayerState player, BankruptResult result)
+    {
+        if (result == BankruptResult.AlreadyBankrupt) return;
+
+        Log($"[파산] {P(player.PlayerId)}가 파산했습니다. (최종 {player.FinalRank}위)");
 
         // 파산 연출을 재생합니다. (GameState를 먼저 갱신한 뒤 부르므로 UI는 IsBankrupt를 그대로 읽으면 됨)
         if (UIManager.Instance != null)
-            UIManager.Instance.PlayBankruptEffect(playerId);
-        OnPlayerBankrupt?.Invoke(playerId);
+            UIManager.Instance.PlayBankruptEffect(player.PlayerId);
+        OnPlayerBankrupt?.Invoke(player.PlayerId);
 
         // 남은 플레이어 수가 1이라면 게임 종료 함수를 호출합니다. (팀전의 경우 조건이 바뀔 수 있음.)
         // 파산 연출 뒤에 판정해서, 결과 창이 파산 연출보다 먼저 뜨지 않게 합니다.
-        int remaining = 0;
-        foreach (var p in gameState.PlayerStates)
-        {
-            if (!p.IsBankrupt) remaining++;
-        }
-        if (remaining <= 1)
+        if (result == BankruptResult.LastPlayerLeft)
         {
             // 게임 종료 함수를 호출합니다.
             EndGame("남은 플레이어가 1명입니다.");
@@ -79,7 +74,7 @@ public partial class GameManager
     public void HandlePropertyPurchased(long playerId, int propertyId, bool isAccept)
     {
         HandleRoutine();
-        
+
         if (!isAccept)
         {
             Log($"[구매 안 함] {P(playerId)}: {CityName(propertyId)}");
@@ -91,12 +86,10 @@ public partial class GameManager
         var property = GetPropertyState(propertyId); //사는 땅
         if (player == null || property == null) return;
 
-        long amount = PropertyManager.Instance.GetLandPrice(propertyId);
-
-        // GameState를 갱신합니다. (플레이어 현금 차감, 자산 주인 갱신)
-        player.Money -= amount;
-        SetOwnerId(property, playerId);
-        SetBuildingLevel(property, BuildingLevel.Land); // 새로 산 땅은 건물 없음
+        // GameState를 갱신합니다. (플레이어 현금 차감, 자산 주인 갱신, 새로 산 땅은 건물 없음) 규칙(TradeRules.Purchase)이 합니다.
+        long amount = TradeRules.Purchase(gameData, player, property);
+        RefreshOwnerVisual(property);
+        RefreshBuildingVisual(property);
         Log($"[구매] {P(playerId)}: {CityName(propertyId)} 구매 (-{Won(amount)}, 남은 현금 {Won(player.Money)})");
 
         // 자산 구매 연출을 재생합니다.
@@ -145,7 +138,7 @@ public partial class GameManager
     public void HandleBuilt(long playerId, int propertyId, bool isAccept)
     {
         HandleRoutine();
-        
+
         if (!isAccept)
         {
             Log($"[건설 안 함] {P(playerId)}: {CityName(propertyId)}");
@@ -157,13 +150,10 @@ public partial class GameManager
         var propertyState = GetPropertyState(propertyId);
         if (playerState == null || propertyState == null) return;
 
-        var propertyData = PropertyManager.Instance.GetData(propertyId);
+        // GameState를 갱신합니다. (플레이어 현금 차감, 건설 레벨 증가) 규칙(TradeRules.Build)이 합니다.
+        long amount = TradeRules.Build(gameData, playerState, propertyState);
+        RefreshBuildingVisual(propertyState);
 
-        long amount = propertyData.GetBuildCost((BuildingLevel)(propertyState.BuildingLevel + 1));
-
-        // GameState를 갱신합니다. (플레이어 현금 차감, 건설 레벨 갱신)
-        playerState.Money -= amount; //건설비 차감
-        SetBuildingLevel(propertyState, propertyState.BuildingLevel + 1); // 건설 레벨 증가
         // 건설 연출을 재생합니다.
         OnBuildingBuiltSuccessfully?.Invoke(playerId);
         if (UIManager.Instance != null)
@@ -210,7 +200,7 @@ public partial class GameManager
     public void HandlePropertyAcquired(long playerId, int propertyId, bool isAccept)
     {
         HandleRoutine();
-        
+
         if (!isAccept)
         {
             Log($"[인수 안 함] {P(playerId)}: {CityName(propertyId)}");
@@ -218,17 +208,14 @@ public partial class GameManager
             return;
         }
 
-        // GameState를 갱신합니다. (인수자 현금 차감, 인수당하는 사람 현금 증가, 자산 주인 갱신)
         var acquirer = GetPlayerState(playerId); //인수하는 사람
         var property = GetPropertyState(propertyId); //인수할 땅
         var owner = property != null && property.OwnerId.HasValue ? GetPlayerState(property.OwnerId.Value) : null; //인수당하는 사람
         if (acquirer == null || property == null || owner == null) return;
 
-        long amount = property != null ? PropertyManager.Instance.GetAcquireValue(property) : 0; //인수가 조회
-
-        acquirer.Money -= amount; //인수자 돈 차감
-        owner.Money += amount; //소유자 돈 증가
-        SetOwnerId(property, playerId); //소유권 이전
+        // GameState를 갱신합니다. (인수자 현금 차감, 인수당하는 사람 현금 증가, 자산 주인 갱신) 규칙(TradeRules.Acquire)이 합니다.
+        long amount = TradeRules.Acquire(gameData, acquirer, owner, property);
+        RefreshOwnerVisual(property); //소유권 이전
 
         // 인수 연출을 재생합니다.
         if (UIManager.Instance != null)
@@ -267,54 +254,32 @@ public partial class GameManager
     public void HandlePropertiesSold(long payerId, List<int> propertyIds)
     {
         HandleRoutine();
-        
+
         var payer = GetPlayerState(payerId);
+        if (payer == null) return;
 
-        int landedPropertyId = BoardManager.Instance.GetTileData(payer.Position).PropertyId;
-        PropertyData landedPropertyData = PropertyManager.Instance.GetData(landedPropertyId);
-        PropertyState landedPropertyState = GetPropertyState(landedPropertyId);
-
-        long receiverId = GetPropertyState(landedPropertyId).OwnerId.Value;
-
-        var receiver = GetPlayerState(receiverId);
-        if (payer == null || receiver == null) return;
-
-        long toll = PropertyManager.Instance.GetToll(landedPropertyState);
-
-        // 매각가 총합 계산
-        long totalAmount = 0;
-        foreach (var id in propertyIds)
+        // 통행료를 낼 땅 위에 있는지, 팔 땅이 모두 내 땅인지, 판 돈으로 통행료를 낼 수 있는지는 규칙(TradeRules.CheckSell)이 확인합니다.
+        SellPlan plan = TradeRules.CheckSell(gameState, gameData, payer, propertyIds);
+        if (plan.Error != TradeError.None)
         {
-            var property = GetPropertyState(id);
-            if (property == null || property.OwnerId != payerId) continue; // 소유자가 맞는지 확인
-
-            totalAmount += PropertyManager.Instance.GetSellValue(property);
-        }
-
-        // 매각 결과가 유효한지 확인
-        if (payer.Money + totalAmount < toll)
-        {
-            Debug.LogWarning($"서버에서 승인한 자산 매각 처리 결과 {payer}.Money + {totalAmount}가 지불해야할 돈 {toll}보다 부족합니다. ");
+            Debug.LogWarning($"서버에서 승인한 자산 매각 처리 결과를 반영할 수 없습니다. ({plan.Error}) 판 돈 {plan.TotalAmount}, 지불해야할 돈 {plan.Toll}");
             return;
         }
 
-        // 매각된 자산을 환원
+        // 매각된 자산을 환원하고, 판 돈을 받아 통행료를 냅니다. 규칙(TradeRules.Sell)이 합니다.
+        TradeRules.Sell(gameState, payer, plan, propertyIds);
         foreach (var id in propertyIds)
         {
             var property = GetPropertyState(id);
-            if (property == null || property.OwnerId != payerId) continue; // 소유자가 맞는지 확인
+            if (property == null) continue;
 
-            SetBuildingLevel(property, BuildingLevel.Land); // 건설 레벨 초기화
-            SetOwnerId(property, null); // 주인 없는 땅으로
+            RefreshBuildingVisual(property); // 건설 레벨 초기화
+            RefreshOwnerVisual(property); // 주인 없는 땅으로
         }
-
-        // PlayerState 갱신
-        payer.Money = payer.Money + totalAmount - toll; // 판 돈 받고 통행료 냄
-        receiver.Money += toll; //통행료 전액 지급
 
         // 자산 청산 및 재화 이동 연출을 재생합니다.
         if (UIManager.Instance != null)
-            UIManager.Instance.PlayMoneyTransfer(payerId, receiverId, toll, "통행료", "통행료 수입");
+            UIManager.Instance.PlayMoneyTransfer(payerId, plan.Receiver.PlayerId, plan.Toll, "통행료", "통행료 수입");
 
         // 턴을 종료합니다.
         ProcessEndTurn();
@@ -325,56 +290,56 @@ public partial class GameManager
     /// </summary>
     public void HandleBankruptcy(long payerId, long receiverId)
     {
-        // GameState를 갱신합니다. (납부자 재산 현금화, 수납자 현금 증가, 납부자 파산)
         var payer = GetPlayerState(payerId); // 파산하는 사람
         var receiver = GetPlayerState(receiverId); // 통행료 받는 사람
         if (payer == null || receiver == null) return;
 
-        long liquidated = 0; //땅을 전부 판 금액
-        foreach (var state in gameState.PropertyStates)
-        {
-            if (state.OwnerId != payerId) continue;
+        // 재산이 정리되는 땅 목록을 미리 기억해 둡니다. (규칙이 상태를 바꾼 뒤 보드에 반영하려고)
+        var ownedIds = gameState.PropertyStates.FindAll(p => p.OwnerId == payerId).ConvertAll(p => p.PropertyId);
 
-            liquidated += PropertyManager.Instance.GetSellValue(state); // 매각가 합산
-            SetOwnerId(state, null); // 주인 없는 땅으로
-            SetBuildingLevel(state, BuildingLevel.Land); // 건설 레벨 초기화
+        // GameState를 갱신합니다. (납부자 재산 현금화, 수납자 현금 증가, 납부자 파산) 규칙(TradeRules.Bankrupt)이 합니다.
+        BankruptResult result = TradeRules.Bankrupt(gameState, gameData, payer, receiver);
+        foreach (var id in ownedIds)
+        {
+            var property = GetPropertyState(id);
+            if (property == null) continue;
+
+            RefreshOwnerVisual(property); // 주인 없는 땅으로
+            RefreshBuildingVisual(property); // 건설 레벨 초기화
         }
 
-        receiver.Money += payer.Money + liquidated; // 납부자 현금 전액 + 땅 매각가 합계
-        payer.Money = 0; // 납부자 현금 0
-
-        ProcessBankruptcy(payerId); // 납부자 파산 처리 (GameState 갱신 → 파산 연출 → 게임 종료 판정)
+        ShowBankrupt(payer, result); // 납부자 파산 처리 (파산 연출 → 게임 종료 판정)
 
         // 턴 넘기기는 ProcessArrival에서 처리 (HandleTurnChanged(GetNextPlayerId()) 호출)
     }
+    // 통행료를 이체하고 연출을 재생합니다. 이체는 규칙(TradeRules.PayToll)이 합니다.
+    // 땅 도착 처리에서는 규칙(TradeRules.ArriveAtProperty)이 이미 이체하므로 ShowTollPaid만 부릅니다. (개발용 패널은 이 함수를 직접 부릅니다)
     public void HandleTollPaid(long payerId, long receiverId, long amount)
     {
-        // GameState를 갱신합니다.
         var payer = GetPlayerState(payerId); // 통행료 내는 사람
         var receiver = GetPlayerState(receiverId); // 통행료 받는 사람
         if (payer == null || receiver == null) return;
 
-        payer.Money -= amount; // 통행료 차감
-        receiver.Money += amount; // 통행료 수령
+        TradeRules.PayToll(payer, receiver, amount);
+        ShowTollPaid(payerId, receiverId, amount);
+    }
 
-        // 재화 이동 연출을 재생합니다.
+    // 통행료 이동 연출을 재생합니다.
+    private void ShowTollPaid(long payerId, long receiverId, long amount)
+    {
         if (UIManager.Instance != null)
             UIManager.Instance.PlayTollEffect(payerId, receiverId, amount);
     }
 
-    private void SetOwnerId(PropertyState state, long? playerId)
+    // 규칙이 바꾼 땅 주인을 보드의 땅 색에 반영합니다.
+    private void RefreshOwnerVisual(PropertyState state)
     {
-        state.OwnerId = playerId;
-
-        int propertyId = state.PropertyId;
-        BoardManager.Instance.UpdatePropertyTileColor(propertyId, playerId);
+        BoardManager.Instance.UpdatePropertyTileColor(state.PropertyId, state.OwnerId);
     }
 
-    private void SetBuildingLevel(PropertyState state, BuildingLevel buildingLevel)
+    // 규칙이 바꾼 건물 단계를 보드의 건물 모양에 반영합니다.
+    private void RefreshBuildingVisual(PropertyState state)
     {
-        state.BuildingLevel = buildingLevel;
-
-        int propertyId = state.PropertyId;
-        BoardManager.Instance.UpdatePropertyBuildingVisual(propertyId, buildingLevel);
+        BoardManager.Instance.UpdatePropertyBuildingVisual(state.PropertyId, state.BuildingLevel);
     }
 }
