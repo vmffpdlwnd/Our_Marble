@@ -208,7 +208,8 @@ public static class GameRules
         }
     }
 
-    private static PlayerState FindPlayer(GameState state, long playerId)
+    /// <summary>번호로 플레이어를 찾는다. 없으면 null.</summary>
+    public static PlayerState FindPlayer(GameState state, long playerId)
     {
         return state.PlayerStates.Find(p => p.PlayerId == playerId);
     }
