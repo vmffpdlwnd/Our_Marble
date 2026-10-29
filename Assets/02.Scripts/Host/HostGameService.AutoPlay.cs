@@ -198,9 +198,6 @@ public partial class HostGameService
     // 보드 안의 칸이고 세계여행 칸 자체가 아니면 목적지로 고를 수 있다
     private bool IsValidDestination(int position)
     {
-        if (position < 0 || position >= BoardManager.Instance.TileCount) return false;
-
-        TileData tile = BoardManager.Instance.GetTileData(position);
-        return tile != null && tile.Type != TileType.WORLD_TRAVEL;
+        return ArrivalRules.CheckDestination(gameData, position) == DestinationError.None;
     }
 }

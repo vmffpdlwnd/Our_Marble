@@ -22,12 +22,13 @@ using UnityEngine;
 /// </summary>
 public partial class HostGameService : IHostRequestReceiver
 {
-    private const int IslandTurns = 3; // GameManager.IslandTurns와 같아야 한다 (무인도 영업정지 턴 수)
+    private const int IslandTurns = GameRules.IslandTurns; // GameManager.IslandTurns와 같아야 한다 (무인도 영업정지 턴 수)
 
     private readonly Action<long, GameMessageType, string> deliver;
     private readonly string roomId;
     private readonly System.Random random = new System.Random();
     private readonly GameState state;
+    private readonly GameData gameData; // 규칙이 읽는 보드, 땅 가격표, 카드
 
     private bool started; // 첫 GAME_STATE_REQUEST를 받아 첫 차례를 시작했는지
 
@@ -88,6 +89,7 @@ public partial class HostGameService : IHostRequestReceiver
     public HostGameService(RoomSnapshot room, Action<long, GameMessageType, string> deliver)
     {
         this.deliver = deliver;
+        gameData = GameDataFactory.FromScene();
         roomId = room.roomId;
 
         GameConfig config = room.config ?? new GameConfig();

@@ -51,6 +51,10 @@ public class GameNetwork : Singleton<GameNetwork>
         Debug.Log($"[GameNetwork] 메시지 큐 적재: {parsedType} (현재 큐 대기 수: {messageQueue.Count})");
     }
     
+    // 클라이언트가 처리한 진행 알림(주사위, 구매, 건설 등)의 수. 개발용 상태 비교(HostStateCheck)가 호스트가 보낸 수와 맞춰 본다.
+    // 게임 씬마다 새로 만들어지는 GameNetwork가 세므로 게임이 바뀌면 0부터 다시 센다.
+    public int ProcessedBroadcastCount { get; private set; }
+
     public void TryDequeueMessage(GameMessageType waitingType)
     {
         GameServerMessage serverMessage;
@@ -79,6 +83,8 @@ public class GameNetwork : Singleton<GameNetwork>
             // 새로고침을 강제로 하지는 않고, 유저에게 알림만 보냄.
         }
 
+        if (type != GameMessageType.GAME_ERROR) ProcessedBroadcastCount++;
+        
          switch (type)
         {
             case GameMessageType.BUILT:

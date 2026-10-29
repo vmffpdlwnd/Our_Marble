@@ -94,6 +94,8 @@ public class GameManager : Singleton<GameManager>
         // 처리 흐름이 다음 Prompt 함수(HandleRollDicePrompt, DrawCard, HandlePurchasePropertyPrompt ...)에 도달해야 다시 값이 채워집니다.
         if (gameState == null || gameState.WaitingType == null) return;
 
+        HostStateCheck.Run(gameState); // 개발용: 호스트와 상태가 같은지 비교 (에디터와 개발 빌드에서만 동작)
+
         GameMessageType waitingType = gameState.WaitingType.Value;
         GameNetwork.Instance.TryDequeueMessage(waitingType);
     }

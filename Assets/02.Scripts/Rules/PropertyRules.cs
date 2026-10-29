@@ -22,7 +22,8 @@ public class PropertyRules
         this.logWarning = logWarning;
     }
 
-    private PropertyData GetData(int id) => getData(id);
+    /// <summary>땅 번호로 가격표를 찾는다. 없으면 null.</summary>
+    public PropertyData GetData(int id) => getData(id);
 
     // ───────────── 부동산 계산 ─────────────
 
