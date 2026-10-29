@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 /// <summary>
@@ -10,47 +9,52 @@ public partial class GameManager
     private void ProcessArrival(long playerId, int toPosition)
     {
         PlayerState player = GetPlayerState(playerId);
-        TileData arrivalTile = BoardManager.Instance.GetTileData(toPosition);
         OnPlayerArrived?.Invoke(playerId, toPosition);
 
         Log($"[도착] {P(playerId)} → {TileName(toPosition)} (현금 {Won(player.Money)})");
 
-        switch (arrivalTile.Type)
+        // 칸 종류별 처리(출발, 무인도, 세무조사, 적립금, 세계여행, 황금열쇠)는 규칙(ArrivalRules.ArriveAtTile)이 하고,
+        // 규칙은 상태만 바꿉니다. 연출과 이어서 진행하는 일은 아래에서 합니다.
+        TileArrival arrival = ArrivalRules.ArriveAtTile(gameState, gameData, player, toPosition);
+        if (arrival.Kind == TileArrivalKind.MissingTile)
         {
-            case TileType.START: // 시작지점에 도착
+            Debug.LogError($"[GameManager] 도착한 칸 {toPosition}의 데이터가 없습니다.");
+            ProcessEndTurn();
+            return;
+        }
+
+        TileData arrivalTile = arrival.Tile;
+
+        switch (arrival.Kind)
+        {
+            case TileArrivalKind.EndTurn: // 시작지점에 도착
                 Log("  출발 칸: 특별한 효과 없음");
                 ProcessEndTurn(); // 턴을 종료합니다. 
                 break;
 
-            case TileType.ISLAND: // 무인도에 도착
-                player.IslandTurnsRemaining = IslandTurns;
-                Log("  무인도: 턴이 넘어갑니다.");
-                HandleTurnChanged(GetNextPlayerId()); // 강제로 턴을 넘깁니다.
-                break;
-
-            case TileType.CHARITY: // 기부금수령(푸드 페스티벌)에 도착
-                HandleWelfareFundReceived(playerId, gameState.WelfareFund); // 쌓인 적립금을 모두 받습니다.
-                ProcessEndTurn();
-                break;
-
-            case TileType.DONATION: // 기부금납부(세무조사)에 도착
-                HandleDonationPaid(playerId, taxAmount); // 벌금을 내고 적립금에 쌓습니다.
-                ProcessEndTurn();
-                break;
-
-            case TileType.WORLD_TRAVEL: // 자유여행에 도착
+            case TileArrivalKind.NextTurn: // 무인도(영업정지 설정은 규칙이 함) 또는 자유여행에 도착
                 // 강제로 턴을 넘깁니다.
-                Log("  세계여행 칸: 턴이 넘어갑니다.");
+                Log(arrivalTile.Type == TileType.ISLAND ? "  무인도: 턴이 넘어갑니다." : "  세계여행 칸: 턴이 넘어갑니다.");
                 HandleTurnChanged(GetNextPlayerId());
                 break;
 
-            case TileType.GOLDEN_KEY: // 황금열쇠에 도착
+            case TileArrivalKind.Welfare: // 기부금수령(푸드 페스티벌)에 도착
+                HandleWelfareFundReceived(playerId, arrival.MoneyBefore, arrival.Amount); // 쌓인 적립금을 모두 받았습니다. (규칙이 반영)
+                ProcessEndTurn();
+                break;
+
+            case TileArrivalKind.Donation: // 기부금납부(세무조사)에 도착
+                HandleDonationPaid(playerId, arrival.MoneyBefore, arrival.Amount); // 벌금을 내고 적립금에 쌓았습니다. (규칙이 반영)
+                ProcessEndTurn();
+                break;
+
+            case TileArrivalKind.WaitCard: // 황금열쇠에 도착
                 // 황금 열쇠 카드 드로우 (턴 처리는 각 CardEffect 실행 메서드에서 진행하므로 ProcessEndTurn 호출하지 않음)
                 Log("  황금열쇠 카드를 뽑습니다.");
                 DrawCard();
                 break;
 
-            case TileType.PROPERTY: // 자산 유형의 타일에 도착
+            case TileArrivalKind.Property: // 자산 유형의 타일에 도착
                 int propertyId = arrivalTile.PropertyId;
                 PropertyState propertyState = GetPropertyState(propertyId);
                 PropertyData propertyData = PropertyManager.Instance.GetData(propertyId);
@@ -152,37 +156,24 @@ public partial class GameManager
     }
     #endregion
 
-    public void HandleDonationPaid(long playerId, long amount)
+    // 세무조사 결과를 화면에 보여줍니다. 현금 감소와 적립금 증가는 규칙(ArrivalRules)이 이미 반영했습니다.
+    // moneyBefore: 도착한 순간의 현금, paid: 실제로 낸 금액 (현금 한도 안에서)
+    public void HandleDonationPaid(long playerId, long moneyBefore, long paid)
     {
-        // GameState를 갱신합니다. (현금 감소, 적립금 증가)
         PlayerState player = GetPlayerState(playerId);
         if (player == null) return;
 
-        // 현금 한도 안에서만 냅니다. (매각/파산 없음)
-        long paid = DeductMoneyWithinBalance(player, amount);
-        gameState.WelfareFund += paid;
-        Log($"  [세무조사] {P(playerId)}: 벌금 {Won(amount)} 중 {Won(paid)} 납부 (현금 {Won(player.Money)}, 적립금 {Won(gameState.WelfareFund)})");
+        EconomyManager.NotifyMoneyChanged(playerId, moneyBefore, player.Money);
+        Log($"  [세무조사] {P(playerId)}: 벌금 {Won(gameState.Config.taxAmount)} 중 {Won(paid)} 납부 (현금 {Won(player.Money)}, 적립금 {Won(gameState.WelfareFund)})");
 
         // 재화 손실 연출을 재생합니다.
         SpecialTileManager.Instance.PlayTaxPaid(playerId, paid);
     }
 
-    /// <summary>
-    /// 현재 현금 한도 안에서만 돈을 뺀다. (카드 벌금, 세무조사처럼 매각/파산 없이 걷는 돈)
-    /// 실제로 낸 금액을 반환한다. (예: 벌금 1000, 현금 500 → 500 납부, 현금 0)
-    /// </summary>
-    private long DeductMoneyWithinBalance(PlayerState player, long amount)
+    // 적립금 수령 결과를 화면에 보여줍니다. 현금 증가와 적립금 감소는 규칙(ArrivalRules)이 이미 반영했습니다.
+    // moneyBefore: 도착한 순간의 현금, amount: 받은 적립금 (0이면 받을 것이 없었음)
+    public void HandleWelfareFundReceived(long playerId, long moneyBefore, long amount)
     {
-        long paid = Math.Min(amount, Math.Max(0, player.Money));
-        long before = player.Money;
-        player.Money -= paid;
-        EconomyManager.NotifyMoneyChanged(player.PlayerId, before, player.Money);
-        return paid;
-    }
-
-    public void HandleWelfareFundReceived(long playerId, long amount)
-    {
-        // GameState를 갱신합니다. (현금 증가, 적립금 감소)
         PlayerState player = GetPlayerState(playerId);
         if (player == null) return;
 
@@ -192,10 +183,7 @@ public partial class GameManager
             return;
         }
 
-        long before = player.Money;
-        player.Money += amount;
-        gameState.WelfareFund -= amount;
-        EconomyManager.NotifyMoneyChanged(playerId, before, player.Money);
+        EconomyManager.NotifyMoneyChanged(playerId, moneyBefore, player.Money);
         Log($"  [푸드 페스티벌] {P(playerId)}: 적립금 {Won(amount)} 획득 (현금 {Won(player.Money)})");
 
         // 재화 획득 연출을 재생합니다.

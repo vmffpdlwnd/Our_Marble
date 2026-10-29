@@ -39,10 +39,7 @@ public partial class GameManager : Singleton<GameManager>
 
     private System.Random random; // 선턴 정하기나 랜덤 주사위 값을 계산할 때 사용합니다.
 
-    private const int IslandTurns = 3; // 무인도 영업정지 턴 수
 
-    private long salaryAmount = 100000;   // TODO: 월급 금액 확정 필요
-    private long taxAmount = 100000;      // 세무조사 벌금 
     private long startMoney = 500000;     // 초기 자금 (테스트할 때 인스펙터에서 늘려서 사용)
     private int maxRound = 30;     // 최대 라운드 (모든 플레이어가 한 번씩 하면 1라운드). 넘으면 게임 종료
 
@@ -172,8 +169,6 @@ public partial class GameManager : Singleton<GameManager>
         gameState = serverGameState;
         gameData = GameDataFactory.FromScene(); // 규칙이 읽는 보드, 땅 가격표, 카드
 
-        salaryAmount = gameState.Config.salaryAmount;
-        taxAmount = gameState.Config.taxAmount;
         startMoney = gameState.Config.startMoney;
         maxRound = gameState.Config.maxRound;
     
