@@ -10,10 +10,8 @@ using UnityEngine;
 /// </summary>
 public partial class HostGameService
 {
-    // 원본 서버의 BOT_DELAY_SECONDS, AFK_DELAY_SECONDS와 같다.
-    // 화면의 선택창은 이보다 먼저 닫힌다. (AFK 5초, 일반 30초) 호스트가 먼저 움직이면 화면과 겹쳐 입력이 거절된다.
-    private const float BotDelaySeconds = 6f; // 봇 차례: 6초 뒤 진행
-    private const float AfkDelaySeconds = 6f; // AFK인 사람: 6초 뒤 대신 진행
+    // 기다리는 시간(봇, AFK, 사람의 제한 시간)은 시간 규칙(TimeRules)이 정한다.
+    // 화면의 선택창은 이보다 먼저 닫혀야 한다. 호스트가 먼저 움직이면 화면과 겹쳐 입력이 거절된다.
 
     private readonly HashSet<long> afkPlayers = new HashSet<long>(); // 제한 시간을 넘긴 사람. 요청을 보내거나 재접속하면 풀린다
     private IBotStrategy botStrategy;
@@ -73,14 +71,10 @@ public partial class HostGameService
         AutoAct(actor);
     }
 
-    // 이 차례를 몇 초 기다렸다가 대신 진행할지
+    // 이 차례를 몇 초 기다렸다가 대신 진행할지. 사람의 제한 시간이 0 이하면 제한이 없다.
     private float WaitLimit(PlayerState actor)
     {
-        if (actor.IsBot) return BotDelaySeconds;
-        if (afkPlayers.Contains(actor.PlayerId)) return AfkDelaySeconds;
-
-        // 사람의 제한 시간. 0 이하면 제한이 없다.
-        return state.Config.limitTimeSeconds > 0 ? state.Config.limitTimeSeconds : float.PositiveInfinity;
+        return TimeRules.HostWaitSeconds(state.Config, actor.IsBot, afkPlayers.Contains(actor.PlayerId));
     }
 
     // ───────────── 대신 진행 ─────────────
