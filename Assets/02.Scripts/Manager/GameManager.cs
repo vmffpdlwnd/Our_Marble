@@ -23,6 +23,9 @@ public class GameManager : Singleton<GameManager>
 
     public GameState gameState;
 
+    // 규칙(Rules/)이 읽는 보드, 땅 가격표, 카드. 게임 상태를 동기화할 때 게임 씬의 데이터로 만든다.
+    private GameData gameData;
+
     [SerializeField]private string gameSceneName = "BoardLayout 2";
 
     private System.Random random; // 선턴 정하기나 랜덤 주사위 값을 계산할 때 사용합니다.
@@ -141,33 +144,10 @@ public class GameManager : Singleton<GameManager>
     // 파산하지 않은 플레이어가 1명 이하면 게임 종료
     private bool IsGameOver()
     {
-        int remaining = 0;
-        foreach (var p in gameState.PlayerStates)
-            if (!p.IsBankrupt) remaining++;
-        return remaining <= 1;
+        return GameRules.IsGameOver(gameState);
     }
 
-    // nextPlayerId의 차례가 몇 번째 라운드인지 계산합니다.
-    // 턴 순서(playerOrder)가 처음으로 돌아오면 1 증가합니다. 파산한 플레이어는 GetNextPlayerId가 건너뛰므로 남은 플레이어 기준으로 셉니다.
-    private int GetNextRound(long nextPlayerId)
-    {
-        int prevIndex = gameState.PlayerOrder.IndexOf(gameState.CurrentPlayerId);
-        int nextIndex = gameState.PlayerOrder.IndexOf(nextPlayerId);
-        return nextIndex < prevIndex ? gameState.RoundNumber + 1 : gameState.RoundNumber;
-    }
 
-    // 살아남은 플레이어의 최종 등수를 정합니다. (파산한 플레이어는 파산할 때 이미 등수가 정해짐)
-    // PlayerRanking 순서대로 1위부터 부여합니다. (총자산 → 현금 → 원래 순서)
-    private void AssignSurvivorRanks()
-    {
-        List<PlayerState> ranked = PlayerRanking.Rank(gameState.PlayerStates, gameState.PropertyStates);
-        int rank = 1;
-        foreach (PlayerState player in ranked)
-        {
-            if (player.IsBankrupt) continue;
-            player.FinalRank = rank++;
-        }
-    }
 
     // 최종 순위를 FinalRank 순으로 로그에 남깁니다.
     private void LogRanking()
@@ -176,7 +156,7 @@ public class GameManager : Singleton<GameManager>
         ranked.Sort((a, b) => a.FinalRank.CompareTo(b.FinalRank));
         foreach (PlayerState player in ranked)
         {
-            long totalAsset = PropertyManager.Instance.GetTotalAsset(player.PlayerId, player.Money, gameState.PropertyStates);
+            long totalAsset = gameData.Properties.GetTotalAsset(player.PlayerId, player.Money, gameState.PropertyStates);
             string result = player.IsBankrupt ? "파산" : (player.FinalRank == 1 ? "승리" : "패배");
             Log($"  {player.FinalRank}위 {P(player.PlayerId)}: 총자산 {Won(totalAsset)} (현금 {Won(player.Money)}) - {result}");
         }
@@ -188,11 +168,10 @@ public class GameManager : Singleton<GameManager>
     /// </summary>
     private void EndGame(string reason)
     {
-        if (gameState.IsGameOver) return;
-        gameState.IsGameOver = true;
+        // 게임 종료 상태로 바꾸고 생존자 최종 등수를 확정하는 일은 규칙(GameRules.EndGame)이 한다. (파산자는 이미 정해짐)
+        if (!GameRules.EndGame(gameState, gameData)) return;
 
         Log($"[게임 종료] {reason}");
-        AssignSurvivorRanks(); // 생존자 최종 등수 확정 (파산자는 이미 정해짐)
         LogRanking();
 
         // 게임 결과 창을 띄웁니다. (총자산 순으로 순위 표시)
@@ -217,24 +196,20 @@ public class GameManager : Singleton<GameManager>
 
     public void HandleTurnChanged(long playerId)
     {
-        // 게임 종료 판정: 새 턴을 시작하기 전에 확인합니다.
-        if (gameState.IsGameOver) return;
-        if (IsGameOver())
+        // 게임 종료 판정(새 턴을 시작하기 전), 차례와 라운드 갱신, 더블 초기화, 어떤 입력을 기다릴지는 규칙(GameRules.StartTurn)이 한다.
+        switch (GameRules.StartTurn(gameState, gameData, playerId))
         {
-            EndGame("남은 플레이어가 1명입니다.");
-            return;
-        }
-        int nextRound = GetNextRound(playerId);
-        if (nextRound > maxRound)
-        {
-            EndGame($"최대 라운드({maxRound}라운드)에 도달했습니다.");
-            return;
-        }
+            case TurnStartResult.AlreadyOver:
+                return;
 
-        // gameState.CurrentPlayerId 를 playerId로 갱신합니다. gameState.TurnNumber를 1 증가시키고, 라운드 수를 갱신합니다.
-        gameState.CurrentPlayerId = playerId;
-        gameState.TurnNumber += 1;
-        gameState.RoundNumber = nextRound;
+            case TurnStartResult.LastPlayerLeft:
+                EndGame("남은 플레이어가 1명입니다.");
+                return;
+
+            case TurnStartResult.RoundLimit:
+                EndGame($"최대 라운드({maxRound}라운드)에 도달했습니다.");
+                return;
+        }
 
         // 'OO의 턴'이라는 UI를 표시합니다.
         PlayerState playerState = GetPlayerState(playerId);
@@ -243,12 +218,9 @@ public class GameManager : Singleton<GameManager>
             UIManager.Instance.ShowTurn(playerId);
         PlayerManager.Instance.SetCurrentTurn(playerId);
 
-        // 필드 변수를 갱신합니다.
-        gameState.IsDouble = false;
-        gameState.ConsecutiveDoubleCount = 0;
-
         // 새 차례가 온 플레이어의 위치가 자유여행인 경우
-        if (BoardManager.Instance.GetTileData(GetPlayerState(playerId).Position).Type == TileType.WORLD_TRAVEL)
+        TileData currentTile = gameData.GetTile(playerState.Position);
+        if (currentTile != null && currentTile.Type == TileType.WORLD_TRAVEL)
         {
             // 주사위를 굴리는 창 대신, 원하는 타일을 선택하는 창을 띄웁니다.
             HandleChooseDestinationPrompt();
@@ -352,67 +324,42 @@ public class GameManager : Singleton<GameManager>
             return;
         }
 
-        // 더블 처리
-        if (dice1 == dice2)
-        {
-            gameState.IsDouble = true;
-            gameState.ConsecutiveDoubleCount++;
-        }
-        else
-        {
-            gameState.IsDouble = false;
-            gameState.ConsecutiveDoubleCount = 0;
-        }
+        // 말이 이동 중이면 새 주사위 결과를 처리하지 않습니다. (정상 흐름에서는 걸리지 않는 보호 장치)
+        if (isMoving) return;
 
-        // if (현재 위치가 무인도 && PlayerStates.IslandTurnsRemaining > 0 && !isDouble )  무인도 탈출 실패 판정.
-        bool onIslandTile = BoardManager.Instance.GetTileData(player.Position).Type == TileType.ISLAND;
-        bool isIslandTurnsRemaining = player.IslandTurnsRemaining > 0;
-        if (onIslandTile && isIslandTurnsRemaining && !gameState.IsDouble)
-        {
-            // 남은 감금 턴수 차감
-            player.IslandTurnsRemaining -= 1;
+        // 더블 횟수, 무인도 탈출 판정, 3연속 더블, 이동할 칸과 월급 여부는 규칙(GameRules.ApplyDice)이 정합니다.
+        // 규칙은 상태만 바꾸고, 연출과 이어서 진행하는 일은 아래에서 합니다.
+        DiceOutcome outcome = GameRules.ApplyDice(gameState, gameData, player, dice1, dice2);
 
-            Log($"[무인도] {P(playerId)}: 탈출 실패 (남은 영업정지 {player.IslandTurnsRemaining}턴)");
+        // 무인도에서 영업정지 중인데 더블이 아니면: 이동 없이 턴이 넘어갑니다.
+        if (outcome.Kind == DiceMoveKind.IslandStay)
+        {
+            Log($"[무인도] {P(playerId)}: 탈출 실패 (남은 영업정지 {outcome.IslandTurnsRemaining}턴)");
             OnIslandEscapeFailed?.Invoke(playerId);
-            SpecialTileManager.Instance.PlayIslandEscapeFailed(playerId, player.IslandTurnsRemaining); // 탈출 실패 연출
+            SpecialTileManager.Instance.PlayIslandEscapeFailed(playerId, outcome.IslandTurnsRemaining); // 탈출 실패 연출
             HandleTurnChanged(GetNextPlayerId()); // 강제로 턴을 넘깁니다.
             return;
         }
 
-        if (onIslandTile && isIslandTurnsRemaining && gameState.IsDouble)
+        // 더블로 무인도에서 탈출했습니다. (추가 턴은 없습니다)
+        if (outcome.EscapedIsland)
         {
-            player.IslandTurnsRemaining = 0;
             Log($"[무인도 탈출] {P(playerId)}: 더블로 탈출했습니다!");
             SpecialTileManager.Instance.PlayIslandEscaped(playerId); // 탈출 연출
-
-            // isDouble을 false로 갱신하여 추가턴 진행을 막습니다.
-            gameState.IsDouble = false;
         }
-
-        if (isMoving) return;
 
         // 3연속 더블이면 이동하지 않고 무인도로 보낸다.
-        if (gameState.ConsecutiveDoubleCount >= 3)
+        if (outcome.Kind == DiceMoveKind.DirectToIsland)
         {
-            int islandPosition = FindIslandTileIndex();
-            if (islandPosition >= 0)
-            {
-                Log($"[3연속 더블] {P(playerId)}: 무인도로 이동합니다.");
-                gameState.IsDouble = false;
-                gameState.ConsecutiveDoubleCount = 0;
-                MovePlayerDirectly(playerId, islandPosition); // 순간이동 (월급 없음) → 도착 처리에서 영업정지 설정 + 턴 넘김
-                return;
-            }
+            Log($"[3연속 더블] {P(playerId)}: 무인도로 이동합니다.");
+            MovePlayerDirectly(playerId, outcome.To); // 순간이동 (월급 없음) → 도착 처리에서 영업정지 설정 + 턴 넘김
+            return;
         }
 
-        int tileCount = BoardManager.Instance.TileCount;
         int fromPosition = player.Position;
-        int toPosition = (fromPosition + dice1 + dice2) % tileCount;
-        bool shouldReceiveSalary = toPosition < fromPosition;   // 출발 지점을 지나침
+        Log($"[이동] {P(playerId)}: {TileName(fromPosition)} → {TileName(outcome.To)}");
 
-        Log($"[이동] {P(playerId)}: {TileName(fromPosition)} → {TileName(toPosition)}");
-
-        HandlePlayerMoved(playerId, fromPosition, toPosition, shouldReceiveSalary);
+        HandlePlayerMoved(playerId, fromPosition, outcome.To, outcome.ReceivesSalary);
     }
 
     public void HandlePlayerMoved(long playerId, int fromPosition, int toPosition, bool shouldReceiveSalary)
@@ -423,14 +370,13 @@ public class GameManager : Singleton<GameManager>
         int tileCount = BoardManager.Instance.TileCount;
         int steps = (toPosition - fromPosition + tileCount) % tileCount;
 
-        // 1) GameState는 즉시 갱신
-        player.Position = toPosition;
+        // 1) GameState는 즉시 갱신 (이동과 월급 지급은 규칙이 한다)
+        long before = player.Money;
+        long salary = GameRules.MoveTo(gameState, player, toPosition, shouldReceiveSalary);
         if (shouldReceiveSalary)
         {
-            long before = player.Money;
-            player.Money += salaryAmount;
             EconomyManager.NotifyMoneyChanged(playerId, before, player.Money);
-            Log($"[월급] {P(playerId)}: 출발 지점을 지나 월급 {Won(salaryAmount)} 지급 (현금 {Won(player.Money)})");
+            Log($"[월급] {P(playerId)}: 출발 지점을 지나 월급 {Won(salary)} 지급 (현금 {Won(player.Money)})");
         }
 
         // 2) 말 이동 연출 → 끝나면 도착 처리
@@ -461,14 +407,13 @@ public class GameManager : Singleton<GameManager>
         PlayerState player = GetPlayerState(playerId);
         if (player == null) return;
 
-        // 1) GameState는 즉시 갱신
-        player.Position = toPosition;
+        // 1) GameState는 즉시 갱신 (이동과 월급 지급은 규칙이 한다)
+        long before = player.Money;
+        long salary = GameRules.MoveTo(gameState, player, toPosition, shouldReceiveSalary);
         if (shouldReceiveSalary)
         {
-            long before = player.Money;
-            player.Money += salaryAmount;
             EconomyManager.NotifyMoneyChanged(playerId, before, player.Money);
-            Log($"[월급] {P(playerId)}: 출발 지점을 지나 월급 {Won(salaryAmount)} 지급 (현금 {Won(player.Money)})");
+            Log($"[월급] {P(playerId)}: 출발 지점을 지나 월급 {Won(salary)} 지급 (현금 {Won(player.Money)})");
         }
 
         // 2) 타일을 따라 이동하는 연출 → 끝나면 도착 처리
@@ -645,7 +590,7 @@ public class GameManager : Singleton<GameManager>
 
         Log($"[직접 이동] {P(playerId)}: {TileName(player.Position)} → {TileName(toPosition)}");
 
-        player.Position = toPosition;
+        GameRules.MoveTo(gameState, player, toPosition, false); // 월급 없는 순간이동
         isMoving = true;
         PlayerManager.Instance.MoveToTile(playerId, toPosition, () =>
         {
@@ -659,37 +604,27 @@ public class GameManager : Singleton<GameManager>
     /// </summary>
     private void ProcessEndTurn()
     {
-        if (IsGameOver())
+        // 게임이 끝났는지, 더블이라 추가 턴인지, 다음 사람에게 넘길지는 규칙(GameRules.EndTurn)이 정합니다.
+        switch (GameRules.EndTurn(gameState))
         {
-            Log("게임 종료: 남은 플레이어가 1명 이하입니다.");
-            return;
-        }
-        
-        // isDouble인 경우 추가턴을 진행합니다.
-        if (gameState.IsDouble)
-            HandleRollDicePrompt();
-        else
-        {
-            HandleTurnChanged(GetNextPlayerId());
+            case EndTurnResult.GameOver:
+                Log("게임 종료: 남은 플레이어가 1명 이하입니다.");
+                return;
+
+            case EndTurnResult.RollAgain:
+                // isDouble인 경우 추가턴을 진행합니다.
+                HandleRollDicePrompt();
+                return;
+
+            default:
+                HandleTurnChanged(GetNextPlayerId());
+                return;
         }
     }
 
     private long GetNextPlayerId()
     {
-        List<long> playerOrder = gameState.PlayerOrder;
-        int currentIndex = playerOrder.IndexOf(gameState.CurrentPlayerId);
-
-        // 현재 플레이어 다음 순서부터 한 바퀴 돌면서, 파산하지 않은 플레이어를 찾습니다.
-        for (int i = 1; i <= playerOrder.Count; i++)
-        {
-            long candidateId = playerOrder[(currentIndex + i) % playerOrder.Count];
-            PlayerState candidate = GetPlayerState(candidateId);
-
-            if (candidate != null && !candidate.IsBankrupt)
-                return candidateId;
-        }
-
-        return gameState.CurrentPlayerId;   // 모두 파산한 경우 (게임 종료 상황)
+        return GameRules.GetNextPlayerId(gameState);
     }
 
     public void ProcessBankruptcy(long playerId)
@@ -871,13 +806,7 @@ public class GameManager : Singleton<GameManager>
     // 보드에서 무인도(ISLAND) 칸 번호를 찾는다. 없으면 -1
     private int FindIslandTileIndex()
     {
-        foreach (TileData tile in BoardManager.Instance.BoardData.Tiles)
-        {
-            if (tile != null && tile.Type == TileType.ISLAND)
-                return tile.Index;
-        }
-
-        return -1;
+        return GameRules.FindIslandTileIndex(gameData);
     }
     #endregion
 
@@ -1304,6 +1233,7 @@ public class GameManager : Singleton<GameManager>
         Debug.Log("after OnSync?.Invoke");
         // gameState 동기화. 덮어씀
         gameState = serverGameState;
+        gameData = GameDataFactory.FromScene(); // 규칙이 읽는 보드, 땅 가격표, 카드
 
         salaryAmount = gameState.Config.salaryAmount;
         taxAmount = gameState.Config.taxAmount;
