@@ -11,6 +11,9 @@ public class CardManager : Singleton<CardManager>
     protected override bool PersistAcrossScenes => false;
 
     [SerializeField] private CardDeckData deckData; // 카드 종류 및 카드 데이터
+    
+    // GameDataFactory가 규칙이 읽을 카드 데이터를 꺼내 갈 때 쓴다
+    public CardDeckData DeckData => deckData;
 
     // 덱에 등록된 CardId 목록. GameManager가 랜덤 CardId를 결정할 때 사용
     public List<int> GetCardIds()
