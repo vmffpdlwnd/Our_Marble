@@ -52,10 +52,7 @@ public class UIManager : MonoBehaviour
     [Tooltip("게임이 끝난 뒤 결과를 보여 주는 시간(초). 이 시간이 지나면 확인을 누르지 않아도 방(로비)으로 돌아간다.")]
     [SerializeField] private float resultSeconds = 15f;
     [Header("선택 제한시간")]
-    [Tooltip("주사위 굴리기와 각종 선택창의 제한시간(초). 평소(잠수 아님)")]
-    [SerializeField] private float selectSeconds = 30f;
-    [Tooltip("잠수 중인 플레이어(GameManager.isAfk)의 제한시간(초)")]
-    [SerializeField] private float afkSelectSeconds = 5f;
+    // 선택창의 제한시간은 시간 규칙(TimeRules)이 정한다. 호스트가 대신 진행하는 시간보다 먼저 닫힌다.
     [Tooltip("시간이 끝난 뒤 버튼을 잠그고 창을 닫기까지 기다리는 시간(초)")]
     [SerializeField] private float timeoutCloseDelay = 0.3f;
     private int maxRound = 30; // 상단바에 '라운드 N / 최대'로 보여줄 최대 라운드. 값은 GameManager가 SetMaxRound로 알려주고, 그 전까지는 이 기본값을 쓴다.
@@ -1273,8 +1270,8 @@ public class UIManager : MonoBehaviour
     private float timerRemaining, timerTotal;
     private int timerEpoch;            // 제한시간을 새로 시작할 때마다 늘려서, 지난 시간 종료 처리가 새로 열린 창을 닫지 않게 한다
 
-    // 잠수 중이면(GameManager.isAfk) 짧은 제한시간, 아니면 평소 제한시간
-    private float CurrentSelectSeconds => Game != null && Game.isAfk ? afkSelectSeconds : selectSeconds;
+    // 잠수 중이면(GameManager.isAfk) 짧은 제한시간, 아니면 방 설정의 제한시간보다 먼저 닫히는 시간 (시간 규칙: TimeRules)
+    private float CurrentSelectSeconds => TimeRules.ScreenSeconds(State != null ? State.Config : null, Game != null && Game.isAfk);
 
     private void HookSelectionTimer(UIView window, SelectionKind kind)
     {
