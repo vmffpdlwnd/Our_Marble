@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// 게임 화면 UI 진입점. GameManager는 여기서 창과 연출을 꺼내 쓴다.
-/// UIManager_temp의 형식을 따른다: 창을 띄우는 함수가 (playerId, propertyId 같은) 값만 받아 필요한 데이터를 스스로 조회하고,
+/// 창을 띄우는 함수가 (playerId, propertyId 같은) 값만 받아 필요한 데이터를 스스로 조회하고,
 /// 버튼을 누르면 주석에 적힌 GameManager 함수를 호출한다.
 /// 뷰 참조는 메뉴 Tools > Our Marble > Game UI 연결 로 채운다.
 /// </summary>

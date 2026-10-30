@@ -8,9 +8,9 @@ using UnityEngine.SceneManagement;
 /// </summary>
 public static class SceneFlow
 {
-    public const string LoginScenePath = "Assets/01.Scenes/Temp/UI_LoginScene.unity";
-    public const string LobbyScenePath = "Assets/01.Scenes/Temp/UI_LobbyScene.unity";
-    public const string GameScenePath = "Assets/01.Scenes/BoardLayout 2.unity";
+    public const string LoginScenePath = "Assets/01.Scenes/LoginScene.unity";
+    public const string LobbyScenePath = "Assets/01.Scenes/LobbyScene.unity";
+    public const string GameScenePath = "Assets/01.Scenes/GameScene.unity";
 
     // 게임을 마치고 같은 방으로 돌아오는 중이면 true. 로비 씬이 읽고(ConsumeReopenRoomSetup) 지운다.
     private static bool reopenRoomSetup;
