@@ -38,7 +38,6 @@ public class GameManager : Singleton<GameManager>
     // 화면에 보여 주는 일(연출, 결과 표시, 로그)은 이 클래스에 맡긴다.
     private readonly GameScreen screen = new GameScreen();
 
-    [SerializeField]private string gameSceneName = "BoardLayout 2";
 
     private System.Random random; // 선턴 정하기나 랜덤 주사위 값을 계산할 때 사용합니다.
 
@@ -57,7 +56,7 @@ public class GameManager : Singleton<GameManager>
     
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        if (scene.name == gameSceneName)
+        if (scene.path == SceneFlow.GameScenePath) // 씬 이름이 아니라 경로로 확인한다. (씬 이름을 바꿔도 SceneFlow의 경로만 맞추면 된다)
         {
             Debug.Log("GameManager 초기화 작업 수행");
             gameState = null;
