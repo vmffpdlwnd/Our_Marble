@@ -691,7 +691,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 069721c10cced2f45b61d7ecb207eb02, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameManager
-  gameSceneName: BoardLayout 2
   isAfk: 0
 --- !u!4 &337382219
 Transform:
@@ -3282,8 +3281,6 @@ MonoBehaviour:
   cardDeck: {fileID: 11400000, guid: 28d3ca2c6729ed246a6df82e701ba38a, type: 2}
   otherCardShowSeconds: 2
   resultSeconds: 15
-  selectSeconds: 30
-  afkSelectSeconds: 5
   timeoutCloseDelay: 0.3
 --- !u!4 &1470332513
 Transform:
@@ -4023,7 +4020,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 8
+  orthographic size: 9
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -4048,7 +4045,7 @@ Transform:
   m_GameObject: {fileID: 1739979336}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -10}
+  m_LocalPosition: {x: 0, y: 0.5, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
