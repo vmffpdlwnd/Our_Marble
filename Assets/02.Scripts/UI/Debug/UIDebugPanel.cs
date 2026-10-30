@@ -142,25 +142,27 @@ public class UIDebugPanel : MonoBehaviour
 
     // ───────────── 방 정보 ─────────────
 
-    // 로비에서 들어온 방(LobbyManager_temp.CurrentRoom)을 보여 준다
+    // 로비에서 들어온 방(LobbyManager.CurrentRoom)을 보여 준다
     private void DrawRoomSection()
     {
-        var room = LobbyManager_temp.CurrentRoom;
+        var room = LobbyManager.CurrentRoom;
         Header("방 정보");
         if (room == null)
         {
             GUILayout.Label("로비를 거치지 않고 실행했습니다. (방 정보 없음)");
             return;
         }
-        GUILayout.Label($"{room.Name} ({room.Code}) / {(room.IsTeam ? "팀전" : "개인전")} / {room.Map} / {room.Players.Count}/{room.MaxPlayers}명");
-        GUILayout.Label($"내 자리 {room.LocalIndex + 1}번 ({(room.IsHost ? "방장" : "참가자")})");
+        // 이 클래스에 LocalPlayer라는 멤버(내 자리 번호)가 있어서, 정적 클래스 LocalPlayer는 global::로 구분한다
+        int localIndex = room.Players.FindIndex(p => p.playerId == global::LocalPlayer.Id);
+        GUILayout.Label($"{room.roomId} / 맵 {room.mapId} / {room.Players.Count}/{room.maxPlayers}명 (봇 {room.botCount})");
+        GUILayout.Label($"내 자리 {localIndex + 1}번 ({(room.hostId == global::LocalPlayer.Id ? "방장" : "참가자")})");
     }
 
     // 카드에 쓰는 이름. 로비에서 들어왔으면 방 안의 이름, 아니면 기본 이름
     private static string NameOf(int index)
     {
-        var room = LobbyManager_temp.CurrentRoom;
-        if (room != null && index < room.Players.Count) return room.Players[index].Name;
+        var room = LobbyManager.CurrentRoom;
+        if (room != null && index < room.Players.Count) return room.Players[index].nickname;
         return index < DefaultNames.Length ? DefaultNames[index] : "플레이어" + (index + 1);
     }
 

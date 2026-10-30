@@ -11,7 +11,6 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
     
     private Queue<LobbyServerMessage> messageQueue = new Queue<LobbyServerMessage>();
 
-    [SerializeField] private string lobbySceneName = "UI_LobbyScene";
     private bool isLobbySceneActive = false;
 
     protected override void OnAwake()
@@ -32,7 +31,7 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         // 씬이 로드될 딱 한 번만 검사해서 플래그를 켭니다.
-        isLobbySceneActive = (scene.name == lobbySceneName);
+        isLobbySceneActive = (scene.path == SceneFlow.LobbyScenePath); // 씬 이름이 아니라 경로로 확인한다
     }
     
     /// <summary>
@@ -160,18 +159,6 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
                 OnLobbyError?.Invoke(code, message);
                 break;
             }
-            case LobbyMessageType.PLAYER_RECORD:
-            {
-                PlayerRecordResponse playerRecordResponse =
-                    JsonConvert.DeserializeObject<PlayerRecordResponse>(json);
-
-                string nickname = playerRecordResponse.nickname;
-                int gamesPlayed = playerRecordResponse.gamesPlayed;
-                int gamesWon = playerRecordResponse.gamesWon;
-                
-                OnGameRecord?.Invoke(nickname, gamesPlayed, gamesWon);
-                break;
-            }
             case LobbyMessageType.CHAT_BROADCAST:
             {
                 ChatBroadcast chatBroadcast =
@@ -190,8 +177,6 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
     
     public event Action<string> OnConnected;
     
-    public event Action<string,int,int> OnGameRecord;
-
     public void InvokeOnConnected(string localNickname)
     {
         OnConnected?.Invoke(localNickname);

@@ -18,7 +18,7 @@ using static UIPalette;
 /// </summary>
 public class LobbyManager : MonoBehaviour
 {
-    // ───────────── 상수 ─────────────
+    #region 상수
 
     // mapId → 맵 이름. 서버의 mapId와 같은 순서여야 한다
     private static readonly string[] Maps = { "클래식 월드", "도시 탐험", "해변 마을" };
@@ -74,8 +74,9 @@ public class LobbyManager : MonoBehaviour
     private static LobbyNetwork Net => LobbyNetwork.Instance;
 
     private static long MyPlayerId => LocalPlayer.Id;
+    #endregion
 
-    // ───────────── 상태 ─────────────
+    #region 상태
 
     private enum ConnectionState { Connected, Reconnecting, Disconnected }
     private ConnectionState connection = ConnectionState.Connected;
@@ -102,8 +103,9 @@ public class LobbyManager : MonoBehaviour
     private bool inRoom;
     // 스냅샷을 방 설정 화면에 적용하는 중이면 true. 그 사이 화면이 쏘는 이벤트를 서버로 다시 보내지 않는다
     private bool applyingSnapshot;
+    #endregion
 
-    // ───────────── 방 정보 (방 설정과 게임 씬이 함께 읽는다) ─────────────
+    #region 방 정보 (방 설정과 게임 씬이 함께 읽는다)
 
     /// <summary>지금 들어가 있는 방의 최신 스냅샷. 로비를 거치지 않고 게임 씬만 실행하면 null.</summary>
     public static RoomSnapshot CurrentRoom { get; private set; }
@@ -127,8 +129,9 @@ public class LobbyManager : MonoBehaviour
         CurrentRoom = null;
         PlayingRoomId = null;
     }
+    #endregion
 
-    // ───────────── UI 참조 ─────────────
+    #region UI 참조
 
     private class RowView
     {
@@ -164,7 +167,7 @@ public class LobbyManager : MonoBehaviour
 
     // 오른쪽 열
     private GameObject profileCard, playerListCard, detailCard;
-    private TMP_Text nicknameText, recordText, marbleText;
+    private TMP_Text nicknameText, marbleText;
     private Button profilePortraitButton;
     private Image profilePortraitImage;
     private PortraitPickerView portraitPicker;
@@ -196,8 +199,9 @@ public class LobbyManager : MonoBehaviour
     private GameObject emptyState;
     private ToastView toast;
     private LoadingView loading;
+    #endregion
 
-    // ───────────── 초기화 ─────────────
+    #region 초기화
 
     private void Reset()
     {
@@ -283,7 +287,6 @@ public class LobbyManager : MonoBehaviour
         Net.OnLobbyError += HandleLobbyError;
         Net.OnChatBroadcast += HandleChatBroadcast;
         ChatService.SendRequested = SendChat;
-        Net.OnGameRecord += HandleGameRecord;
         
         Net.OnConnected += HandleConnected;
         PortraitLibrary.Changed += HandlePortraitChanged;
@@ -300,7 +303,6 @@ public class LobbyManager : MonoBehaviour
         Net.OnLobbyError -= HandleLobbyError;
         Net.OnChatBroadcast -= HandleChatBroadcast;
         if (ChatService.SendRequested == (System.Action<ChatMessage>)SendChat) ChatService.SendRequested = null;
-        Net.OnGameRecord -= HandleGameRecord;
         
         Net.OnConnected -= HandleConnected;
         PortraitLibrary.Changed -= HandlePortraitChanged;
@@ -362,7 +364,6 @@ public class LobbyManager : MonoBehaviour
         var side = lobby.Find("SidePanel");
         profileCard = side.Find("ProfileCard").gameObject;
         nicknameText = Get<TMP_Text>(side, "ProfileCard/NicknameText");
-        recordText = Get<TMP_Text>(side, "ProfileCard/RecordCard/RecordText");
         marbleText = Get<TMP_Text>(side, "ProfileCard/MarbleChip/AmountText");
         profilePortraitButton = Get<Button>(side, "ProfileCard/Portrait");
         profilePortraitImage = Get<Image>(side, "ProfileCard/Portrait/PortraitMask/PortraitImage");
@@ -470,8 +471,9 @@ public class LobbyManager : MonoBehaviour
         else if (createPopup.IsOpen) createPopup.Close();
         else if (selectedId != null) Deselect();
     }
+    #endregion
 
-    // ───────────── 서버 요청 ─────────────
+    #region 서버 요청
     // TODO: LobbyNetwork의 실제 메서드 이름/인자에 맞춘다
 
     // 새로고침 버튼. 서버 요청이 실제로 나가는 경우에만 쿨타임을 시작한다 (요청 중이거나 연결이 없으면 아무 일도 없다)
@@ -601,8 +603,9 @@ public class LobbyManager : MonoBehaviour
         EndRequest();
         ShowToast("서버 응답이 없어요. 잠시 후 다시 시도해 주세요");
     }
+    #endregion
 
-    // ───────────── 서버 응답 ─────────────
+    #region 서버 응답
 
     public void HandleConnected(string localNickname)
     {
@@ -722,14 +725,9 @@ public class LobbyManager : MonoBehaviour
         // 입장 실패면 방이 사라졌거나 찼을 수 있으니 목록을 다시 받는다
         if (wasEntering) RequestRoomList(false);
     }
+    #endregion
     
-    public void HandleGameRecord(string nickname, int gamesPlayed, int gamesWon)
-    {
-        if (!string.IsNullOrEmpty(nickname)) RefreshNickname(nickname);
-        RefreshRecord(gamesPlayed, gamesWon);
-    }
-
-    // ───────────── 연결 상태 ─────────────
+    #region 연결 상태
 
     // TODO: LobbyNetwork의 연결 상태 이벤트에 연결한다
     private void SetConnection(ConnectionState state, bool notify)
@@ -767,14 +765,16 @@ public class LobbyManager : MonoBehaviour
     {
         SetConnection(ConnectionState.Connected, true);
     }
+    #endregion
 
-    // ───────────── 토스트 / 로딩 ─────────────
+    #region 토스트 / 로딩
 
     private void ShowToast(string message) => toast.Show(message);
 
     private void ShowLoading(bool show, string message = null) => loading.Show(show, message);
+    #endregion
 
-    // ───────────── 공통 도우미 ─────────────
+    #region 공통 도우미
 
     private static bool IsFull(RoomSummary room) => room.playerCount >= room.maxPlayers;
 
@@ -791,8 +791,9 @@ public class LobbyManager : MonoBehaviour
 
     /// <summary>못 들어가는 이유. 들어갈 수 있으면 null.</summary>
     private static string JoinBlockedMessage(RoomSummary room) => IsFull(room) ? "방이 가득 찼어요" : null;
+    #endregion
 
-    // ───────────── 나가기 ─────────────
+    #region 나가기
 
     private void ExitToLogin()
     {
@@ -814,8 +815,9 @@ public class LobbyManager : MonoBehaviour
         if (SceneFlow.ToLogin()) return;
         ShowToast("로그인 화면이 아직 없어요");
     }
+    #endregion
 
-    // ───────────── 방 입장 ─────────────
+    #region 방 입장
 
     /// <summary>목록·상세에서 입장. 가득 찬 방은 미리 막고, 나머지 검증은 서버가 한다.</summary>
     private void TryJoin(string roomId)
@@ -839,8 +841,9 @@ public class LobbyManager : MonoBehaviour
         Debug.Log("[Lobby] 들어갈 방이 없어 새 방을 만듭니다.");
         RequestCreate(FirstAvailableMap(), 4); // 빠른 시작으로 만드는 방도 고를 수 있는 맵으로
     }
+    #endregion
 
-    // ───────────── 방 설정 (방 안, 게임 시작 전) ─────────────
+    #region 방 설정 (방 안, 게임 시작 전)
 
     private void TryOpenRoomSetup()
     {
@@ -961,8 +964,9 @@ public class LobbyManager : MonoBehaviour
         if (exitConfirm != null) exitConfirm.Show(RequestLeave, "방에서 나갈까요?");
         else RequestLeave();
     }
+    #endregion
 
-    // ───────────── 선택 / 오른쪽 열 전환 ─────────────
+    #region 선택 / 오른쪽 열 전환
 
     private void Select(string roomId)
     {
@@ -1004,8 +1008,9 @@ public class LobbyManager : MonoBehaviour
         group.alpha = 0f;
         group.DOFade(1f, 0.2f).SetUpdate(true).SetLink(go);
     }
+    #endregion
 
-    // ───────────── 방 목록 ─────────────
+    #region 방 목록
 
     private void SyncAll()
     {
@@ -1134,8 +1139,9 @@ public class LobbyManager : MonoBehaviour
                 stroke.sprite = on ? selectedStrokeSprite : normalStrokeSprite;
         }
     }
+    #endregion
 
-    // ───────────── 방 상세 ─────────────
+    #region 방 상세
 
     private void RefreshDetail()
     {
@@ -1186,8 +1192,9 @@ public class LobbyManager : MonoBehaviour
         s.Nick.text = "빈 자리";
         s.Nick.color = UIPalette.InkSub;
     }
+    #endregion
 
-    // ───────────── 방 만들기 ─────────────
+    #region 방 만들기
 
     private void OpenCreatePopup()
     {
@@ -1219,8 +1226,9 @@ public class LobbyManager : MonoBehaviour
         RequestCreate(mapIndex, max);
         createPopup.Close();
     }
+    #endregion
 
-    // ───────────── 내 정보 ─────────────
+    #region 내 정보
 
     private void OpenPortraitPicker()
     {
@@ -1250,10 +1258,9 @@ public class LobbyManager : MonoBehaviour
         profilePortraitImage.color = portrait != null ? Color.white : UIPalette.PlayerColor(0);
     }
 
-    // TODO: 서버가 전적과 보유 마블을 내려 주면 채운다
+    // TODO: 보유 마블을 채운다
     private void RefreshProfile()
     {
-        recordText.text = "-";
         marbleText.text = "-";
         RefreshProfilePortrait();
         
@@ -1261,18 +1268,10 @@ public class LobbyManager : MonoBehaviour
         if (!string.IsNullOrEmpty(nickname)) RefreshNickname(nickname);
     }
     
-    private void RefreshRecord(int gamesPlayed, int gamesWon)
-    {
-        if (recordText == null) return;
-
-        // 한 판도 안 했으면 0으로 나누게 되므로 승률은 0%로 보여 준다
-        int winRate = gamesPlayed > 0 ? Mathf.RoundToInt(100f * gamesWon / gamesPlayed) : 0;
-        recordText.text = $"{gamesPlayed}전 {gamesWon}승 <size=80%><color=#8C90A8>({winRate}%)</color></size>";
-    }
-
     private void RefreshNickname(string localNickname)
     {
         Debug.Log($"로비화면 닉네임 업데이트 -> {localNickname}");
         nicknameText.text = localNickname;
     }
+    #endregion
 }

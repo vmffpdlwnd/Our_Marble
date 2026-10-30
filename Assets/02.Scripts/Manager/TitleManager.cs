@@ -62,20 +62,10 @@ public class TitleManager : MonoBehaviour
         var canvas = Find(uiRoot, "Canvas_Login");
         if (canvas == null) return false;
 
-        var loginCard = Find(canvas, "LoginCard");
-        var verifyCard = Find(canvas, "EmailVerificationCard");
+        // 닉네임 입력에는 가입 카드(SignupCard) 하나만 쓴다. 씬에는 닉네임 입력과 시작 버튼만 남겨 두었다.
         var signupCard = Find(canvas, "SignupCard");
         if (signupCard == null) return false;
-
-        // 닉네임 입력에는 가입 카드만 쓴다
-        if (loginCard != null) loginCard.gameObject.SetActive(false);
-        if (verifyCard != null) verifyCard.gameObject.SetActive(false);
         signupCard.gameObject.SetActive(true);
-
-        // 닉네임 입력과 시작 버튼만 남기고 나머지 칸은 숨긴다
-        SetActive(signupCard, "EmailInput", false);
-        SetActive(signupCard, "PasswordInput", false);
-        SetActive(signupCard, "BackToEmailVerificationButton", false);
 
         nicknameInput = Find(signupCard, "NicknameInput")?.GetComponent<TMP_InputField>();
         startButton = Find(signupCard, "CompleteSignupButton")?.GetComponent<Button>();
@@ -88,12 +78,6 @@ public class TitleManager : MonoBehaviour
         var toastTransform = uiRoot.Find("Canvas_Toast");
         if (toastTransform != null) toast = toastTransform.GetComponent<ToastView>();
         return true;
-    }
-
-    private static void SetActive(Transform root, string path, bool active)
-    {
-        var t = root.Find(path);
-        if (t != null) t.gameObject.SetActive(active);
     }
 
     private static void SetText(Transform root, string path, string text)
