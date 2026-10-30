@@ -57,7 +57,7 @@ public class UIManager : MonoBehaviour
     [SerializeField] private float timeoutCloseDelay = 0.3f;
     private int maxRound = 30; // 상단바에 '라운드 N / 최대'로 보여줄 최대 라운드. 값은 GameManager가 SetMaxRound로 알려주고, 그 전까지는 이 기본값을 쓴다.
 
-    // ───────────── 밖에서 연결하는 곳 ─────────────
+    #region 밖에서 연결하는 곳
 
     /// <summary>
     /// 특수 칸(PropertyData.CanBuild == false, 예: 카페)의 효과 설명을 돌려주는 함수. propertyId를 받아 문장을 돌려줍니다.
@@ -138,6 +138,7 @@ public class UIManager : MonoBehaviour
         int count = state.PlayerStates.Count;
         topBar.SetPlayerCount(count, state.MaxPlayers ?? count);
     }
+    #endregion
 
     #region 화면 동기화 (재접속 · 지연)
 
@@ -184,6 +185,7 @@ public class UIManager : MonoBehaviour
 
     #endregion
 
+    #region 나가기 · 돈 변화 구독
     // 나가기 버튼: 로비로 돌아갈지 묻고, 확인하면 돌아간다
     private void RequestExit()
     {
@@ -194,6 +196,7 @@ public class UIManager : MonoBehaviour
     // 돈이 바뀌면 EconomyManager가 알려준다. 돈 표시와 연출은 여기서 갱신한다.
     private void OnEnable() => EconomyManager.OnMoneyChanged += HandleMoneyChanged;
     private void OnDisable() => EconomyManager.OnMoneyChanged -= HandleMoneyChanged;
+    #endregion
 
     #region 창 띄우기 (GameManager가 호출)
 
@@ -1206,6 +1209,7 @@ public class UIManager : MonoBehaviour
 
     #endregion
 
+    #region 창 닫기
     /// <summary>
     /// 선택형 팝업과 일시적인 표시를 모두 닫는다. HUD(플레이어 정보, 상단바)는 그대로 둔다.
     /// immediate면 닫힘 연출 없이 바로 끈다.
@@ -1261,6 +1265,7 @@ public class UIManager : MonoBehaviour
         ExitSellMode();
         if (boardSelecting && BoardManager.Instance != null) BoardManager.Instance.ChangeToInspectMode();
     }
+    #endregion
 
     #region 선택 제한시간
 
