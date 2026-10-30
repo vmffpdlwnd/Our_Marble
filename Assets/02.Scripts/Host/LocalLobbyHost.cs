@@ -288,6 +288,49 @@ public class LocalLobbyHost : IHostRequestReceiver
         BroadcastRoomUpdated(room);
     }
 
+    // ───────────── 방 이어받기 (방장이 바뀔 때) ─────────────
+
+    /// <summary>
+    /// 이미 있는 방 정보로 방을 되살린다. 방장이 바뀌어서 새 방장이 자기가 가진 방 정보로 로비 호스트를 시작할 때 쓴다.
+    /// 같은 번호의 방이 이미 있으면 그 방을 이 정보로 바꾼다. 받은 방 설정은 복사해서 쓴다.
+    /// </summary>
+    public void RestoreRoom(RoomSnapshot snapshot)
+    {
+        Room room = new Room
+        {
+            Id = snapshot.roomId,
+            HostId = snapshot.hostId,
+            Status = snapshot.status,
+            Config = snapshot.config == null ? new GameConfig() : JsonConvert.DeserializeObject<GameConfig>(JsonConvert.SerializeObject(snapshot.config)),
+            MaxPlayers = snapshot.maxPlayers,
+            Members = snapshot.Players.Select(p => new Member
+            {
+                Id = p.playerId,
+                Nickname = p.nickname,
+                Ready = p.ready,
+                Bot = p.bot,
+                PortraitId = p.portraitId,
+            }).ToList(),
+        };
+
+        // 같은 방이 이미 있으면 그 방과 그 방 사람들의 기록을 지우고 새 정보로 채운다
+        rooms.RemoveAll(r => r.Id == room.Id);
+        foreach (long oldMemberId in roomOfPlayer.Where(pair => pair.Value == room.Id).Select(pair => pair.Key).ToList())
+            roomOfPlayer.Remove(oldMemberId);
+
+        rooms.Add(room);
+        foreach (Member member in room.Members.Where(m => !m.Bot))
+        {
+            roomOfPlayer[member.Id] = room.Id;
+            nicknames[member.Id] = member.Nickname;
+            if (member.PortraitId.HasValue) portraits[member.Id] = member.PortraitId.Value;
+        }
+
+        // 새 방을 만들 때 이 방과 번호가 겹치지 않게 한다. ("room-3"이면 다음은 4부터)
+        if (room.Id.StartsWith("room-") && int.TryParse(room.Id.Substring(5), out int number) && number >= nextRoomNumber)
+            nextRoomNumber = number + 1;
+    }
+
     // ───────────── 방 도우미 ─────────────
 
     private Room RoomOf(long playerId)
