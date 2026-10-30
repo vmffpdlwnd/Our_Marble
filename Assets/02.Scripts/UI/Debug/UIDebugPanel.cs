@@ -105,6 +105,7 @@ public class UIDebugPanel : MonoBehaviour
         scroll = GUILayout.BeginScrollView(scroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
 
         DrawRoomSection();
+        DrawHostSwapSection();
 
         Header($"HUD (GameState 기준, {Players.Count}명)");
         if (GUILayout.Button("카드·차례 다시 채우기 (InitPlayers)")) { FillHud(animate: true); Log("카드·차례 다시 채우기"); }
@@ -156,6 +157,43 @@ public class UIDebugPanel : MonoBehaviour
         int localIndex = room.Players.FindIndex(p => p.playerId == global::LocalPlayer.Id);
         GUILayout.Label($"{room.roomId} / 맵 {room.mapId} / {room.Players.Count}/{room.maxPlayers}명 (봇 {room.botCount})");
         GUILayout.Label($"내 자리 {localIndex + 1}번 ({(room.hostId == global::LocalPlayer.Id ? "방장" : "참가자")})");
+    }
+
+    // ───────────── 호스트 교체 (방장 승계 연습) ─────────────
+
+    // 방장이 바뀌는 상황을 이 PC에서 흉내 낸다. 로비 호스트와 게임 호스트를 버리고, 내 화면이 가진 방 정보와 게임 상태로 새 호스트를 시작한다.
+    // 누른 뒤에도 게임이 그대로 이어지면(봇이 움직이고, 요청이 처리되고, [StateCheck] 에러가 없으면) 이어받기가 제대로 동작하는 것이다.
+    private void DrawHostSwapSection()
+    {
+        Header("호스트 교체 (방장 승계 연습)");
+
+        var room = LobbyManager.CurrentRoom;
+        var host = HostGameService.Current;
+
+        // 호스트의 상태와 같은 지점에 있을 때만 이어받을 수 있다. (연출이 끝나고 입력을 기다리는 때)
+        bool settled = room != null && host != null && State != null
+            && State.WaitingType != null && !State.IsGameOver
+            && GameNetwork.Instance.ProcessedBroadcastCount == host.BroadcastCountForDebug;
+
+        GUI.enabled = settled;
+        if (GUILayout.Button("내 상태로 호스트 다시 시작")) SwapHost(room);
+        GUI.enabled = true;
+
+        if (!settled) GUILayout.Label("연출이 끝나고 입력을 기다리는 때에만 누를 수 있어요.");
+    }
+
+    private void SwapHost(RoomSnapshot room)
+    {
+        int processed = GameNetwork.Instance.ProcessedBroadcastCount;
+
+        LocalLobbyHost.Reset();                  // 로비 호스트: 방 정보를 모두 버리고
+        LocalLobbyHost.Instance.RestoreRoom(room); // 내가 가진 방 정보로 다시 만든다
+
+        // 게임 호스트: 내 화면의 게임 상태를 복사해서 새로 시작한다
+        // (이 클래스에 LocalPlayer라는 멤버가 있어서, 정적 클래스 LocalPlayer는 global::로 구분한다)
+        HostGameService.TakeOver(State, room.roomId, global::LocalPlayer.Id, processed);
+
+        Log("호스트를 내 상태로 다시 시작했습니다");
     }
 
     // 카드에 쓰는 이름. 로비에서 들어왔으면 방 안의 이름, 아니면 기본 이름

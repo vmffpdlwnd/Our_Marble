@@ -59,6 +59,24 @@ public class HostGameService : IHostRequestReceiver
         return current;
     }
 
+    /// <summary>
+    /// 이미 진행 중인 게임 상태를 이어받아 호스트를 시작한다. 방장이 바뀔 때 새 방장이 자기가 가진 게임 상태로 호스트 역할을 이어받는 데 쓴다.
+    /// 받은 상태는 복사해서 쓴다. (새 방장의 클라이언트가 가진 상태와 같은 객체를 쓰면 같은 변화가 두 번 반영된다)
+    /// 호스트만 알던 값(AFK 표시, 제한 시간이 얼마나 흘렀는지)은 비어 있는 상태로 시작한다. 이어받는 방법은 Photon 연결 때 정한다.
+    /// </summary>
+    /// <param name="existing">이어받을 게임 상태. 입력을 기다리는 때(WaitingType이 있을 때)의 상태여야 한다</param>
+    /// <param name="roomId">이어받는 방의 번호</param>
+    /// <param name="hostId">새 방장의 playerId. 게임 상태에 적힌 방장도 이 값으로 바꾼다</param>
+    /// <param name="broadcastCount">지금까지 클라이언트가 처리한 진행 알림 수. 개발용 상태 비교(HostStateCheck)가 이 값으로 둘을 맞춰 본다</param>
+    /// <param name="deliver">알림을 보내는 쪽. 정하지 않으면 이 PC의 플레이어에게만 전달한다</param>
+    public static HostGameService TakeOver(GameState existing, string roomId, long hostId, int broadcastCount, Action<long, GameMessageType, string> deliver = null)
+    {
+        HostGameService host = new HostGameService(existing, roomId, hostId, broadcastCount, deliver ?? DeliverToLocalClient);
+        current = host;
+        HostAutoPlayRunner.Create(host); // 봇 차례와 제한 시간을 돌린다
+        return host;
+    }
+
     /// <summary>진행 중인 게임을 버린다. 타이틀로 돌아갈 때 부른다.</summary>
     public static void Reset() => current = null;
 
@@ -137,6 +155,23 @@ public class HostGameService : IHostRequestReceiver
         };
 
         Debug.Log($"[HostGameService] 게임 생성: 방 {roomId}, {players.Count}명, 땅 {properties.Count}개, 시작 자금 {config.startMoney}");
+    }
+
+    // 이미 진행 중인 게임 상태로 호스트를 만든다. (TakeOver가 부른다)
+    private HostGameService(GameState existing, string roomId, long hostId, int broadcastCount, Action<long, GameMessageType, string> deliver)
+    {
+        this.deliver = deliver;
+        this.roomId = roomId;
+        gameData = GameDataFactory.FromScene();
+
+        // 게임 상태를 주고받을 때와 같은 방식으로 복사한다
+        state = JsonConvert.DeserializeObject<GameState>(JsonConvert.SerializeObject(existing));
+        state.HostId = hostId;
+
+        started = true;                 // 첫 차례는 이미 시작된 게임이다
+        actionSerial = broadcastCount;  // 클라이언트가 처리한 알림 수에 맞춘다
+
+        Debug.Log($"[HostGameService] 게임 이어받기: 방 {roomId}, {state.PlayerStates.Count}명, {state.TurnNumber}번째 턴, 대기 단계 {state.WaitingType}");
     }
 
     // ───────────── 요청 받기 ─────────────
@@ -926,4 +961,4 @@ public class HostGameService : IHostRequestReceiver
     /// <summary>호스트가 지금까지 참가자들에게 보낸 진행 알림(주사위, 구매, 건설 등)의 수</summary>
     public int BroadcastCountForDebug => actionSerial;
     #endregion
-}   
+}
