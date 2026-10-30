@@ -152,9 +152,10 @@ public class UIDebugPanel : MonoBehaviour
             GUILayout.Label("로비를 거치지 않고 실행했습니다. (방 정보 없음)");
             return;
         }
-        int localIndex = room.Players.FindIndex(p => p.playerId == LocalPlayer.Id);
+        // 이 클래스에 LocalPlayer라는 멤버(내 자리 번호)가 있어서, 정적 클래스 LocalPlayer는 global::로 구분한다
+        int localIndex = room.Players.FindIndex(p => p.playerId == global::LocalPlayer.Id);
         GUILayout.Label($"{room.roomId} / 맵 {room.mapId} / {room.Players.Count}/{room.maxPlayers}명 (봇 {room.botCount})");
-        GUILayout.Label($"내 자리 {localIndex + 1}번 ({(room.hostId == LocalPlayer.Id ? "방장" : "참가자")})");
+        GUILayout.Label($"내 자리 {localIndex + 1}번 ({(room.hostId == global::LocalPlayer.Id ? "방장" : "참가자")})");
     }
 
     // 카드에 쓰는 이름. 로비에서 들어왔으면 방 안의 이름, 아니면 기본 이름
