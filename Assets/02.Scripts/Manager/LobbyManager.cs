@@ -164,7 +164,7 @@ public class LobbyManager : MonoBehaviour
 
     // 오른쪽 열
     private GameObject profileCard, playerListCard, detailCard;
-    private TMP_Text nicknameText, recordText, marbleText;
+    private TMP_Text nicknameText, marbleText;
     private Button profilePortraitButton;
     private Image profilePortraitImage;
     private PortraitPickerView portraitPicker;
@@ -283,7 +283,6 @@ public class LobbyManager : MonoBehaviour
         Net.OnLobbyError += HandleLobbyError;
         Net.OnChatBroadcast += HandleChatBroadcast;
         ChatService.SendRequested = SendChat;
-        Net.OnGameRecord += HandleGameRecord;
         
         Net.OnConnected += HandleConnected;
         PortraitLibrary.Changed += HandlePortraitChanged;
@@ -300,7 +299,6 @@ public class LobbyManager : MonoBehaviour
         Net.OnLobbyError -= HandleLobbyError;
         Net.OnChatBroadcast -= HandleChatBroadcast;
         if (ChatService.SendRequested == (System.Action<ChatMessage>)SendChat) ChatService.SendRequested = null;
-        Net.OnGameRecord -= HandleGameRecord;
         
         Net.OnConnected -= HandleConnected;
         PortraitLibrary.Changed -= HandlePortraitChanged;
@@ -362,7 +360,6 @@ public class LobbyManager : MonoBehaviour
         var side = lobby.Find("SidePanel");
         profileCard = side.Find("ProfileCard").gameObject;
         nicknameText = Get<TMP_Text>(side, "ProfileCard/NicknameText");
-        recordText = Get<TMP_Text>(side, "ProfileCard/RecordCard/RecordText");
         marbleText = Get<TMP_Text>(side, "ProfileCard/MarbleChip/AmountText");
         profilePortraitButton = Get<Button>(side, "ProfileCard/Portrait");
         profilePortraitImage = Get<Image>(side, "ProfileCard/Portrait/PortraitMask/PortraitImage");
@@ -723,12 +720,6 @@ public class LobbyManager : MonoBehaviour
         if (wasEntering) RequestRoomList(false);
     }
     
-    public void HandleGameRecord(string nickname, int gamesPlayed, int gamesWon)
-    {
-        if (!string.IsNullOrEmpty(nickname)) RefreshNickname(nickname);
-        RefreshRecord(gamesPlayed, gamesWon);
-    }
-
     // ───────────── 연결 상태 ─────────────
 
     // TODO: LobbyNetwork의 연결 상태 이벤트에 연결한다
@@ -1250,10 +1241,9 @@ public class LobbyManager : MonoBehaviour
         profilePortraitImage.color = portrait != null ? Color.white : UIPalette.PlayerColor(0);
     }
 
-    // TODO: 서버가 전적과 보유 마블을 내려 주면 채운다
+    // TODO: 보유 마블을 채운다
     private void RefreshProfile()
     {
-        recordText.text = "-";
         marbleText.text = "-";
         RefreshProfilePortrait();
         
@@ -1261,15 +1251,6 @@ public class LobbyManager : MonoBehaviour
         if (!string.IsNullOrEmpty(nickname)) RefreshNickname(nickname);
     }
     
-    private void RefreshRecord(int gamesPlayed, int gamesWon)
-    {
-        if (recordText == null) return;
-
-        // 한 판도 안 했으면 0으로 나누게 되므로 승률은 0%로 보여 준다
-        int winRate = gamesPlayed > 0 ? Mathf.RoundToInt(100f * gamesWon / gamesPlayed) : 0;
-        recordText.text = $"{gamesPlayed}전 {gamesWon}승 <size=80%><color=#8C90A8>({winRate}%)</color></size>";
-    }
-
     private void RefreshNickname(string localNickname)
     {
         Debug.Log($"로비화면 닉네임 업데이트 -> {localNickname}");
