@@ -39,12 +39,12 @@ public partial class GameManager
                 break;
 
             case TileArrivalKind.Welfare: // 기부금수령(푸드 페스티벌)에 도착
-                HandleWelfareFundReceived(playerId, arrival.MoneyBefore, arrival.Amount); // 쌓인 적립금을 모두 받았습니다. (규칙이 반영)
+                screen.ShowWelfareFundReceived(player, arrival.MoneyBefore, arrival.Amount); // 쌓인 적립금을 모두 받았습니다. (규칙이 반영)
                 ProcessEndTurn();
                 break;
 
             case TileArrivalKind.Donation: // 기부금납부(세무조사)에 도착
-                HandleDonationPaid(playerId, arrival.MoneyBefore, arrival.Amount); // 벌금을 내고 적립금에 쌓았습니다. (규칙이 반영)
+                screen.ShowDonationPaid(player, arrival.MoneyBefore, arrival.Amount); // 벌금을 내고 적립금에 쌓았습니다. (규칙이 반영)
                 ProcessEndTurn();
                 break;
 
@@ -129,7 +129,7 @@ public partial class GameManager
                         {
                             case PropertyArrivalKind.TollPaidAcquire: // 통행료 납부하고도 인수할 돈이 있다면
                             {
-                                ShowTollPaid(playerId, ownerId, toll); // 통행료 이동 연출을 재생합니다.
+                                screen.ShowTollPaid(playerId, ownerId, toll); // 통행료 이동 연출을 재생합니다.
 
                                 long acquireValue = gameData.Properties.GetAcquireValue(propertyState);
                                 Log($"  인수 가능 (인수가 {Won(acquireValue)})");
@@ -139,7 +139,7 @@ public partial class GameManager
 
                             case PropertyArrivalKind.TollPaidEnd: // 통행료는 냈지만 인수할 돈은 없다면
                             {
-                                ShowTollPaid(playerId, ownerId, toll); // 통행료 이동 연출을 재생합니다.
+                                screen.ShowTollPaid(playerId, ownerId, toll); // 통행료 이동 연출을 재생합니다.
 
                                 long acquireValue = gameData.Properties.GetAcquireValue(propertyState);
                                 Log($"  인수 불가 (인수가 {Won(acquireValue)}, 현금 {Won(player.Money)})");
@@ -167,37 +167,4 @@ public partial class GameManager
     }
     #endregion
 
-    // 세무조사 결과를 화면에 보여줍니다. 현금 감소와 적립금 증가는 규칙(ArrivalRules)이 이미 반영했습니다.
-    // moneyBefore: 도착한 순간의 현금, paid: 실제로 낸 금액 (현금 한도 안에서)
-    public void HandleDonationPaid(long playerId, long moneyBefore, long paid)
-    {
-        PlayerState player = GetPlayerState(playerId);
-        if (player == null) return;
-
-        EconomyManager.NotifyMoneyChanged(playerId, moneyBefore, player.Money);
-        Log($"  [세무조사] {P(playerId)}: 벌금 {Won(gameState.Config.taxAmount)} 중 {Won(paid)} 납부 (현금 {Won(player.Money)}, 적립금 {Won(gameState.WelfareFund)})");
-
-        // 재화 손실 연출을 재생합니다.
-        SpecialTileManager.Instance.PlayTaxPaid(playerId, paid);
-    }
-
-    // 적립금 수령 결과를 화면에 보여줍니다. 현금 증가와 적립금 감소는 규칙(ArrivalRules)이 이미 반영했습니다.
-    // moneyBefore: 도착한 순간의 현금, amount: 받은 적립금 (0이면 받을 것이 없었음)
-    public void HandleWelfareFundReceived(long playerId, long moneyBefore, long amount)
-    {
-        PlayerState player = GetPlayerState(playerId);
-        if (player == null) return;
-
-        if (amount <= 0)
-        {
-            Log($"  [푸드 페스티벌] {P(playerId)}: 쌓인 적립금이 없습니다.");
-            return;
-        }
-
-        EconomyManager.NotifyMoneyChanged(playerId, moneyBefore, player.Money);
-        Log($"  [푸드 페스티벌] {P(playerId)}: 적립금 {Won(amount)} 획득 (현금 {Won(player.Money)})");
-
-        // 재화 획득 연출을 재생합니다.
-        SpecialTileManager.Instance.PlayWelfareFundReceived(playerId, amount);
-    }
 }

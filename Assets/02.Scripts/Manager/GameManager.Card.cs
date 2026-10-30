@@ -44,12 +44,12 @@ public partial class GameManager
         switch (card.effectType)
         {
             case CardEffectType.Bonus: // 은행에서 돈을 받는다
-                EconomyManager.NotifyMoneyChanged(playerId, before, player.Money);
+                screen.NotifyMoneyChanged(playerId, before, player.Money);
                 // 재화 획득 연출을 재생합니다.
                 break;
 
             case CardEffectType.Penalty: // 은행 또는 기부금(WelfareFund)에 돈을 낸다 (현금 한도 안에서만, 매각/파산 없음)
-                EconomyManager.NotifyMoneyChanged(playerId, before, player.Money);
+                screen.NotifyMoneyChanged(playerId, before, player.Money);
                 Log($"[카드:벌금] {P(playerId)}: 벌금 {Won(card.amount)} 중 {Won(outcome.PenaltyPaid)} 납부 (현금 {Won(player.Money)})");
                 // 재화 손실 연출을 재생합니다.
                 break;
@@ -121,6 +121,6 @@ public partial class GameManager
 
         // 카드 연출을 재생합니다. 연출이 끝나면 EffectType에 맞는 CardEffect 실행 메서드를 호출합니다.
         // 내 카드면 확인을 눌렀을 때, 다른 플레이어 카드면 자동으로 닫힐 때 실행됩니다. (전원 자동 진행 테스트에서는 모두 자동으로 닫힘)
-        UIManager.Instance.ShowCardDrawPopup(playerId, card.id, true, () => ExecuteCardEffect(playerId, card));
+        screen.ShowCardDrawPopup(playerId, card.id, true, () => ExecuteCardEffect(playerId, card));
     }
 }

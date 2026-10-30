@@ -13,19 +13,15 @@ public partial class GameManager
         if (player == null) return;
 
         // 최종 등수를 정하고 파산 표시를 하는 일은 규칙(TradeRules.MarkBankrupt)이 합니다. (이미 파산한 플레이어는 다시 처리하지 않습니다.)
-        ShowBankrupt(player, TradeRules.MarkBankrupt(gameState, player));
+        AfterBankrupt(player, TradeRules.MarkBankrupt(gameState, player));
     }
 
-    // 파산 결과를 화면에 보여줍니다. GameState는 규칙이 이미 갱신했습니다.
-    private void ShowBankrupt(PlayerState player, BankruptResult result)
+    // 파산 뒤처리: 화면 표시(GameScreen), 파산 이벤트, 남은 플레이어가 1명이면 게임 종료. GameState는 규칙이 이미 갱신했습니다.
+    private void AfterBankrupt(PlayerState player, BankruptResult result)
     {
         if (result == BankruptResult.AlreadyBankrupt) return;
 
-        Log($"[파산] {P(player.PlayerId)}가 파산했습니다. (최종 {player.FinalRank}위)");
-
-        // 파산 연출을 재생합니다. (GameState를 먼저 갱신한 뒤 부르므로 UI는 IsBankrupt를 그대로 읽으면 됨)
-        if (UIManager.Instance != null)
-            UIManager.Instance.PlayBankruptEffect(player.PlayerId);
+        screen.ShowBankrupt(player); // 파산 로그와 연출
         OnPlayerBankrupt?.Invoke(player.PlayerId);
 
         // 남은 플레이어 수가 1이라면 게임 종료 함수를 호출합니다. (팀전의 경우 조건이 바뀔 수 있음.)
@@ -44,10 +40,7 @@ public partial class GameManager
         // 자신의 차례인 경우에만 선택 가능한 UI를 표시합니다.
         if (IsLocalPlayerTurn())
         {
-            if (UIManager.Instance != null)
-            {
-                UIManager.Instance.ShowPurchasePropertyPopup(playerId, propertyId, isPurchasable);
-            }
+            screen.ShowPurchasePropertyPopup(playerId, propertyId, isPurchasable);
         }
         
         // broadcast메시지 수신 대기 상태에 들어갑니다.
@@ -88,14 +81,13 @@ public partial class GameManager
 
         // GameState를 갱신합니다. (플레이어 현금 차감, 자산 주인 갱신, 새로 산 땅은 건물 없음) 규칙(TradeRules.Purchase)이 합니다.
         long amount = TradeRules.Purchase(gameData, player, property);
-        RefreshOwnerVisual(property);
-        RefreshBuildingVisual(property);
+        screen.UpdatePropertyOwner(property);
+        screen.UpdatePropertyBuilding(property);
         Log($"[구매] {P(playerId)}: {CityName(propertyId)} 구매 (-{Won(amount)}, 남은 현금 {Won(player.Money)})");
 
         // 자산 구매 연출을 재생합니다.
         OnPropertyPurchasedSuccessfully?.Invoke(playerId);
-        if (UIManager.Instance != null)
-            UIManager.Instance.PlayMoneyChange(playerId, -amount, "땅 구매");
+        screen.PlayMoneyChange(playerId, -amount, "땅 구매");
 
         // 턴을 종료합니다.
         ProcessEndTurn();
@@ -108,10 +100,7 @@ public partial class GameManager
         // 자신의 차례인 경우에만 건설할 것인지 선택 가능한 UI를 표시합니다.
         if (IsLocalPlayerTurn())
         {
-            if (UIManager.Instance != null)
-            {
-                UIManager.Instance.ShowBuildPopup(playerId, propertyId, isBuildable);
-            }
+            screen.ShowBuildPopup(playerId, propertyId, isBuildable);
         }
         
         // broadcast메시지 수신 대기 상태에 들어갑니다.
@@ -152,12 +141,11 @@ public partial class GameManager
 
         // GameState를 갱신합니다. (플레이어 현금 차감, 건설 레벨 증가) 규칙(TradeRules.Build)이 합니다.
         long amount = TradeRules.Build(gameData, playerState, propertyState);
-        RefreshBuildingVisual(propertyState);
+        screen.UpdatePropertyBuilding(propertyState);
 
         // 건설 연출을 재생합니다.
         OnBuildingBuiltSuccessfully?.Invoke(playerId);
-        if (UIManager.Instance != null)
-            UIManager.Instance.PlayMoneyChange(playerId, -amount, "건설");
+        screen.PlayMoneyChange(playerId, -amount, "건설");
 
         // 턴을 종료합니다.
         ProcessEndTurn();
@@ -170,10 +158,7 @@ public partial class GameManager
         // 자신의 차례인 경우에만 인수할 것인지 선택 가능한 UI를 표시합니다.
         if (IsLocalPlayerTurn())
         {
-            if (UIManager.Instance != null)
-            {
-                UIManager.Instance.ShowAcquirePropertyPopup(playerId, propertyId);
-            }
+            screen.ShowAcquirePropertyPopup(playerId, propertyId);
         }
 
         // broadcast메시지 수신 대기 상태에 들어갑니다.
@@ -215,11 +200,10 @@ public partial class GameManager
 
         // GameState를 갱신합니다. (인수자 현금 차감, 인수당하는 사람 현금 증가, 자산 주인 갱신) 규칙(TradeRules.Acquire)이 합니다.
         long amount = TradeRules.Acquire(gameData, acquirer, owner, property);
-        RefreshOwnerVisual(property); //소유권 이전
+        screen.UpdatePropertyOwner(property); //소유권 이전
 
         // 인수 연출을 재생합니다.
-        if (UIManager.Instance != null)
-            UIManager.Instance.PlayMoneyTransfer(playerId, owner.PlayerId, amount, "인수", "인수 대금");
+        screen.PlayMoneyTransfer(playerId, owner.PlayerId, amount, "인수", "인수 대금");
 
         // 턴을 종료합니다.
         ProcessEndTurn();
@@ -232,10 +216,7 @@ public partial class GameManager
         // 자신의 차례인 경우에만 청산할 자산들을 선택 가능한 UI를 표시합니다.
         if (IsLocalPlayerTurn())
         {
-            if (UIManager.Instance != null)
-            {
-                UIManager.Instance.ShowSellPropertiesPopup(payerId, receiverId, requiredAmount);
-            }
+            screen.ShowSellPropertiesPopup(payerId, receiverId, requiredAmount);
         }
 
         // broadcast메시지 수신 대기 상태에 들어갑니다.
@@ -273,13 +254,12 @@ public partial class GameManager
             var property = GetPropertyState(id);
             if (property == null) continue;
 
-            RefreshBuildingVisual(property); // 건설 레벨 초기화
-            RefreshOwnerVisual(property); // 주인 없는 땅으로
+            screen.UpdatePropertyBuilding(property); // 건설 레벨 초기화
+            screen.UpdatePropertyOwner(property); // 주인 없는 땅으로
         }
 
         // 자산 청산 및 재화 이동 연출을 재생합니다.
-        if (UIManager.Instance != null)
-            UIManager.Instance.PlayMoneyTransfer(payerId, plan.Receiver.PlayerId, plan.Toll, "통행료", "통행료 수입");
+        screen.PlayMoneyTransfer(payerId, plan.Receiver.PlayerId, plan.Toll, "통행료", "통행료 수입");
 
         // 턴을 종료합니다.
         ProcessEndTurn();
@@ -304,11 +284,11 @@ public partial class GameManager
             var property = GetPropertyState(id);
             if (property == null) continue;
 
-            RefreshOwnerVisual(property); // 주인 없는 땅으로
-            RefreshBuildingVisual(property); // 건설 레벨 초기화
+            screen.UpdatePropertyOwner(property); // 주인 없는 땅으로
+            screen.UpdatePropertyBuilding(property); // 건설 레벨 초기화
         }
 
-        ShowBankrupt(payer, result); // 납부자 파산 처리 (파산 연출 → 게임 종료 판정)
+        AfterBankrupt(payer, result); // 납부자 파산 처리 (파산 연출 → 게임 종료 판정)
 
         // 턴 넘기기는 ProcessArrival에서 처리 (HandleTurnChanged(GetNextPlayerId()) 호출)
     }
@@ -321,25 +301,7 @@ public partial class GameManager
         if (payer == null || receiver == null) return;
 
         TradeRules.PayToll(payer, receiver, amount);
-        ShowTollPaid(payerId, receiverId, amount);
+        screen.ShowTollPaid(payerId, receiverId, amount);
     }
 
-    // 통행료 이동 연출을 재생합니다.
-    private void ShowTollPaid(long payerId, long receiverId, long amount)
-    {
-        if (UIManager.Instance != null)
-            UIManager.Instance.PlayTollEffect(payerId, receiverId, amount);
-    }
-
-    // 규칙이 바꾼 땅 주인을 보드의 땅 색에 반영합니다.
-    private void RefreshOwnerVisual(PropertyState state)
-    {
-        BoardManager.Instance.UpdatePropertyTileColor(state.PropertyId, state.OwnerId);
-    }
-
-    // 규칙이 바꾼 건물 단계를 보드의 건물 모양에 반영합니다.
-    private void RefreshBuildingVisual(PropertyState state)
-    {
-        BoardManager.Instance.UpdatePropertyBuildingVisual(state.PropertyId, state.BuildingLevel);
-    }
 }

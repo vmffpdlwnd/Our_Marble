@@ -35,6 +35,9 @@ public partial class GameManager : Singleton<GameManager>
     // 규칙(Rules/)이 읽는 보드, 땅 가격표, 카드. 게임 상태를 동기화할 때 게임 씬의 데이터로 만든다.
     private GameData gameData;
 
+    // 화면에 보여 주는 일(연출, 결과 표시, 로그)은 이 클래스에 맡긴다.
+    private readonly GameScreen screen = new GameScreen();
+
     [SerializeField]private string gameSceneName = "BoardLayout 2";
 
     private System.Random random; // 선턴 정하기나 랜덤 주사위 값을 계산할 때 사용합니다.
@@ -112,55 +115,12 @@ public partial class GameManager : Singleton<GameManager>
     // ────────────────────────── 로그 / 봇 도우미 ──────────────────────────
     // UI가 없는 동안 진행 상황을 콘솔에서 볼 수 있도록 로그를 남깁니다.
 
-    private void Log(string message)
-    {
-        Debug.Log($"[Game] {message}");
-    }
-
-    // 로그용 이름: "1P[123]", "2P(봇)[456]"처럼 순서와 봇 여부를 보여줍니다.
-    private string P(long playerId)
-    {
-        int order = gameState.PlayerOrder.IndexOf(playerId) + 1;
-        string nickname = gameState.PlayerStates[order - 1].Nickname;
-        return $"[{order}P]{nickname}";
-    }
-
-    private string Won(long amount)
-    {
-        return $"{amount:N0}원";
-    }
-
-    private string CityName(int propertyId)
-    {
-        PropertyData data = PropertyManager.Instance.GetData(propertyId);
-        return data != null ? data.CityName : $"땅{propertyId}";
-    }
-
-    private string TileName(int position)
-    {
-        TileData tile = BoardManager.Instance.GetTileData(position);
-        if (tile == null) return $"{position}번";
-
-        if (tile.Type == TileType.PROPERTY)
-            return $"{CityName(tile.PropertyId)}({position}번)";
-
-        return $"{tile.Type}({position}번)";
-    }
-
-
-
-    // 최종 순위를 FinalRank 순으로 로그에 남깁니다.
-    private void LogRanking()
-    {
-        var ranked = new List<PlayerState>(gameState.PlayerStates);
-        ranked.Sort((a, b) => a.FinalRank.CompareTo(b.FinalRank));
-        foreach (PlayerState player in ranked)
-        {
-            long totalAsset = gameData.Properties.GetTotalAsset(player.PlayerId, player.Money, gameState.PropertyStates);
-            string result = player.IsBankrupt ? "파산" : (player.FinalRank == 1 ? "승리" : "패배");
-            Log($"  {player.FinalRank}위 {P(player.PlayerId)}: 총자산 {Won(totalAsset)} (현금 {Won(player.Money)}) - {result}");
-        }
-    }
+    // 로그와 표시 이름은 GameScreen이 만든다. 부르는 곳이 많아 짧은 이름으로 전달만 한다.
+    private void Log(string message) => screen.Log(message);
+    private string P(long playerId) => screen.P(playerId);
+    private string Won(long amount) => screen.Won(amount);
+    private string CityName(int propertyId) => screen.CityName(propertyId);
+    private string TileName(int position) => screen.TileName(position);
 
     public void SyncGameState(GameState serverGameState)
     {
@@ -168,6 +128,7 @@ public partial class GameManager : Singleton<GameManager>
         // gameState 동기화. 덮어씀
         gameState = serverGameState;
         gameData = GameDataFactory.FromScene(); // 규칙이 읽는 보드, 땅 가격표, 카드
+        screen.Bind(gameState, gameData);
 
         startMoney = gameState.Config.startMoney;
         maxRound = gameState.Config.maxRound;
@@ -180,23 +141,8 @@ public partial class GameManager : Singleton<GameManager>
             playerColorMap.Add(playerState.PlayerId, UIPalette.PlayerColor(i));
         }
 
-        // 이 화면을 조작하는 사람 플레이어를 지정하고, 플레이어 정보 카드를 GameState에 맞춰 채웁니다. UI의 값들을 GameState에 맞게 갱신합니다. 
-        if (UIManager.Instance != null)
-        {
-            UIManager.Instance.SetLocalPlayer(LocalPlayer.Id);
-            UIManager.Instance.SetMaxRound(maxRound); // 최대 라운드는 GameManager가 관리하고 UI에 알려줍니다.
-            UIManager.Instance.InitPlayers();
-            
-            // UI 리프레시 함수 호출
-            UIManager.Instance.RefreshUIFromGameState();
-        }
-
-        // Board 리프레시 함수 호출
-        BoardManager.Instance.RefreshBoard();
-        
-        PlayerManager.Instance.Initialize(gameState.PlayerStates.ConvertAll(state => state.PlayerId));
-        // PlayerPawn 리프레시 함수 호출
-        PlayerManager.Instance.RefreshPawns(gameState.PlayerStates);
+        // 이 화면을 조작하는 사람 플레이어를 지정하고, 플레이어 정보 카드, 보드, 말을 GameState에 맞춰 채웁니다. 
+        screen.InitializeScreen(LocalPlayer.Id, maxRound);
 
         if (gameState.TurnNumber == 1)
         {
@@ -225,8 +171,7 @@ public partial class GameManager : Singleton<GameManager>
         if (player == null) return;
 
         // 이번 차례가 끝나기 전에 끊겼다면 'OO의 턴' 표시를 다시 띄웁니다.
-        if (UIManager.Instance != null)
-            UIManager.Instance.ShowTurn(playerId);
+        screen.ShowTurn(playerId);
 
         switch (gameState.WaitingType.Value)
         {
@@ -324,8 +269,7 @@ public partial class GameManager : Singleton<GameManager>
     private void HandleGameError(string code, string message)
     {
         sendAndWaiting = false;
-        if (UIManager.Instance != null)
-            UIManager.Instance.CancelDiceRolling();
+        screen.CancelDiceRolling();
     }
 
     private void HandleRoutine()
@@ -339,12 +283,12 @@ public partial class GameManager : Singleton<GameManager>
 
         if (!IsLocalPlayerTurn()) return;
 
-        UIManager.Instance.CloseSelectionPopups();
+        screen.CloseSelectionPopups();
         
         // 내가 보낸 요청이 아닌데 알림이 왔다면 호스트가 대신 진행한 것이다.
         // 굴리기 버튼이 남아 있으면 눌러도 거절당하므로 잠근다. (다음 내 차례에 ShowRollDicePopup이 다시 연다)
         if (!sendAndWaiting)
-            UIManager.Instance.LockDiceRoll();
+            screen.LockDiceRoll();
             
         isAfk = !sendAndWaiting;
         sendAndWaiting = false;

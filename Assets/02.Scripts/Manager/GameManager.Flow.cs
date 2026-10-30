@@ -21,11 +21,10 @@ public partial class GameManager
         if (!GameRules.EndGame(gameState, gameData)) return;
 
         Log($"[게임 종료] {reason}");
-        LogRanking();
+        screen.LogRanking();
 
         // 게임 결과 창을 띄웁니다. (총자산 순으로 순위 표시)
-        if (UIManager.Instance != null)
-            UIManager.Instance.ShowGameResultPopup(ReturnToRoom);
+        screen.ShowGameResultPopup(ReturnToRoom);
     }
 
     private void ReturnToRoom()
@@ -63,9 +62,8 @@ public partial class GameManager
         // 'OO의 턴'이라는 UI를 표시합니다.
         PlayerState playerState = GetPlayerState(playerId);
         Log($"===== {gameState.RoundNumber}/{maxRound}라운드 ({gameState.TurnNumber}번째 턴): {P(playerId)} 차례 (현금 {Won(playerState.Money)}, 위치 {TileName(playerState.Position)}) =====");
-        if (UIManager.Instance != null)
-            UIManager.Instance.ShowTurn(playerId);
-        PlayerManager.Instance.SetCurrentTurn(playerId);
+        screen.ShowTurn(playerId);
+        screen.SetCurrentTurn(playerId);
 
         // 새 차례가 온 플레이어의 위치가 자유여행인 경우
         TileData currentTile = gameData.GetTile(playerState.Position);
@@ -89,10 +87,7 @@ public partial class GameManager
         // 자신의 차례인 경우에만 자유 여행할 타일을 선택하는 UI를 표시합니다.
         if (IsLocalPlayerTurn())
         {
-            if (UIManager.Instance != null)
-            {
-                UIManager.Instance.ShowChooseDestinationPopup();
-            }
+            screen.ShowChooseDestinationPopup();
         }
 
         gameState.WaitingType = GameMessageType.DESTINATION_CHOSEN;
@@ -126,10 +121,7 @@ public partial class GameManager
     {
         if (IsLocalPlayerTurn())
         {
-            if (UIManager.Instance != null)
-            {
-                UIManager.Instance.ShowRollDicePopup();
-            }
+            screen.ShowRollDicePopup();
         }
 
         // broadcast메시지 수신 대기 상태에 들어갑니다.
@@ -153,12 +145,9 @@ public partial class GameManager
         HandleRoutine();
 
         Log($"[주사위] {P(playerId)}: {dice1}+{dice2}={dice1 + dice2}{(dice1 == dice2 ? " (더블!)" : "")}");
-        if (UIManager.Instance != null)
-        {
-            UIManager.Instance.ShowDiceResult(dice1, dice2,
-                () => ContinueAfterDiceResult(playerId, dice1, dice2));
+        // 화면이 있으면 주사위 결과를 보여 주고, 연출이 끝난 뒤 이어서 진행합니다.
+        if (screen.ShowDiceResult(dice1, dice2, () => ContinueAfterDiceResult(playerId, dice1, dice2)))
             return;
-        }
 
         ContinueAfterDiceResult(playerId, dice1, dice2);
     }
@@ -185,7 +174,7 @@ public partial class GameManager
         {
             Log($"[무인도] {P(playerId)}: 탈출 실패 (남은 영업정지 {outcome.IslandTurnsRemaining}턴)");
             OnIslandEscapeFailed?.Invoke(playerId);
-            SpecialTileManager.Instance.PlayIslandEscapeFailed(playerId, outcome.IslandTurnsRemaining); // 탈출 실패 연출
+            screen.PlayIslandEscapeFailed(playerId, outcome.IslandTurnsRemaining); // 탈출 실패 연출
             HandleTurnChanged(GetNextPlayerId()); // 강제로 턴을 넘깁니다.
             return;
         }
@@ -194,7 +183,7 @@ public partial class GameManager
         if (outcome.EscapedIsland)
         {
             Log($"[무인도 탈출] {P(playerId)}: 더블로 탈출했습니다!");
-            SpecialTileManager.Instance.PlayIslandEscaped(playerId); // 탈출 연출
+            screen.PlayIslandEscaped(playerId); // 탈출 연출
         }
 
         // 3연속 더블이면 이동하지 않고 무인도로 보낸다.
@@ -224,13 +213,13 @@ public partial class GameManager
         long salary = GameRules.MoveTo(gameState, player, toPosition, shouldReceiveSalary);
         if (shouldReceiveSalary)
         {
-            EconomyManager.NotifyMoneyChanged(playerId, before, player.Money);
+            screen.NotifyMoneyChanged(playerId, before, player.Money);
             Log($"[월급] {P(playerId)}: 출발 지점을 지나 월급 {Won(salary)} 지급 (현금 {Won(player.Money)})");
         }
 
         // 2) 말 이동 연출 → 끝나면 도착 처리
         isMoving = true;
-        PlayerManager.Instance.MoveBySteps(
+        screen.MoveBySteps(
             playerId, fromPosition, steps,
             onTileReached: tileIndex =>
             {
@@ -261,13 +250,13 @@ public partial class GameManager
         long salary = GameRules.MoveTo(gameState, player, toPosition, shouldReceiveSalary);
         if (shouldReceiveSalary)
         {
-            EconomyManager.NotifyMoneyChanged(playerId, before, player.Money);
+            screen.NotifyMoneyChanged(playerId, before, player.Money);
             Log($"[월급] {P(playerId)}: 출발 지점을 지나 월급 {Won(salary)} 지급 (현금 {Won(player.Money)})");
         }
 
         // 2) 타일을 따라 이동하는 연출 → 끝나면 도착 처리
         isMoving = true;
-        PlayerManager.Instance.MoveAlongTiles(
+        screen.MoveAlongTiles(
             playerId, fromPosition, toPosition,
             onTileReached: tileIndex =>
             {
@@ -295,7 +284,7 @@ public partial class GameManager
 
         GameRules.MoveTo(gameState, player, toPosition, false); // 월급 없는 순간이동
         isMoving = true;
-        PlayerManager.Instance.MoveToTile(playerId, toPosition, () =>
+        screen.MoveToTile(playerId, toPosition, () =>
         {
             isMoving = false;
             ProcessArrival(playerId, toPosition);
