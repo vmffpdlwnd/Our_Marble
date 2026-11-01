@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 99c8e9a285251d64c975003f78a96f97
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/Fusion/Editor/EditorResources/FusionEditorAssetLibrary.asset
+  uploadId: 1001324

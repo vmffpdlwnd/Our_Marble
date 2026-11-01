@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 27dcb9d621772a649a130fb0c22878c4
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/Fusion/Runtime/Statistics/Prefabs/IndividualElements/NOStats.prefab
+  uploadId: 1001324

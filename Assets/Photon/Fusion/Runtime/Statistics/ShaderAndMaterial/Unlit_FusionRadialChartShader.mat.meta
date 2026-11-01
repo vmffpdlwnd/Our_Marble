@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 1ec126759b5c26e4580c120d6b286bd1
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/Fusion/Runtime/Statistics/ShaderAndMaterial/Unlit_FusionRadialChartShader.mat
+  uploadId: 1001324

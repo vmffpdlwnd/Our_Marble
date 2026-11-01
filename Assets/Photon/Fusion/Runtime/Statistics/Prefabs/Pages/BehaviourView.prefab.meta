@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 33830becefc00494db1fe55a77f63f62
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/Fusion/Runtime/Statistics/Prefabs/Pages/BehaviourView.prefab
+  uploadId: 1001324

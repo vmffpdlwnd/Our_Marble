@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: c91038ad306ce0b47b3fc329f68b7ebd
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/PhotonRealtime/Code/JoinRandomRoomArgs.cs
+  uploadId: 1001324

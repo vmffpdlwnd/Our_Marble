@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 272beb7315eb9fc4daecafe2ff373baf
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/PhotonRealtime/Code/AppSettings.cs
+  uploadId: 1001324

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: cb6ba593c5ce4bc4d8c5dd1e66b91c39
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/Fusion/Runtime/Statistics/Prefabs/IndividualElements/MultilineGraphLegendItem.prefab
+  uploadId: 1001324

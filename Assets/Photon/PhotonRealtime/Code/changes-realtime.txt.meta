@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: 530dcba8d8fbbc24a8894ca925cadd8a
+TextScriptImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/PhotonRealtime/Code/changes-realtime.txt
+  uploadId: 1001324

@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: b199a25aef303094f8d299987c726459
+labels:
+- FusionCodeDoc
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/Fusion/Editor/EditorResources/Fusion.Unity.xml
+  uploadId: 1001324

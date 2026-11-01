@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 921e467ad67d74b44bb097ce54e95b12
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/PhotonRealtime/Code/RaiseEventArgs.cs
+  uploadId: 1001324

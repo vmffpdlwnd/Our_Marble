@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: f1d1c39e77165064eab207591c6c3c02
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/Fusion/Runtime/Statistics/Prefabs/Pages/NetworkView.prefab
+  uploadId: 1001324
