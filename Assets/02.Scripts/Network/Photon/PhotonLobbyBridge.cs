@@ -44,7 +44,8 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private LocalLobbyHost host;                 // 내가 방장일 때만 있다. 방 하나를 가진 호스트
     private RoomSnapshot lastSnapshot;           // 마지막으로 받은 방 정보. 방장이 바뀔 때 이어받는 데 쓴다
     private bool busy;                           // 방을 만들거나 들어가는 중
-    private bool leaving;                        // 방을 나가는 중
+    private bool leaving;                        // 방을 나가는 중 (연결을 끊고 로비로 돌아갈 때까지 계속 true)
+    private bool finishing;                      // 나가기 마무리(FinishLeave)가 실행 중
     private int? pendingPortrait;                // 방에 들어가기 전에 고른 초상화
     private bool awaitingAnswer;                 // 방 만들기나 입장 요청을 보내고 방장의 답을 기다리는 중
     private readonly Queue<string> queued = new Queue<string>();   // 만드는 중에 들어온 요청 (방 설정 요청 등)
@@ -142,6 +143,9 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private async Task RefreshRoomList()
     {
         if (connection.IsInSession || busy || leaving) return; // 방 안이거나 방을 만들고 들어가고 나오는 중에는 목록을 보내지 않는다
+
+        // 연결이 바뀌는 도중이면 오류를 띄우지 않고 건너뛴다. 로비에 다시 들어가면 방 목록이 알아서 화면에 간다.
+        if (connection.Current == PhotonConnection.ConnectionState.StartingSession || connection.Current == PhotonConnection.ConnectionState.InSession) return;
 
         if (!await EnsureLobby())
         {
@@ -310,20 +314,29 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         float until = Time.unscaledTime + LeaveWaitSeconds;
         while (leaving && Time.unscaledTime < until) await Task.Yield();
 
-        if (leaving) await FinishLeave();
+        if (leaving && !finishing) await FinishLeave();
     }
 
-    // 방에서 나온 뒤: 연결을 끊고 다시 로비로 돌아가 방 목록을 본다
+    // 방에서 나온 뒤: 연결을 끊고 다시 로비로 돌아가 방 목록을 본다.
+    // 끝날 때까지 leaving을 true로 두어서, 그 사이에 화면이 보내는 방 목록 요청이 오류를 띄우지 않게 한다.
     private async Task FinishLeave()
     {
-        if (!leaving) return;
-        leaving = false;
+        if (!leaving || finishing) return;
+        finishing = true;
 
-        ClearRoomState();
-        LocalPlayer.Set(0, LocalPlayer.Nickname);
+        try
+        {
+            ClearRoomState();
+            LocalPlayer.Set(0, LocalPlayer.Nickname);
 
-        await connection.Disconnect();
-        if (IsActive) await connection.JoinLobby();
+            await connection.Disconnect();
+            if (IsActive) await connection.JoinLobby();
+        }
+        finally
+        {
+            leaving = false;
+            finishing = false;
+        }
     }
 
     // 입장 요청을 보낸 뒤 방장의 답이 오는지 지켜본다.

@@ -27,7 +27,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "2";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "3-1.6";
+    public const string CodeRevision = "3-1.7";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -44,6 +44,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     private NetworkRunner runner;
     private List<SessionInfo> sessions = new List<SessionInfo>();
     private int lastMasterId = int.MinValue;
+    private int rawLogged;   // 신뢰 데이터가 도착했다는 기록을 남긴 횟수 (방마다 처음 30개만)
 
     // 접속자 변화는 Fusion 콜백에 기대지 않고 ActivePlayers를 지켜봐서 알아낸다.
     // (Shared 모드에서는 OnPlayerJoined가 모든 사람에게 오지 않을 수 있다고 공식 문서와 샘플이 안내한다)
@@ -420,6 +421,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         }
 
         lastMasterId = int.MinValue;
+        rawLogged = 0;
         knownPlayers.Clear();
         Messenger?.Reset();
         if (!createNew) return;
@@ -555,6 +557,13 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public void OnReliableDataProgress(NetworkRunner r, PlayerRef player, ReliableKey key, float progress) { }
     public void OnReliableDataReceived(NetworkRunner r, PlayerRef player, ReliableKey key, ReadOnlySpan<byte> data)
     {
+        // 데이터가 이 PC까지 도착했는지는 아무 조건 없이 먼저 기록한다. (이 줄이 없으면 도착조차 안 한 것이다)
+        if (rawLogged < 30)
+        {
+            rawLogged++;
+            Add($"[도착] 신뢰 데이터 ← {player.PlayerId}번, {data.Length}바이트 (현재 러너와 같음: {r == runner})");
+        }
+
         if (r != runner) return;
         Messenger.OnReliableData(player, key, data);
     }
