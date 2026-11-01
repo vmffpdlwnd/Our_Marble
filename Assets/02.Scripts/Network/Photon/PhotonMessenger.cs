@@ -59,7 +59,6 @@ public class PhotonMessenger
     private readonly Dictionary<int, int> sendSeq = new Dictionary<int, int>();   // 받는 사람 → 다음에 보낼 번호
     private readonly Dictionary<int, Stream> streams = new Dictionary<int, Stream>(); // 보낸 사람 → 받은 메시지 정리
     private readonly Queue<LocalItem> localQueue = new Queue<LocalItem>();
-    private readonly List<int> idBuffer = new List<int>();
 
     public PhotonMessenger(PhotonConnection connection)
     {
@@ -243,16 +242,14 @@ public class PhotonMessenger
         catch (Exception e) { connection.WriteLog($"메시지 처리 오류: {e.Message}"); Debug.LogError(e); }
     }
 
-    /// <summary>방 접속자가 바뀌었을 때 부른다. 나간 사람과의 번호 기록을 지운다. (다시 들어오면 새 번호로 시작한다)</summary>
-    public void OnPlayersChanged(HashSet<int> present)
+    /// <summary>
+    /// 방에 있던 사람이 나간 것이 확인됐을 때 부른다. 그 사람과의 번호 기록을 지운다. (다시 들어오면 새 번호로 시작한다)
+    /// 아직 접속자 목록에 오르지 않은 사람의 기록은 지우지 않는다. 목록이 늦게 갱신될 때 번호가 초기화되어 메시지가 버려지는 것을 막으려는 것이다.
+    /// </summary>
+    public void OnPlayerLeft(int playerId)
     {
-        idBuffer.Clear();
-        foreach (int id in sendSeq.Keys) if (!present.Contains(id)) idBuffer.Add(id);
-        foreach (int id in idBuffer) sendSeq.Remove(id);
-
-        idBuffer.Clear();
-        foreach (int id in streams.Keys) if (!present.Contains(id)) idBuffer.Add(id);
-        foreach (int id in idBuffer) streams.Remove(id);
+        sendSeq.Remove(playerId);
+        streams.Remove(playerId);
     }
 
     /// <summary>연결이 바뀌거나 끝났을 때 모든 기록을 지운다.</summary>
