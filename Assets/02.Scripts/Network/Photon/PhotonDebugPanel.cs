@@ -128,6 +128,8 @@ public class PhotonDebugPanel : MonoBehaviour
         GUI.enabled = conn.Current != PhotonConnection.ConnectionState.Disconnected;
         if (GUILayout.Button("연결 끊기"))
             _ = conn.Disconnect();
+        if (GUILayout.Button("끊김 흉내")) // 우리가 끊는 것이 아니라 갑자기 끊긴 것처럼 처리한다
+            conn.SimulateDrop();
         GUI.enabled = true;
         GUILayout.EndHorizontal();
 

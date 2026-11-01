@@ -7,6 +7,7 @@ using Fusion;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// 게임의 로비와 대기방 화면(LobbyManager)을 Photon에 이어 주는 쪽.
@@ -35,6 +36,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     private const long OfflinePlayerId = 1;      // Photon을 쓰지 않을 때 이 PC 플레이어의 번호 (TitleManager와 같다)
     private const float LeaveWaitSeconds = 3f;   // 방을 나갈 때 방장의 답을 기다리는 시간
+    private const float RoomListWaitSeconds = 2f;  // 로비에 방금 다시 연결했을 때, 고른 방이 목록에 나타나기를 기다리는 시간
     private const float LobbyConnectSeconds = 8f;  // 로비에 연결되기를 기다리는 시간. 넘으면 혼자 하기로 전환한다 (화면의 10초 제한보다 먼저)
     private const float HandshakeSeconds = 2.5f; // 방에 들어온 직후 방장의 퐁을 기다리는 시간. 퐁이 없어도 요청은 보낸다 (옛 버전 방장은 퐁을 못 준다)
     private const float MasterLeaveFlushSeconds = 0.5f; // 방장이 나갈 때, 방금 보낸 알림이 Photon으로 나갈 시간을 준다
@@ -82,6 +84,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         connection.SessionsChanged += OnSessionsChanged;
         connection.PlayersChanged += OnPlayersChanged;
         connection.MasterChanged += OnMasterChanged;
+        connection.ConnectionLost += OnConnectionLost;
         Log("게임 로비를 Photon에 연결했습니다");
     }
 
@@ -96,6 +99,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         connection.SessionsChanged -= OnSessionsChanged;
         connection.PlayersChanged -= OnPlayersChanged;
         connection.MasterChanged -= OnMasterChanged;
+        connection.ConnectionLost -= OnConnectionLost;
         if (LobbyNetwork.Instance.Host == this) LobbyNetwork.Instance.Host = null;
         connection.GameBridge.Disable();
 
@@ -348,6 +352,11 @@ public class PhotonLobbyBridge : IHostRequestReceiver
                 return;
             }
 
+            // 로비에 방금 다시 연결했다면 방 목록이 오기까지 잠깐 걸린다. 고른 방이 목록에 나타날 때까지 잠깐 기다린다.
+            float listUntil = Time.unscaledTime + RoomListWaitSeconds;
+            while (!connection.Sessions.Any(session => session.Name == roomId) && Time.unscaledTime < listUntil)
+                await Task.Yield();
+
             SessionInfo target = connection.Sessions.FirstOrDefault(session => session.Name == roomId);
             if (target != null && IntProp(target, KeyHosted, 0) != 1)
             {
@@ -396,7 +405,15 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     private async Task LeaveRoomFlow(string json)
     {
-        if (!connection.IsInSession || busy) { DeliverError("NOT_IN_ROOM", "방에 들어가 있지 않아요"); return; }
+        if (busy) { DeliverError("NOT_IN_ROOM", "방에 들어가 있지 않아요"); return; }
+
+        if (!connection.IsInSession)
+        {
+            // 연결은 이미 없는데 화면은 방에 있다고 생각한다. 방장에게 알릴 길이 없으니 이쪽에서 정리하고 화면을 로비로 보낸다.
+            if (lastSnapshot != null || host != null) await HandleRoomConnectionLost();
+            else DeliverError("NOT_IN_ROOM", "방에 들어가 있지 않아요");
+            return;
+        }
 
         leaving = true;
         connection.Messenger.SendRequest(PhotonMessenger.DomainLobby, json); // 방장이 ROOM_LEFT를 돌려주고 남은 사람들에게 알린다
@@ -633,6 +650,45 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         bool open = waiting && humans < room.maxPlayers - room.botCount;
         connection.SetRoomOpen(open, forceOpen);
         if (forceOpen) Log($"방 정보를 Photon 방에 반영했습니다 (사람 {humans}명, 자리 {room.maxPlayers - room.botCount}개, 상태 {(waiting ? "대기" : "게임 중")}, 열림 {open})");
+    }
+
+    // ───────────── 연결이 예기치 않게 끊겼을 때 ─────────────
+
+    private void OnConnectionLost(PhotonConnection.ConnectionState previous, ShutdownReason reason)
+    {
+        if (!IsActive || leaving || finishing) return; // 우리가 나가는 중이면 이미 정리하고 있다
+
+        if (previous == PhotonConnection.ConnectionState.InLobby)
+        {
+            // 방 밖이면 화면에 남은 방 목록이 낡았을 뿐이다. 다음에 무언가 누를 때 EnsureLobby가 다시 연결하고, 안 되면 혼자 하기로 전환한다.
+            Log($"로비 연결이 끊어졌습니다 ({reason}). 다음 요청 때 다시 연결합니다");
+            return;
+        }
+
+        Log($"방 연결이 끊어졌습니다 ({reason})");
+        Run(HandleRoomConnectionLost(), "연결 끊김 처리");
+    }
+
+    // 방 안에서 연결이 끊겼을 때: 방 정보를 정리하고 화면을 방에서 내보낸다.
+    private async Task HandleRoomConnectionLost()
+    {
+        bool inGame = SceneManager.GetActiveScene().path == SceneFlow.GameScenePath;
+
+        ClearRoomState();
+        LocalPlayer.Set(0, LocalPlayer.Nickname);
+
+        if (inGame)
+        {
+            // 게임 중에 끊기면 이어하기는 아직 지원하지 않아서 타이틀로 보낸다. (재접속 작업에서 이어하기로 바꾼다)
+            Log("게임 중 연결이 끊겨 타이틀로 돌아갑니다");
+            SceneFlow.ToLogin("연결이 끊어져 게임에서 나왔어요");
+            return;
+        }
+
+        // 대기방에서 끊겼다: 화면이 방에서 나오게 하고 안내한 뒤, 로비에 다시 연결해서 방 목록을 본다.
+        LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.ROOM_LEFT, JsonConvert.SerializeObject(new RoomLeftResponse { type = "ROOM_LEFT" }));
+        LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.LOBBY_ERROR, ErrorJson("CONNECTION_LOST", "연결이 끊어져 방에서 나왔어요"));
+        await RefreshRoomList();
     }
 
     // ───────────── 방장이 바뀌거나 사람이 나갈 때 ─────────────

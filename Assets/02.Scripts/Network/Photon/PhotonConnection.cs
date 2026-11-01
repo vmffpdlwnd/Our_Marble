@@ -28,7 +28,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "2";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "5-1.2";
+    public const string CodeRevision = "5-2.1";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -80,6 +80,12 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
     /// <summary>이 PC의 사용자를 PlayFab에서 알아보는 쪽. Photon에 접속할 때 PlayFab 인증을 낸다</summary>
     public PlayFabIdentity Identity { get; private set; }
+
+    /// <summary>
+    /// 연결돼 있던 중에(로비나 방 안에서) 우리가 끊지 않았는데 끊겼을 때 불린다. 알려 주는 값은 끊기기 직전의 상태다.
+    /// 접속을 시도하다 실패한 경우에는 불리지 않는다. (그건 접속 함수가 실패로 돌려준다)
+    /// </summary>
+    public event Action<ConnectionState, ShutdownReason> ConnectionLost;
 
     public event Action StateChanged;
     public event Action SessionsChanged;
@@ -588,12 +594,28 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     {
         if (r != runner) return; // 우리가 일부러 끝낸 이전 러너는 무시한다
 
+        ConnectionState previous = Current;
+
         Add("연결이 끝났습니다: " + reason);
         runner = null;
         sessions.Clear();
         SetState(ConnectionState.Disconnected);
         SessionsChanged?.Invoke();
         PlayersChanged?.Invoke();
+
+        // 연결이 완성된 뒤에 끊긴 경우만 "끊김"으로 알린다
+        if (previous == ConnectionState.InLobby || previous == ConnectionState.InSession)
+            ConnectionLost?.Invoke(previous, reason);
+    }
+
+    /// <summary>개발용: 예기치 않은 연결 끊김을 흉내 낸다. (우리가 끊는 게 아니라서 끊김 처리가 실제처럼 동작한다)</summary>
+    public async void SimulateDrop()
+    {
+        if (runner == null) return;
+
+        Add("[개발용] 예기치 않은 연결 끊김을 흉내 냅니다");
+        try { await runner.Shutdown(); }
+        catch (Exception e) { Add("끊김 흉내 중 오류: " + e.Message); }
     }
 
     public void OnDisconnectedFromServer(NetworkRunner r, NetDisconnectReason reason)
