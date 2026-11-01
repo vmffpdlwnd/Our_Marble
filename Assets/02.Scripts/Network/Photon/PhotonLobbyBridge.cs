@@ -216,8 +216,9 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         {
             if (!await EnsureLobby()) { DeliverError("CONNECT_FAILED", "Photon에 연결하지 못했어요"); return; }
 
-            // 방 이름은 화면이 정하지 않으므로 만든 사람의 이름으로 정한다
-            if (!await connection.CreateRoom($"{LocalPlayer.Nickname}의 방", PhotonConnection.MaxHumansLimit))
+            // 방 이름은 화면이 정하지 않으므로 만든 사람의 이름으로 정한다.
+            // 방 목록에 보일 속성(방장, 인원, 호스트 표시 등)은 방을 만들 때 함께 정해야 다른 PC의 방 목록에 보인다.
+            if (!await connection.CreateRoom($"{LocalPlayer.Nickname}의 방", PhotonConnection.MaxHumansLimit, InitialRoomProperties()))
             {
                 DeliverError("CREATE_FAILED", "방을 만들지 못했어요");
                 return;
@@ -226,7 +227,6 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             // 방을 만든 사람이 방장이다. 호스트를 시작하고 평소처럼 요청을 보낸다. (내 요청은 네트워크를 타지 않고 내 호스트로 간다)
             OnSessionJoined();
             StartHost();
-            PublishHostedMark();
             SendHello();
             connection.Messenger.SendRequest(PhotonMessenger.DomainLobby, json);
             Log("방 만들기 요청을 호스트로 보냈습니다");
@@ -446,19 +446,18 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         return seenRefs.TryGetValue((int)playerId, out found);
     }
 
-    // 방을 만든 직후, 첫 방 정보가 나오기 전에도 이 방에 호스트가 있다고 표시한다. (다른 PC의 방 목록에 바로 보이게)
-    private void PublishHostedMark()
+    // 방을 만들 때 Photon에 함께 넘길 방 목록용 속성. 이후 방 정보가 바뀔 때 OnHostRoomUpdated가 같은 이름으로 값을 갱신한다.
+    // (Photon은 방 목록에 방을 만들 때 정한 속성 이름만 보여 준다. 나중에 새 이름을 더해도 다른 PC에는 안 보인다)
+    private static Dictionary<string, SessionProperty> InitialRoomProperties()
     {
-        connection.UpdateRoomProperties(new Dictionary<string, SessionProperty>
+        return new Dictionary<string, SessionProperty>
         {
-            [KeyName] = LocalPlayer.Nickname + "의 방",
-            [KeyState] = StateWaiting,
             [KeyHost] = LocalPlayer.Nickname,
             [KeyMap] = 0,
             [KeyCount] = 1,
             [KeyMax] = PhotonConnection.MaxHumansLimit,
             [KeyHosted] = 1,
-        });
+        };
     }
 
     // 방의 상태가 바뀔 때마다 방 목록에 보일 값(방장 이름, 인원, 상태)과 열림 여부를 Photon 방에 반영한다

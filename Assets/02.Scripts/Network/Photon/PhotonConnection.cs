@@ -187,7 +187,9 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     /// </summary>
     /// <param name="displayName">방 목록에 보일 이름. 비우면 방 코드를 쓴다</param>
     /// <param name="maxHumans">방에 들어올 수 있는 최대 사람 수 (봇 제외)</param>
-    public async Task<bool> CreateRoom(string displayName, int maxHumans)
+    /// <param name="extraProperties">방 목록에 함께 보일 속성. Photon은 방 목록(로비)에 방을 만들 때 정한 속성 이름만 보여 주므로,
+    /// 나중에 갱신할 속성(방장 이름, 인원 등)도 여기서 미리 이름을 정해 두어야 한다.</param>
+    public async Task<bool> CreateRoom(string displayName, int maxHumans, Dictionary<string, SessionProperty> extraProperties = null)
     {
         maxHumans = Math.Max(1, Math.Min(maxHumans, MaxHumansLimit));
 
@@ -200,6 +202,9 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
             ["name"] = string.IsNullOrWhiteSpace(displayName) ? FormatCode(code) : displayName,
             ["state"] = "waiting",
         };
+        if (extraProperties != null)
+            foreach (KeyValuePair<string, SessionProperty> pair in extraProperties)
+                properties[pair.Key] = pair.Value;
 
         return await StartSession(code, maxHumans, properties, expectExisting: false, visible: true) == StartResult.Ok;
     }
