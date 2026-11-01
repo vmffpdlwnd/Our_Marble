@@ -137,7 +137,7 @@ public class PhotonDebugPanel : MonoBehaviour
         GUILayout.Space(6);
         GUILayout.Label($"방 코드: {PhotonConnection.FormatCode(conn.RoomCode)}   나: {conn.LocalPlayerRef.PlayerId}번   {(conn.IsMaster ? "내가 방장" : "방장 아님")}");
 
-        GUILayout.Label("접속자 (봇은 Photon 접속자가 아니라서 여기에 없음)");
+        GUILayout.Label($"접속자 (봇은 Photon 접속자가 아니라서 여기에 없음)   목록 {System.Linq.Enumerable.Count(conn.Players)}명 / Photon 집계 {conn.RoomPlayerCount}명");
         foreach (PlayerRef player in conn.Players)
         {
             string me = player == conn.LocalPlayerRef ? " (나)" : "";

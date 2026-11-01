@@ -41,6 +41,12 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     private List<SessionInfo> sessions = new List<SessionInfo>();
     private int lastMasterId = int.MinValue;
 
+    // 접속자 변화는 Fusion 콜백에 기대지 않고 ActivePlayers를 지켜봐서 알아낸다.
+    // (Shared 모드에서는 OnPlayerJoined가 모든 사람에게 오지 않을 수 있다고 공식 문서와 샘플이 안내한다)
+    private readonly HashSet<int> knownPlayers = new HashSet<int>();
+    private readonly HashSet<int> nowPlayers = new HashSet<int>();
+    private float nextPlayerCheckTime;
+
     public ConnectionState Current { get; private set; } = ConnectionState.Disconnected;
 
     /// <summary>로비에서 받은 방 목록 (로비에 있을 때만 갱신된다)</summary>
@@ -69,6 +75,17 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
     /// <summary>방에 접속해 있는 사람들 (봇은 Photon에 접속한 게 아니라서 들어 있지 않다)</summary>
     public IEnumerable<PlayerRef> Players => runner != null ? runner.ActivePlayers : Enumerable.Empty<PlayerRef>();
+
+    /// <summary>Photon이 세는 지금 방의 접속자 수. 목록(Players)과 다르면 Fusion 쪽 갱신이 늦은 것이다</summary>
+    public int RoomPlayerCount
+    {
+        get
+        {
+            if (!IsInSession) return 0;
+            SessionInfo info = runner.SessionInfo;
+            return info != null && info.IsValid ? info.PlayerCount : 0;
+        }
+    }
 
     /// <summary>지금 들어 있는 방의 코드 (8자리). 방 안에 없으면 빈 문자열</summary>
     public string RoomCode => SessionName;
@@ -257,6 +274,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         }
 
         lastMasterId = runner.GetMasterClient().PlayerId;
+        RefreshKnownPlayers(announce: false);
         SetState(ConnectionState.InSession);
         Add($"방 안에 들어왔습니다: 코드 {FormatCode(runner.SessionInfo.Name)} (나 {runner.LocalPlayer.PlayerId}번, 방장 {lastMasterId}번)");
 
@@ -348,6 +366,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         }
 
         lastMasterId = int.MinValue;
+        knownPlayers.Clear();
         if (!createNew) return;
 
         var go = new GameObject("NetworkRunner");
@@ -372,17 +391,49 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         LogAdded?.Invoke(message);
     }
 
-    // 방장이 바뀌었는지 확인한다. (Photon이 방장을 바꿀 때 따로 알려 주는 콜백이 없어서 지켜본다)
+    // 방장과 접속자가 바뀌었는지 지켜본다.
+    // Photon이 방장을 바꿀 때 따로 알려 주는 콜백이 없고, 접속자 콜백도 모든 사람에게 오지 않을 수 있어서 직접 확인한다.
     private void Update()
     {
         if (!IsInSession) return;
 
         int masterId = runner.GetMasterClient().PlayerId;
-        if (masterId == lastMasterId) return;
+        if (masterId != lastMasterId)
+        {
+            lastMasterId = masterId;
+            Add($"방장이 바뀌었습니다: {masterId}번 {(runner.IsSharedModeMasterClient ? "(나)" : "")}");
+            MasterChanged?.Invoke();
+        }
 
-        lastMasterId = masterId;
-        Add($"방장이 바뀌었습니다: {masterId}번 {(runner.IsSharedModeMasterClient ? "(나)" : "")}");
-        MasterChanged?.Invoke();
+        // 접속자 목록은 0.2초마다 확인한다
+        if (Time.unscaledTime >= nextPlayerCheckTime)
+        {
+            nextPlayerCheckTime = Time.unscaledTime + 0.2f;
+            RefreshKnownPlayers(announce: true);
+        }
+    }
+
+    // 지금 접속자를 알고 있던 목록과 비교해서 바뀌었으면 알린다
+    private void RefreshKnownPlayers(bool announce)
+    {
+        nowPlayers.Clear();
+        foreach (PlayerRef player in runner.ActivePlayers)
+            nowPlayers.Add(player.PlayerId);
+
+        if (nowPlayers.SetEquals(knownPlayers)) return;
+
+        if (announce)
+        {
+            foreach (int id in nowPlayers)
+                if (!knownPlayers.Contains(id)) Add($"{id}번이 들어왔습니다");
+            foreach (int id in knownPlayers)
+                if (!nowPlayers.Contains(id)) Add($"{id}번이 나갔습니다");
+            Add($"현재 접속자 {nowPlayers.Count}명 (Photon 집계 {RoomPlayerCount}명)");
+        }
+
+        knownPlayers.Clear();
+        knownPlayers.UnionWith(nowPlayers);
+        PlayersChanged?.Invoke();
     }
 
     // ───────────── Fusion 콜백 ─────────────
@@ -390,15 +441,13 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public void OnPlayerJoined(NetworkRunner r, PlayerRef player)
     {
         if (r != runner) return;
-        Add($"{player.PlayerId}번이 들어왔습니다 (현재 {runner.ActivePlayers.Count()}명)");
-        PlayersChanged?.Invoke();
+        Add($"[콜백] OnPlayerJoined {player.PlayerId}번"); // 이 콜백이 오는지 확인하려고 남긴 진단 로그. 접속자 변화 알림은 Update의 확인이 한다
     }
 
     public void OnPlayerLeft(NetworkRunner r, PlayerRef player)
     {
         if (r != runner) return;
-        Add($"{player.PlayerId}번이 나갔습니다 (현재 {runner.ActivePlayers.Count()}명)");
-        PlayersChanged?.Invoke();
+        Add($"[콜백] OnPlayerLeft {player.PlayerId}번");
     }
 
     public void OnSessionListUpdated(NetworkRunner r, List<SessionInfo> sessionList)
