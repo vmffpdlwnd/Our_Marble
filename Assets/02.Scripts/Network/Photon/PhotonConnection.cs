@@ -52,11 +52,19 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     /// <summary>로비에서 받은 방 목록 (로비에 있을 때만 갱신된다)</summary>
     public IReadOnlyList<SessionInfo> Sessions => sessions;
 
+    /// <summary>방 안에서 메시지를 주고받는 쪽</summary>
+    public PhotonMessenger Messenger { get; private set; }
+
     public event Action StateChanged;
     public event Action SessionsChanged;
     public event Action PlayersChanged;
     public event Action MasterChanged;
     public event Action<string> LogAdded;
+
+    protected override void OnAwake()
+    {
+        Messenger = new PhotonMessenger(this);
+    }
 
     // ───────────── 상태 조회 ─────────────
 
@@ -323,6 +331,16 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         return true;
     }
 
+    /// <summary>신뢰 데이터 하나를 한 사람에게 보낸다. (메시지 전송은 PhotonMessenger가 이 함수를 쓴다)</summary>
+    public void SendReliable(PlayerRef target, ReliableKey key, byte[] data)
+    {
+        if (!IsInSession) throw new InvalidOperationException("방 안에 있지 않습니다");
+        runner.SendReliableDataToPlayer(target, key, data);
+    }
+
+    /// <summary>접속 로그에 한 줄을 남긴다. (콘솔과 테스트 창에 보인다)</summary>
+    public void WriteLog(string message) => Add(message);
+
     /// <summary>방 속성(이름, 상태 등)을 바꾼다. 방 목록에 보이는 값이다.</summary>
     public bool UpdateRoomProperties(Dictionary<string, SessionProperty> properties)
     {
@@ -367,6 +385,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
         lastMasterId = int.MinValue;
         knownPlayers.Clear();
+        Messenger?.Reset();
         if (!createNew) return;
 
         var go = new GameObject("NetworkRunner");
@@ -396,6 +415,8 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     private void Update()
     {
         if (!IsInSession) return;
+
+        Messenger.Tick();
 
         int masterId = runner.GetMasterClient().PlayerId;
         if (masterId != lastMasterId)
@@ -433,6 +454,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
         knownPlayers.Clear();
         knownPlayers.UnionWith(nowPlayers);
+        Messenger.OnPlayersChanged(nowPlayers);
         PlayersChanged?.Invoke();
     }
 
@@ -491,7 +513,11 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public void OnObjectEnterAOI(NetworkRunner r, NetworkObject obj, PlayerRef player) { }
     public void OnObjectExitAOI(NetworkRunner r, NetworkObject obj, PlayerRef player) { }
     public void OnReliableDataProgress(NetworkRunner r, PlayerRef player, ReliableKey key, float progress) { }
-    public void OnReliableDataReceived(NetworkRunner r, PlayerRef player, ReliableKey key, ReadOnlySpan<byte> data) { }
+    public void OnReliableDataReceived(NetworkRunner r, PlayerRef player, ReliableKey key, ReadOnlySpan<byte> data)
+    {
+        if (r != runner) return;
+        Messenger.OnReliableData(player, key, data);
+    }
     public void OnSceneLoadDone(NetworkRunner r) { }
     public void OnSceneLoadStart(NetworkRunner r) { }
     public void OnUserSimulationMessage(NetworkRunner r, SimulationMessagePtr message) { }

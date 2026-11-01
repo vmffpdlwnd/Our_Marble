@@ -17,6 +17,8 @@ public class PhotonDebugPanel : MonoBehaviour
     private string roomName = "테스트방";
     private string maxHumansText = "4";
     private string codeInput = "";
+    private int testCount;                 // 보낸 테스트 요청 수
+    private int seqExpected, seqOk, seqBad; // 순서 테스트: 다음에 올 번호, 맞게 온 수, 어긋난 수
     private Vector2 listScroll;
     private Vector2 logScroll;
     private readonly List<string> logs = new List<string>();
@@ -32,7 +34,10 @@ public class PhotonDebugPanel : MonoBehaviour
 
     private void Start()
     {
-        PhotonConnection.Instance.LogAdded += AddLog;
+        PhotonConnection conn = PhotonConnection.Instance;
+        conn.LogAdded += AddLog;
+        conn.Messenger.RequestReceived += OnTestRequest;
+        conn.Messenger.NotifyReceived += OnTestNotify;
     }
 
     private void OnDestroy()
@@ -152,7 +157,73 @@ public class PhotonDebugPanel : MonoBehaviour
         GUI.enabled = true;
         if (GUILayout.Button("방 나가기 (로비로)")) LeaveToLobby(conn);
         GUILayout.EndHorizontal();
+
+        DrawMessageTest(conn);
     }
+
+    // ───────────── 메시지 테스트 ─────────────
+
+    private void DrawMessageTest(PhotonConnection conn)
+    {
+        PhotonMessenger messenger = conn.Messenger;
+
+        GUILayout.Space(6);
+        GUILayout.Label($"메시지 테스트   보냄 {messenger.SentCount} / 받음 {messenger.ReceivedCount} / 순서 어긋나 도착 {messenger.ReorderedCount} / 중복 {messenger.DuplicateCount}");
+
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("요청 보내기 (→방장)"))
+        {
+            testCount++;
+            messenger.SendRequest(PhotonMessenger.DomainTest, $"{{\"test\":\"hello\",\"from\":{conn.LocalPlayerRef.PlayerId},\"n\":{testCount}}}");
+        }
+
+        GUI.enabled = conn.IsMaster;
+        if (GUILayout.Button("방송 (방장만)"))
+            messenger.BroadcastNotify(PhotonMessenger.DomainTest, "TEST_BROADCAST", $"{{\"n\":{++testCount}}}");
+        if (GUILayout.Button("큰 메시지 20KB (방장만)"))
+            messenger.BroadcastNotify(PhotonMessenger.DomainTest, "TEST_BIG", new string('A', 20000));
+        if (GUILayout.Button("순서 테스트 50개 (방장만)"))
+        {
+            for (int i = 0; i < 50; i++)
+                messenger.BroadcastNotify(PhotonMessenger.DomainTest, "TEST_SEQ", $"{{\"n\":{i}}}");
+        }
+        GUI.enabled = true;
+        GUILayout.EndHorizontal();
+    }
+
+    // 방장이 받은 테스트 요청: 보낸 사람에게 알림으로 답해서 방장 → 참가자 방향도 확인한다
+    private void OnTestRequest(PlayerRef sender, int domain, string json)
+    {
+        if (domain != PhotonMessenger.DomainTest) return;
+
+        AddLog($"[테스트] 요청 받음 (보낸 사람 {sender.PlayerId}번): {Cut(json)}");
+        PhotonConnection.Instance.Messenger.SendNotify(sender, PhotonMessenger.DomainTest, "TEST_ACK", json);
+    }
+
+    private void OnTestNotify(PlayerRef sender, int domain, string typeName, string json)
+    {
+        if (domain != PhotonMessenger.DomainTest) return;
+
+        if (typeName == "TEST_SEQ")
+        {
+            // {"n":숫자}에서 숫자를 읽어, 0부터 하나씩 늘어나는지 본다
+            int n = -1;
+            int colon = json.IndexOf(':');
+            if (colon >= 0) int.TryParse(json.Substring(colon + 1).TrimEnd('}'), out n);
+
+            if (n == 0) { seqExpected = 0; seqOk = 0; seqBad = 0; }
+            if (n == seqExpected) seqOk++; else seqBad++;
+            seqExpected = n + 1;
+
+            if (n == 49)
+                AddLog($"[테스트] 순서 테스트 끝: 맞게 온 것 {seqOk}개, 어긋난 것 {seqBad}개 (재정렬한 도착 {PhotonConnection.Instance.Messenger.ReorderedCount}번)");
+            return;
+        }
+
+        AddLog($"[테스트] 알림 받음 (보낸 사람 {sender.PlayerId}번) {typeName}, {json.Length}자: {Cut(json)}");
+    }
+
+    private static string Cut(string text) => text.Length <= 60 ? text : text.Substring(0, 60) + "...";
 
     private async void LeaveToLobby(PhotonConnection conn)
     {
