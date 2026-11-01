@@ -27,7 +27,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "2";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "3-1.7";
+    public const string CodeRevision = "3-1.8";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -137,7 +137,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
             foreach (PlayerRef player in runner.ActivePlayers)
                 if (player.PlayerId == playerId) return player;
         }
-        return PlayerRef.FromIndex(playerId - 1);
+        return PlayerRef.FromIndex(playerId); // FromIndex(n)의 PlayerId는 n이다 (실행해서 확인함)
     }
 
     /// <summary>접속자 목록(ActivePlayers)에 이 번호의 사람이 이미 올라 있는지</summary>
@@ -561,7 +561,8 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         if (rawLogged < 30)
         {
             rawLogged++;
-            Add($"[도착] 신뢰 데이터 ← {player.PlayerId}번, {data.Length}바이트 (현재 러너와 같음: {r == runner})");
+            key.GetInts(out int keyChannel, out int keySeq, out int keyDomain, out int keySender);
+            Add($"[도착] 신뢰 데이터 {data.Length}바이트. 콜백이 알려 준 보낸 사람 {player.PlayerId}번 / 키에 적힌 보낸 사람 {keySender}번 (현재 러너와 같음: {r == runner})");
         }
 
         if (r != runner) return;

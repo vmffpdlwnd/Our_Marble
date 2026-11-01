@@ -182,16 +182,22 @@ public class PhotonMessenger
     // ───────────── 받기 ─────────────
 
     /// <summary>Fusion의 신뢰 데이터 수신 콜백이 부른다.</summary>
-    public void OnReliableData(PlayerRef sender, ReliableKey key, ReadOnlySpan<byte> data)
+    /// <param name="callbackPlayer">콜백이 알려 준 PlayerRef. Shared 모드에서는 보낸 사람이 아니라 엉뚱한 번호로 온다.
+    /// (방장이 게스트에게서 받은 데이터가 방장 자신의 번호로 도착하는 것을 로그로 확인했다) 그래서 보낸 사람 판단에는 쓰지 않는다.</param>
+    public void OnReliableData(PlayerRef callbackPlayer, ReliableKey key, ReadOnlySpan<byte> data)
     {
         key.GetInts(out int channel, out int seq, out int domain, out int senderId);
         if (channel != (int)Channel.Request && channel != (int)Channel.Notify) return; // 우리 메시지가 아닌 데이터
 
+        // 보낸 사람은 보내는 쪽이 키에 적어 둔 번호로 정한다. 내 번호가 적혀 있으면 내가 보낸 것이 돌아온 것이라 버린다.
+        if (senderId == connection.LocalPlayerRef.PlayerId) return;
+        PlayerRef sender = connection.FindPlayerRef(senderId);
+
         ReceivedCount++;
         if (domain == DomainLobby)
-            connection.WriteLog($"[메시지] 받음 {(Channel)channel} ← {sender.PlayerId}번 (번호 {seq}, {data.Length}바이트)");
+            connection.WriteLog($"[메시지] 받음 {(Channel)channel} ← {senderId}번 (번호 {seq}, {data.Length}바이트)");
 
-        Stream stream = GetStream(sender.PlayerId);
+        Stream stream = GetStream(senderId);
 
         if (seq < stream.Next || stream.Pending.ContainsKey(seq))
         {
