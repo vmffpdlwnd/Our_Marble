@@ -16,7 +16,7 @@ using UnityEngine;
 public class PlayFabIdentity
 {
     private const string CustomIdKey = "PlayFab.CustomId";
-    private const float RequestTimeoutSeconds = 3f;      // 요청 한 번의 제한 시간. Photon 연결 제한(7초) 안에 끝나야 한다
+    private const float RequestTimeoutSeconds = 4f;      // 요청 한 번의 제한 시간. 처음 연결은 인증서 확인 때문에 조금 걸릴 수 있다
     private const float SessionMaxAgeSeconds = 6 * 3600f; // 이보다 오래된 로그인은 새로 한다
 
     private readonly Action<string> log;
@@ -126,7 +126,7 @@ public class PlayFabIdentity
 
             if (!result.Ok)
             {
-                Fail($"PlayFab 로그인 실패: {result.ErrorCode} {result.ErrorMessage}");
+                Fail($"PlayFab 로그인 실패: {result.ErrorCode} {result.ErrorMessage}{Hint(result.ErrorCode, null)}");
                 return false;
             }
 
@@ -166,6 +166,7 @@ public class PlayFabIdentity
         {
             if (!await EnsureLoggedIn()) return null;
 
+            string appIdPrefix = AppIdPrefix(photonAppId);
             PlayFabRest.Result result = await RequestPhotonToken(photonAppId);
 
             // 로그인한 지 오래돼 세션이 끝났을 수 있다. 연결 문제가 아니면 한 번만 다시 로그인해서 다시 받아 본다.
@@ -179,7 +180,7 @@ public class PlayFabIdentity
 
             if (!result.Ok)
             {
-                Fail($"Photon 토큰 요청 실패: {result.ErrorCode} {result.ErrorMessage}");
+                Fail($"Photon 토큰 요청 실패: {result.ErrorCode} {result.ErrorMessage}{Hint(result.ErrorCode, appIdPrefix)}");
                 return null;
             }
 
@@ -200,6 +201,30 @@ public class PlayFabIdentity
         {
             Fail("Photon 인증 값을 만드는 중 오류: " + e.Message);
             return null;
+        }
+    }
+
+    // 보낸 AppId는 전부 보여 주지 않고 앞 8자리만 보여 준다. (PlayFab 애드온에 넣은 값과 맞는지 눈으로 비교하는 용도)
+    private static string AppIdPrefix(string appId) =>
+        string.IsNullOrEmpty(appId) ? "(비어 있음)" : appId.Substring(0, Math.Min(8, appId.Length));
+
+    // 자주 나는 오류는 무엇을 확인해야 하는지 같이 알려 준다
+    private static string Hint(string errorCode, string appIdPrefix)
+    {
+        switch (errorCode)
+        {
+            case "InvalidTitleId":
+                return $" → Title ID({PlayFabConfig.TitleId})가 맞는지 확인하세요";
+            case "PhotonNotEnabledForTitle":
+                return " → PlayFab 타이틀의 Add-ons에서 Photon 애드온이 설치되지 않았습니다";
+            case "PhotonApplicationNotFound":
+            case "PhotonApplicationNotAssociatedWithTitle":
+                return $" → PlayFab Photon 애드온에 넣은 Realtime App ID가 이 앱이 보낸 Fusion AppId(앞 8자리 {appIdPrefix})와 같은지 확인하세요";
+            case "TIMEOUT":
+            case "NETWORK":
+                return " → PlayFab에 연결하지 못했습니다. 인터넷, VPN, 방화벽을 확인하세요";
+            default:
+                return "";
         }
     }
 

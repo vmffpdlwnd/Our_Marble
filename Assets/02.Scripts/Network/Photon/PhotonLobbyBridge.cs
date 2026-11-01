@@ -35,7 +35,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     private const long OfflinePlayerId = 1;      // Photon을 쓰지 않을 때 이 PC 플레이어의 번호 (TitleManager와 같다)
     private const float LeaveWaitSeconds = 3f;   // 방을 나갈 때 방장의 답을 기다리는 시간
-    private const float LobbyConnectSeconds = 7f;  // 로비에 연결되기를 기다리는 시간. 넘으면 혼자 하기로 전환한다 (화면의 10초 제한보다 먼저)
+    private const float LobbyConnectSeconds = 8f;  // 로비에 연결되기를 기다리는 시간. 넘으면 혼자 하기로 전환한다 (화면의 10초 제한보다 먼저)
     private const float HandshakeSeconds = 2.5f; // 방에 들어온 직후 방장의 퐁을 기다리는 시간. 퐁이 없어도 요청은 보낸다 (옛 버전 방장은 퐁을 못 준다)
     private const float MasterLeaveFlushSeconds = 0.5f; // 방장이 나갈 때, 방금 보낸 알림이 Photon으로 나갈 시간을 준다
     private const float AnswerWarnSeconds = 5f;  // 입장 요청을 보낸 뒤 이 시간 안에 답이 없으면 방에서 나온다 (화면의 10초 제한보다 먼저)
