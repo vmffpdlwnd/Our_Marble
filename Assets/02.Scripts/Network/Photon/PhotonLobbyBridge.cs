@@ -27,6 +27,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private const string KeyMap = "map";
     private const string KeyCount = "count";
     private const string KeyMax = "max";
+    private const string KeyHosted = "hosted";   // 1이면 방장 PC가 로비 호스트(서버 역할)를 돌리고 있는 방. 게임 로비에서 만든 방이다
 
     private const string StateWaiting = "waiting";
     private const string StatePlaying = "playing";
@@ -174,9 +175,12 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.ROOM_LIST, json);
     }
 
-    // 게임이 시작된 방과 가득 찬 방(Photon이 닫아 둠)은 목록에 올리지 않는다
+    // 게임이 시작된 방, 가득 찬 방(Photon이 닫아 둠), 호스트가 없는 방은 목록에 올리지 않는다.
+    // 호스트가 없는 방은 들어가도 요청에 답해 줄 PC가 없다. (테스트 창의 만들기로 만든 방, 로비 연결을 켜지 않은 PC가 만든 방)
     private static bool IsListable(SessionInfo info) =>
-        info.IsOpen && StringProp(info, KeyState, StateWaiting) == StateWaiting;
+        info.IsOpen
+        && IntProp(info, KeyHosted, 0) == 1
+        && StringProp(info, KeyState, StateWaiting) == StateWaiting;
 
     private static RoomSummary ToSummary(SessionInfo info) => new RoomSummary
     {
@@ -222,6 +226,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             // 방을 만든 사람이 방장이다. 호스트를 시작하고 평소처럼 요청을 보낸다. (내 요청은 네트워크를 타지 않고 내 호스트로 간다)
             OnSessionJoined();
             StartHost();
+            PublishHostedMark();
             SendHello();
             connection.Messenger.SendRequest(PhotonMessenger.DomainLobby, json);
             Log("방 만들기 요청을 호스트로 보냈습니다");
@@ -246,6 +251,14 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             catch (Exception e) { Log("입장 요청을 읽지 못했습니다: " + e.Message); DeliverError("BAD_REQUEST", "요청을 처리하지 못했어요"); return; }
 
             if (!await EnsureLobby()) { DeliverError("CONNECT_FAILED", "Photon에 연결하지 못했어요"); return; }
+
+            SessionInfo target = connection.Sessions.FirstOrDefault(session => session.Name == roomId);
+            if (target != null && IntProp(target, KeyHosted, 0) != 1)
+            {
+                Log("호스트가 없는 방이라서 들어가지 않습니다: " + roomId);
+                DeliverError("NO_HOST", "이 방은 게임 로비에서 만든 방이 아니라서 들어갈 수 없어요");
+                return;
+            }
 
             if (!await connection.JoinRoom(roomId))
             {
@@ -296,14 +309,21 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         if (IsActive) await connection.JoinLobby();
     }
 
-    // 입장 요청을 보낸 뒤 방장의 답이 오는지 지켜보고, 늦으면 로그로 알린다. (어디서 막혔는지 가리는 용도)
+    // 입장 요청을 보낸 뒤 방장의 답이 오는지 지켜본다.
+    // 늦으면 화면의 기본 문구("서버 응답이 없어요")가 뜨기 전에 이유를 알려 주고, 응답 없는 방에서 나온다. (연결만 방에 남지 않게)
     private async Task WatchAnswer()
     {
         float until = Time.unscaledTime + AnswerWarnSeconds;
         while (awaitingAnswer && Time.unscaledTime < until) await Task.Yield();
 
-        if (awaitingAnswer)
-            Log($"방장의 답이 {AnswerWarnSeconds}초 넘게 오지 않습니다 (요청은 보냈음). 방장 쪽 로그에 '요청 받음: ENTER_ROOM'이 있는지 확인하세요");
+        if (!awaitingAnswer) return;
+        awaitingAnswer = false;
+
+        Log($"방장의 답이 {AnswerWarnSeconds}초 넘게 오지 않습니다. 방장 PC에 로비 호스트(서버 역할)가 없거나 응답하지 않는 것입니다. 방에서 나옵니다");
+        DeliverError("HOST_NO_RESPONSE", "방장 PC가 응답하지 않아요. 방장이 게임 로비에서 만든 방인지 확인해 주세요");
+
+        leaving = true;
+        await FinishLeave();
     }
 
     // 화면은 방에 없는데 Photon 연결만 방 안에 남아 있는 어긋난 상태를 정리한다. (방 입장 답이 오지 않아 화면이 포기한 경우 등)
@@ -426,6 +446,21 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         return seenRefs.TryGetValue((int)playerId, out found);
     }
 
+    // 방을 만든 직후, 첫 방 정보가 나오기 전에도 이 방에 호스트가 있다고 표시한다. (다른 PC의 방 목록에 바로 보이게)
+    private void PublishHostedMark()
+    {
+        connection.UpdateRoomProperties(new Dictionary<string, SessionProperty>
+        {
+            [KeyName] = LocalPlayer.Nickname + "의 방",
+            [KeyState] = StateWaiting,
+            [KeyHost] = LocalPlayer.Nickname,
+            [KeyMap] = 0,
+            [KeyCount] = 1,
+            [KeyMax] = PhotonConnection.MaxHumansLimit,
+            [KeyHosted] = 1,
+        });
+    }
+
     // 방의 상태가 바뀔 때마다 방 목록에 보일 값(방장 이름, 인원, 상태)과 열림 여부를 Photon 방에 반영한다
     private void OnHostRoomUpdated(RoomSnapshot room)
     {
@@ -443,6 +478,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             [KeyMap] = room.mapId,
             [KeyCount] = room.Players.Count,
             [KeyMax] = room.maxPlayers,
+            [KeyHosted] = 1,
         };
         connection.UpdateRoomProperties(properties);
 
