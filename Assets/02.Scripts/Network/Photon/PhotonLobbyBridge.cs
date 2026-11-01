@@ -46,6 +46,9 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private readonly Queue<string> queued = new Queue<string>();   // 만드는 중에 들어온 요청 (방 설정 요청 등)
     private readonly HashSet<int> knownIds = new HashSet<int>();
 
+    // 요청을 보낸 사람의 연결. 접속자 목록(ActivePlayers)이 늦게 갱신돼도 그 사람에게 답을 보낼 수 있게 요청에서 알아 둔다.
+    private readonly Dictionary<int, PlayerRef> seenRefs = new Dictionary<int, PlayerRef>();
+
     /// <summary>게임 로비를 Photon에 이어 둔 상태인지</summary>
     public bool IsActive { get; private set; }
 
@@ -134,7 +137,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     private async Task RefreshRoomList()
     {
-        if (connection.IsInSession) return; // 방 안에서는 목록이 필요 없다
+        if (connection.IsInSession || busy) return; // 방 안이거나 방을 만들고 들어가는 중에는 목록이 필요 없다
 
         if (!await EnsureLobby())
         {
@@ -200,7 +203,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     private async Task CreateRoomFlow(string json)
     {
-        if (busy || connection.IsInSession) { DeliverError("ALREADY_IN_ROOM", "이미 방에 들어가 있어요"); return; }
+        if (busy || !await RecoverIfStale()) { DeliverError("ALREADY_IN_ROOM", "이미 방에 들어가 있어요"); return; }
 
         busy = true;
         try
@@ -230,7 +233,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     private async Task EnterRoomFlow(string json)
     {
-        if (busy || connection.IsInSession) { DeliverError("ALREADY_IN_ROOM", "이미 방에 들어가 있어요"); return; }
+        if (busy || !await RecoverIfStale()) { DeliverError("ALREADY_IN_ROOM", "이미 방에 들어가 있어요"); return; }
 
         busy = true;
         try
@@ -286,6 +289,20 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         if (IsActive) await connection.JoinLobby();
     }
 
+    // 화면은 방에 없는데 Photon 연결만 방 안에 남아 있는 어긋난 상태를 정리한다. (방 입장 답이 오지 않아 화면이 포기한 경우 등)
+    // 정말 방에 있으면(방 정보를 받은 적이 있으면) false를 돌려준다.
+    private async Task<bool> RecoverIfStale()
+    {
+        if (!connection.IsInSession) return true;
+        if (lastSnapshot != null) return false;
+
+        Log("화면은 방에 없는데 연결이 방 안에 남아 있어서 정리합니다");
+        ClearRoomState();
+        LocalPlayer.Set(0, LocalPlayer.Nickname);
+        await connection.Disconnect();
+        return true;
+    }
+
     private void OnSessionJoined()
     {
         // 방에 들어온 뒤부터 내 번호는 Photon이 붙여 준 번호다
@@ -319,6 +336,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         busy = false;
         queued.Clear();
         knownIds.Clear();
+        seenRefs.Clear();
     }
 
     // ───────────── 방장 쪽: 요청을 받아 호스트에게 넘기기 ─────────────
@@ -333,6 +351,9 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private void OnRequestReceived(PlayerRef sender, int domain, string json)
     {
         if (!IsActive || domain != PhotonMessenger.DomainLobby) return;
+
+        seenRefs[sender.PlayerId] = sender;
+        Log($"요청 받음: {ReadType(json)} (보낸 사람 {sender.PlayerId}번)");
 
         if (host == null)
         {
@@ -361,7 +382,13 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     // 호스트가 보내는 알림을 Photon으로 내보낸다. 봇(1001번부터)이나 이미 나간 사람에게는 보내지 않는다.
     private void Deliver(long playerId, LobbyMessageType type, string json)
     {
-        if (!TryFindPlayer(playerId, out PlayerRef target)) return;
+        if (!TryFindPlayer(playerId, out PlayerRef target))
+        {
+            if (playerId < 1000) Log($"알림을 보낼 사람을 찾지 못했습니다: {type} → {playerId}번"); // 1000번 이상은 봇이라 받을 필요가 없다
+            return;
+        }
+
+        Log($"알림 보냄: {type} → {playerId}번");
         DeliverTo(target, type, json);
     }
 
@@ -376,8 +403,9 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         {
             if (player.PlayerId == playerId) { found = player; return true; }
         }
-        found = default(PlayerRef);
-        return false;
+
+        // 접속자 목록에 아직 없어도, 방금 요청을 보낸 사람이면 그 연결로 보낸다
+        return seenRefs.TryGetValue((int)playerId, out found);
     }
 
     // 방의 상태가 바뀔 때마다 방 목록에 보일 값(방장 이름, 인원, 상태)과 열림 여부를 Photon 방에 반영한다
@@ -419,6 +447,9 @@ public class PhotonLobbyBridge : IHostRequestReceiver
                 if (!now.Contains(id) && host.IsMember(id)) host.OnRequest(id, LeaveRoomJson);
         }
 
+        foreach (int id in knownIds)
+            if (!now.Contains(id)) seenRefs.Remove(id);
+
         knownIds.Clear();
         knownIds.UnionWith(now);
     }
@@ -446,6 +477,8 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             Log("알 수 없는 로비 알림입니다: " + typeName);
             return;
         }
+
+        Log($"알림 받음: {type} (보낸 사람 {sender.PlayerId}번)");
 
         if (type == LobbyMessageType.ROOM_UPDATED)
         {

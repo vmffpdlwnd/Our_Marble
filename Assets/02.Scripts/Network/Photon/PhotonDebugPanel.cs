@@ -1,252 +1,262 @@
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+using System;
 using System.Collections.Generic;
+using System.Text;
 using Fusion;
+using Fusion.Sockets;
 using UnityEngine;
 
 /// <summary>
-/// [임시] Photon 접속 확인용 테스트 창. 에디터와 개발 빌드(Development Build)에서만 만들어지고, F2로 열고 닫는다.
-/// 로비 화면을 건드리지 않고 연결(로비 입장, 방 만들기, 방 목록, 입장, 방장 확인, 나가기)이 되는지 보려고 둔 것이다.
-/// 일반 빌드에는 들어가지 않는다.
+/// Photon으로 메시지(JSON 문자열)를 주고받는 일을 맡는다. 기존 로비와 게임이 서버와 주고받던 요청과 알림을 그대로 실어 나른다.
+///
+///   요청(Request)  참가자 → 방장.   내가 방장이면 네트워크를 타지 않고 바로 내 쪽으로 돌려준다.
+///   알림(Notify)   방장 → 참가자.   방 전원에게 보낼 때는 나도 받는다.
+///
+/// 전송에는 Fusion의 신뢰 데이터(Reliable Data)를 쓴다. 네트워크 오브젝트가 필요 없고 크기 제한이 없어서 큰 메시지도 같은 길로 보낸다.
+/// 신뢰 데이터는 서로 다른 메시지의 도착 순서를 보장하지 않아서, 보내는 쪽이 번호를 매기고 받는 쪽이 번호 순서대로 꺼내 준다.
+/// 번호는 (보내는 사람 → 받는 사람) 한 쌍마다 따로 센다. 사람이 나가면 그 사람과의 번호도 지우고, 다시 들어오면 새 번호로 시작한다.
+///
+/// 보낸 사람은 메시지에 적힌 값이 아니라 Photon이 알려 주는 연결(PlayerRef)로 정한다.
 /// </summary>
-public class PhotonDebugPanel : MonoBehaviour
+public class PhotonMessenger
 {
-    private const int MaxLogLines = 40;
+    public enum Channel { Request = 1, Notify = 2 }
 
-    private bool visible;
-    private Rect windowRect = new Rect(12, 12, 480, 10);
-    private string roomName = "테스트방";
-    private string maxHumansText = "4";
-    private string codeInput = "";
-    private int testCount;                 // 보낸 테스트 요청 수
-    private int seqExpected, seqOk, seqBad; // 순서 테스트: 다음에 올 번호, 맞게 온 수, 어긋난 수
-    private Vector2 listScroll;
-    private Vector2 logScroll;
-    private readonly List<string> logs = new List<string>();
+    // 메시지가 속한 영역. 받는 쪽이 어느 쪽 코드로 넘길지 정한다.
+    public const int DomainLobby = 0;
+    public const int DomainGame = 1;
+    public const int DomainTest = 99;
 
-    // 첫 씬이 뜬 뒤 한 번만 스스로 만든다. 씬에 따로 붙일 필요가 없다.
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void Create()
+    public delegate void RequestHandler(PlayerRef sender, int domain, string json);
+    public delegate void NotifyHandler(PlayerRef sender, int domain, string typeName, string json);
+
+    /// <summary>방장이 받는 요청</summary>
+    public event RequestHandler RequestReceived;
+
+    /// <summary>참가자(방장 자신 포함)가 받는 알림</summary>
+    public event NotifyHandler NotifyReceived;
+
+    public int SentCount { get; private set; }
+    public int ReceivedCount { get; private set; }
+    /// <summary>번호가 어긋난 채로 도착해서 기다렸다가 꺼낸 메시지 수. 0이 아니면 Photon이 실제로 순서를 바꿔 보낸 것이다</summary>
+    public int ReorderedCount { get; private set; }
+    public int DuplicateCount { get; private set; }
+
+    private const float GapWarningSeconds = 5f;
+
+    private class Packet { public int Channel; public int Domain; public byte[] Data; }
+
+    private class Stream
     {
-        var go = new GameObject("PhotonDebugPanel");
-        DontDestroyOnLoad(go);
-        go.AddComponent<PhotonDebugPanel>();
+        public int Next;
+        public readonly Dictionary<int, Packet> Pending = new Dictionary<int, Packet>();
+        public float WaitingSince;
+        public bool Warned;
     }
 
-    private void Start()
+    private class LocalItem { public Channel Channel; public int Domain; public string TypeName; public string Json; }
+
+    private readonly PhotonConnection connection;
+    private readonly Dictionary<int, int> sendSeq = new Dictionary<int, int>();   // 받는 사람 → 다음에 보낼 번호
+    private readonly Dictionary<int, Stream> streams = new Dictionary<int, Stream>(); // 보낸 사람 → 받은 메시지 정리
+    private readonly Queue<LocalItem> localQueue = new Queue<LocalItem>();
+
+    public PhotonMessenger(PhotonConnection connection)
     {
-        PhotonConnection conn = PhotonConnection.Instance;
-        conn.LogAdded += AddLog;
-        conn.Messenger.RequestReceived += OnTestRequest;
-        conn.Messenger.NotifyReceived += OnTestNotify;
+        this.connection = connection;
     }
 
-    private void OnDestroy()
+    // ───────────── 보내기 ─────────────
+
+    /// <summary>방장에게 요청을 보낸다. 내가 방장이면 바로 내 쪽으로 돌려준다.</summary>
+    public bool SendRequest(int domain, string json)
     {
-        // Instance(getter)는 없으면 새로 만들어 버리므로, 정리할 때는 건드리지 않는다
-    }
+        if (!connection.IsInSession) return false;
 
-    private void AddLog(string message)
-    {
-        logs.Add($"{Time.frameCount} {message}");
-        if (logs.Count > MaxLogLines) logs.RemoveAt(0);
-        logScroll.y = float.MaxValue;
-    }
-
-    private void OnGUI()
-    {
-        Event e = Event.current;
-        if (e.type == EventType.KeyDown && e.keyCode == KeyCode.F2) { visible = !visible; e.Use(); }
-        if (!visible) return;
-
-        // 1080p 기준으로 글자 크기를 맞춘다
-        float s = Mathf.Max(1f, Screen.height / 1080f * 1.25f);
-        GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(s, s, 1f));
-
-        windowRect.height = 10; // 내용에 맞춰 늘어난다
-        windowRect = GUILayout.Window(98232, windowRect, DrawWindow, "Photon 테스트 (F2 닫기)");
-    }
-
-    private void DrawWindow(int id)
-    {
-        PhotonConnection conn = PhotonConnection.Instance;
-
-        GUILayout.Label($"AppId: {(conn.HasAppId ? "있음" : "없음 (Fusion Hub에서 입력)")}   지역: {PhotonConnection.Region}   버전: {PhotonConnection.NetworkVersion}");
-        GUILayout.Label($"상태: {conn.Current}");
-
-        // 게임의 로비 화면을 Photon에 이어 쓰는 스위치. 로비 화면에 들어가기 전에 켠다. 켠 동안은 아래 버튼 대신 게임 로비 화면으로 조작한다.
-        GUILayout.BeginHorizontal();
-        GUILayout.Label($"게임 로비 연결: {(conn.LobbyBridge.IsActive ? "켜짐 (게임 로비 화면으로 조작)" : "꺼짐")}");
-        if (GUILayout.Button(conn.LobbyBridge.IsActive ? "끄기" : "켜기", GUILayout.Width(80)))
+        if (connection.IsMaster)
         {
-            if (conn.LobbyBridge.IsActive) _ = conn.LobbyBridge.Disable();
-            else conn.LobbyBridge.Enable();
-        }
-        GUILayout.EndHorizontal();
-
-        GUILayout.BeginHorizontal();
-        GUI.enabled = conn.Current == PhotonConnection.ConnectionState.Disconnected || conn.Current == PhotonConnection.ConnectionState.InLobby;
-        if (GUILayout.Button(conn.Current == PhotonConnection.ConnectionState.InLobby ? "로비 다시 입장" : "로비 입장"))
-            _ = conn.JoinLobby();
-        GUI.enabled = conn.Current != PhotonConnection.ConnectionState.Disconnected;
-        if (GUILayout.Button("연결 끊기"))
-            _ = conn.Disconnect();
-        GUI.enabled = true;
-        GUILayout.EndHorizontal();
-
-        if (conn.Current == PhotonConnection.ConnectionState.InLobby) DrawLobby(conn);
-        if (conn.Current == PhotonConnection.ConnectionState.InSession) DrawSession(conn);
-
-        GUILayout.Space(6);
-        GUILayout.Label("로그");
-        logScroll = GUILayout.BeginScrollView(logScroll, GUILayout.Height(150));
-        foreach (string line in logs) GUILayout.Label(line);
-        GUILayout.EndScrollView();
-
-        GUI.DragWindow();
-    }
-
-    // 로비: 방 만들기와 방 목록
-    private void DrawLobby(PhotonConnection conn)
-    {
-        GUILayout.Space(6);
-        GUILayout.Label("방 만들기");
-        GUILayout.BeginHorizontal();
-        GUILayout.Label("이름", GUILayout.Width(40));
-        roomName = GUILayout.TextField(roomName);
-        GUILayout.Label("최대 사람", GUILayout.Width(70));
-        maxHumansText = GUILayout.TextField(maxHumansText, GUILayout.Width(40));
-        if (GUILayout.Button("만들기", GUILayout.Width(80)))
-        {
-            int.TryParse(maxHumansText, out int maxHumans);
-            _ = conn.CreateRoom(roomName, maxHumans);
-        }
-        GUILayout.EndHorizontal();
-
-        GUILayout.BeginHorizontal();
-        GUILayout.Label("코드", GUILayout.Width(40));
-        codeInput = GUILayout.TextField(codeInput);
-        if (GUILayout.Button("코드로 입장", GUILayout.Width(110)))
-            _ = conn.JoinRoomByCode(codeInput);
-        GUILayout.EndHorizontal();
-
-        GUILayout.Space(6);
-        GUILayout.Label($"방 목록 ({conn.Sessions.Count}개)");
-        listScroll = GUILayout.BeginScrollView(listScroll, GUILayout.Height(120));
-        foreach (SessionInfo info in conn.Sessions)
-        {
-            GUILayout.BeginHorizontal();
-            GUILayout.Label($"{DisplayName(info)}  코드 {PhotonConnection.FormatCode(info.Name)}   {info.PlayerCount}/{info.MaxPlayers}   {(info.IsOpen ? "열림" : "닫힘")}   [{info.Region}]");
-
-            GUI.enabled = info.IsOpen && info.PlayerCount < info.MaxPlayers;
-            if (GUILayout.Button("입장", GUILayout.Width(70)))
-                _ = conn.JoinRoom(info.Name);
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
-        }
-        GUILayout.EndScrollView();
-    }
-
-    // 방 안: 접속자, 방장, 방 열기와 닫기, 나가기
-    private void DrawSession(PhotonConnection conn)
-    {
-        GUILayout.Space(6);
-        GUILayout.Label($"방 코드: {PhotonConnection.FormatCode(conn.RoomCode)}   나: {conn.LocalPlayerRef.PlayerId}번   {(conn.IsMaster ? "내가 방장" : "방장 아님")}");
-
-        GUILayout.Label($"접속자 (봇은 Photon 접속자가 아니라서 여기에 없음)   목록 {System.Linq.Enumerable.Count(conn.Players)}명 / Photon 집계 {conn.RoomPlayerCount}명");
-        foreach (PlayerRef player in conn.Players)
-        {
-            string me = player == conn.LocalPlayerRef ? " (나)" : "";
-            string master = player == conn.MasterPlayerRef ? " (방장)" : "";
-            GUILayout.Label($"   {player.PlayerId}번{me}{master}");
+            localQueue.Enqueue(new LocalItem { Channel = Channel.Request, Domain = domain, Json = json });
+            SentCount++;
+            return true;
         }
 
-        GUILayout.BeginHorizontal();
-        GUI.enabled = conn.IsMaster;
-        if (GUILayout.Button("방 닫기 (새로 못 들어옴)")) conn.SetRoomOpen(false);
-        if (GUILayout.Button("방 열기")) conn.SetRoomOpen(true);
-        GUI.enabled = true;
-        if (GUILayout.Button("방 나가기 (로비로)")) LeaveToLobby(conn);
-        GUILayout.EndHorizontal();
-
-        DrawMessageTest(conn);
+        return SendOverNetwork(connection.MasterPlayerRef, Channel.Request, domain, null, json);
     }
 
-    // ───────────── 메시지 테스트 ─────────────
-
-    private void DrawMessageTest(PhotonConnection conn)
+    /// <summary>한 사람에게 알림을 보낸다. 받는 사람이 나라면 네트워크를 타지 않고 내 쪽으로 돌려준다.</summary>
+    public bool SendNotify(PlayerRef target, int domain, string typeName, string json)
     {
-        PhotonMessenger messenger = conn.Messenger;
+        if (!connection.IsInSession) return false;
 
-        GUILayout.Space(6);
-        GUILayout.Label($"메시지 테스트   보냄 {messenger.SentCount} / 받음 {messenger.ReceivedCount} / 순서 어긋나 도착 {messenger.ReorderedCount} / 중복 {messenger.DuplicateCount}");
-
-        GUILayout.BeginHorizontal();
-        if (GUILayout.Button("요청 보내기 (→방장)"))
+        if (target == connection.LocalPlayerRef)
         {
-            testCount++;
-            messenger.SendRequest(PhotonMessenger.DomainTest, $"{{\"test\":\"hello\",\"from\":{conn.LocalPlayerRef.PlayerId},\"n\":{testCount}}}");
+            localQueue.Enqueue(new LocalItem { Channel = Channel.Notify, Domain = domain, TypeName = typeName, Json = json });
+            SentCount++;
+            return true;
         }
 
-        GUI.enabled = conn.IsMaster;
-        if (GUILayout.Button("방송 (방장만)"))
-            messenger.BroadcastNotify(PhotonMessenger.DomainTest, "TEST_BROADCAST", $"{{\"n\":{++testCount}}}");
-        if (GUILayout.Button("큰 메시지 20KB (방장만)"))
-            messenger.BroadcastNotify(PhotonMessenger.DomainTest, "TEST_BIG", new string('A', 20000));
-        if (GUILayout.Button("순서 테스트 50개 (방장만)"))
+        return SendOverNetwork(target, Channel.Notify, domain, typeName, json);
+    }
+
+    /// <summary>방 전원(나 포함)에게 알림을 보낸다.</summary>
+    public void BroadcastNotify(int domain, string typeName, string json)
+    {
+        var targets = new List<PlayerRef>(connection.Players);
+        foreach (PlayerRef target in targets)
+            SendNotify(target, domain, typeName, json);
+    }
+
+    private bool SendOverNetwork(PlayerRef target, Channel channel, int domain, string typeName, string json)
+    {
+        int targetId = target.PlayerId;
+        sendSeq.TryGetValue(targetId, out int seq);
+
+        // 알림은 "종류 이름\n내용", 요청은 내용만 (종류는 요청 JSON 안의 type 필드에 있다)
+        string text = channel == Channel.Notify ? typeName + "\n" + json : json;
+        byte[] bytes = Encoding.UTF8.GetBytes(text);
+
+        // 키: 채널, 번호, 영역, 보낸 사람. 키가 같은 전송이 겹치지 않게 보낸 사람 번호도 넣는다.
+        ReliableKey key = ReliableKey.FromInts((int)channel, seq, domain, connection.LocalPlayerRef.PlayerId);
+        try
         {
-            for (int i = 0; i < 50; i++)
-                messenger.BroadcastNotify(PhotonMessenger.DomainTest, "TEST_SEQ", $"{{\"n\":{i}}}");
+            connection.SendReliable(target, key, bytes);
         }
-        GUI.enabled = true;
-        GUILayout.EndHorizontal();
-    }
-
-    // 방장이 받은 테스트 요청: 보낸 사람에게 알림으로 답해서 방장 → 참가자 방향도 확인한다
-    private void OnTestRequest(PlayerRef sender, int domain, string json)
-    {
-        if (domain != PhotonMessenger.DomainTest) return;
-
-        AddLog($"[테스트] 요청 받음 (보낸 사람 {sender.PlayerId}번): {Cut(json)}");
-        PhotonConnection.Instance.Messenger.SendNotify(sender, PhotonMessenger.DomainTest, "TEST_ACK", json);
-    }
-
-    private void OnTestNotify(PlayerRef sender, int domain, string typeName, string json)
-    {
-        if (domain != PhotonMessenger.DomainTest) return;
-
-        if (typeName == "TEST_SEQ")
+        catch (Exception e)
         {
-            // {"n":숫자}에서 숫자를 읽어, 0부터 하나씩 늘어나는지 본다
-            int n = -1;
-            int colon = json.IndexOf(':');
-            if (colon >= 0) int.TryParse(json.Substring(colon + 1).TrimEnd('}'), out n);
+            connection.WriteLog($"메시지 보내기 오류 ({targetId}번에게): {e.Message}");
+            return false;
+        }
 
-            if (n == 0) { seqExpected = 0; seqOk = 0; seqBad = 0; }
-            if (n == seqExpected) seqOk++; else seqBad++;
-            seqExpected = n + 1;
+        sendSeq[targetId] = seq + 1;
+        SentCount++;
+        return true;
+    }
 
-            if (n == 49)
-                AddLog($"[테스트] 순서 테스트 끝: 맞게 온 것 {seqOk}개, 어긋난 것 {seqBad}개 (재정렬한 도착 {PhotonConnection.Instance.Messenger.ReorderedCount}번)");
+    // ───────────── 받기 ─────────────
+
+    /// <summary>Fusion의 신뢰 데이터 수신 콜백이 부른다.</summary>
+    public void OnReliableData(PlayerRef sender, ReliableKey key, ReadOnlySpan<byte> data)
+    {
+        key.GetInts(out int channel, out int seq, out int domain, out int senderId);
+        if (channel != (int)Channel.Request && channel != (int)Channel.Notify) return; // 우리 메시지가 아닌 데이터
+
+        ReceivedCount++;
+        Stream stream = GetStream(sender.PlayerId);
+
+        if (seq < stream.Next || stream.Pending.ContainsKey(seq))
+        {
+            DuplicateCount++;
             return;
         }
 
-        AddLog($"[테스트] 알림 받음 (보낸 사람 {sender.PlayerId}번) {typeName}, {json.Length}자: {Cut(json)}");
+        if (seq != stream.Next) ReorderedCount++;
+
+        stream.Pending[seq] = new Packet { Channel = channel, Domain = domain, Data = data.ToArray() };
+        Drain(sender, stream);
     }
 
-    private static string Cut(string text) => text.Length <= 60 ? text : text.Substring(0, 60) + "...";
-
-    private async void LeaveToLobby(PhotonConnection conn)
+    private Stream GetStream(int senderId)
     {
-        await conn.Disconnect();
-        await conn.JoinLobby();
+        if (!streams.TryGetValue(senderId, out Stream stream))
+        {
+            stream = new Stream();
+            streams[senderId] = stream;
+        }
+        return stream;
     }
 
-    // 방 목록에 보일 이름: 만들 때 넣은 name 속성, 없으면 방 번호
-    private static string DisplayName(SessionInfo info)
+    // 번호 순서대로 이어지는 메시지를 모두 꺼내서 넘긴다
+    private void Drain(PlayerRef sender, Stream stream)
     {
-        if (info.Properties != null && info.Properties.TryGetValue("name", out SessionProperty property) && property.IsString)
-            return (string)property;
-        return info.Name;
+        while (stream.Pending.TryGetValue(stream.Next, out Packet packet))
+        {
+            stream.Pending.Remove(stream.Next);
+            stream.Next++;
+            Dispatch(sender, packet.Channel, packet.Domain, Encoding.UTF8.GetString(packet.Data));
+        }
+
+        stream.WaitingSince = stream.Pending.Count > 0 ? Time.unscaledTime : 0f;
+        stream.Warned = false;
+    }
+
+    private void Dispatch(PlayerRef sender, int channel, int domain, string text)
+    {
+        try
+        {
+            if (channel == (int)Channel.Notify)
+            {
+                int newline = text.IndexOf('\n');
+                string typeName = newline >= 0 ? text.Substring(0, newline) : text;
+                string json = newline >= 0 ? text.Substring(newline + 1) : "";
+                NotifyReceived?.Invoke(sender, domain, typeName, json);
+            }
+            else
+            {
+                RequestReceived?.Invoke(sender, domain, text);
+            }
+        }
+        catch (Exception e)
+        {
+            // 처리 중 오류가 나도 뒤따르는 메시지가 막히지 않게 한다
+            connection.WriteLog($"메시지 처리 오류: {e.Message}");
+            Debug.LogError(e);
+        }
+    }
+
+    // ───────────── 주기적으로 / 상태가 바뀔 때 ─────────────
+
+    /// <summary>나에게 돌려주는 메시지를 처리하고, 오래 기다리는 어긋난 메시지가 있는지 본다. 매 프레임 부른다.</summary>
+    public void Tick()
+    {
+        // 처리하는 동안 새로 쌓이는 것은 다음 프레임에 처리한다
+        int count = localQueue.Count;
+        for (int i = 0; i < count; i++)
+        {
+            LocalItem item = localQueue.Dequeue();
+            ReceivedCount++;
+            if (item.Channel == Channel.Notify)
+                DispatchLocalNotify(item);
+            else
+                DispatchLocalRequest(item);
+        }
+
+        foreach (KeyValuePair<int, Stream> pair in streams)
+        {
+            Stream stream = pair.Value;
+            if (stream.Pending.Count == 0 || stream.Warned) continue;
+            if (Time.unscaledTime - stream.WaitingSince < GapWarningSeconds) continue;
+
+            stream.Warned = true;
+            connection.WriteLog($"{pair.Key}번의 메시지 {stream.Next}번이 {GapWarningSeconds}초 넘게 도착하지 않습니다 (뒤의 {stream.Pending.Count}개가 기다리는 중)");
+        }
+    }
+
+    private void DispatchLocalNotify(LocalItem item)
+    {
+        try { NotifyReceived?.Invoke(connection.LocalPlayerRef, item.Domain, item.TypeName, item.Json); }
+        catch (Exception e) { connection.WriteLog($"메시지 처리 오류: {e.Message}"); Debug.LogError(e); }
+    }
+
+    private void DispatchLocalRequest(LocalItem item)
+    {
+        try { RequestReceived?.Invoke(connection.LocalPlayerRef, item.Domain, item.Json); }
+        catch (Exception e) { connection.WriteLog($"메시지 처리 오류: {e.Message}"); Debug.LogError(e); }
+    }
+
+    /// <summary>
+    /// 방에 있던 사람이 나간 것이 확인됐을 때 부른다. 그 사람과의 번호 기록을 지운다. (다시 들어오면 새 번호로 시작한다)
+    /// 아직 접속자 목록에 오르지 않은 사람의 기록은 지우지 않는다. 목록이 늦게 갱신될 때 번호가 초기화되어 메시지가 버려지는 것을 막으려는 것이다.
+    /// </summary>
+    public void OnPlayerLeft(int playerId)
+    {
+        sendSeq.Remove(playerId);
+        streams.Remove(playerId);
+    }
+
+    /// <summary>연결이 바뀌거나 끝났을 때 모든 기록을 지운다.</summary>
+    public void Reset()
+    {
+        sendSeq.Clear();
+        streams.Clear();
+        localQueue.Clear();
     }
 }
-#endif

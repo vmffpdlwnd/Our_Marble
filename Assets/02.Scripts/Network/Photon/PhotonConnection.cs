@@ -454,13 +454,16 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
             foreach (int id in nowPlayers)
                 if (!knownPlayers.Contains(id)) Add($"{id}번이 들어왔습니다");
             foreach (int id in knownPlayers)
-                if (!nowPlayers.Contains(id)) Add($"{id}번이 나갔습니다");
+            {
+                if (nowPlayers.Contains(id)) continue;
+                Add($"{id}번이 나갔습니다");
+                Messenger.OnPlayerLeft(id); // 나간 것이 확인된 사람의 번호 기록만 지운다
+            }
             Add($"현재 접속자 {nowPlayers.Count}명 (Photon 집계 {RoomPlayerCount}명)");
         }
 
         knownPlayers.Clear();
         knownPlayers.UnionWith(nowPlayers);
-        Messenger.OnPlayersChanged(nowPlayers);
         PlayersChanged?.Invoke();
     }
 
