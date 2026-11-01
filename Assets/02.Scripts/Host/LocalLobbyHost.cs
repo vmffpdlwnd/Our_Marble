@@ -297,6 +297,35 @@ public class LocalLobbyHost : IHostRequestReceiver
         BroadcastRoomUpdated(room);
     }
 
+    // ───────────── 게임 중인 방으로 돌아오기 ─────────────
+
+    /// <summary>이 사람이 게임 중인 방의 참가자인지. (연결이 끊겼다 돌아온 사람이 자기 자리로 돌아올 수 있는지 가리는 데 쓴다)</summary>
+    public bool IsMemberOfPlayingRoom(long playerId)
+    {
+        Room room = RoomOf(playerId);
+        return room != null && room.Status == RoomStatus.PLAYING;
+    }
+
+    /// <summary>
+    /// 게임 중인 방의 참가자가 돌아왔을 때, 그 사람에게만 입장과 게임 시작을 다시 알린다.
+    /// 화면은 이 알림으로 방에 들어와 게임 화면으로 가고, 게임 화면이 현재 게임 상태를 요청해서 따라잡는다.
+    /// </summary>
+    public bool RejoinPlayingRoom(long playerId)
+    {
+        Room room = RoomOf(playerId);
+        if (room == null || room.Status != RoomStatus.PLAYING)
+        {
+            SendError(playerId, "ROOM_NOT_FOUND", "돌아갈 수 있는 게임이 없어요");
+            return false;
+        }
+
+        Debug.Log($"[LocalLobbyHost] 게임 중인 방으로 돌아옴: {room.Id} ({NicknameOf(playerId)})");
+        Send(playerId, LobbyMessageType.ROOM_ENTERED, new RoomEnteredResponse { type = "ROOM_ENTERED" });
+        Send(playerId, LobbyMessageType.ROOM_UPDATED, new RoomUpdatedBroadcast { type = "ROOM_UPDATED", room = ToSnapshot(room) });
+        Send(playerId, LobbyMessageType.GAME_STARTED, new GameStartedBroadcast { type = "GAME_STARTED", roomId = room.Id });
+        return true;
+    }
+
     // ───────────── 다른 PC에서 온 사람 ─────────────
 
     /// <summary>다른 PC에서 온 사람의 닉네임과 초상화를 기억한다. 요청 JSON에는 이 값이 없어서 입장 전에 따로 알려 받는다.</summary>

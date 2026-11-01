@@ -170,12 +170,15 @@ public class PhotonGameBridge : IHostRequestReceiver
         while (queuedRequests.Count > 0)
         {
             KeyValuePair<PlayerRef, string> request = queuedRequests.Dequeue();
+
+            // 게임은 사람을 게임 번호로 구분한다. 연결이 끊겼다 돌아온 사람은 연결 번호가 바뀌어도 예전 게임 번호다.
+            long gameId = connection.Registry.GameIdOfRef(request.Key.PlayerId);
             if (requestLogged < RequestLogLimit)
             {
                 requestLogged++;
-                Log($"게임 요청을 호스트에 넘깁니다 (보낸 사람 {request.Key.PlayerId}번)");
+                Log($"게임 요청을 호스트에 넘깁니다 (보낸 사람 {gameId}번)");
             }
-            gameHost.OnRequest(request.Key.PlayerId, request.Value);
+            gameHost.OnRequest(gameId, request.Value);
         }
     }
 
@@ -216,6 +219,13 @@ public class PhotonGameBridge : IHostRequestReceiver
 
     private bool TryFindPlayer(long playerId, out PlayerRef found)
     {
+        // 게임 번호의 사람이 지금 어느 연결로 들어와 있는지는 방장의 기록이 안다
+        if (connection.Registry.TryGetRef(playerId, out int refId))
+        {
+            found = connection.FindPlayerRef(refId);
+            return true;
+        }
+
         foreach (PlayerRef player in connection.Players)
         {
             if (player.PlayerId == playerId) { found = player; return true; }

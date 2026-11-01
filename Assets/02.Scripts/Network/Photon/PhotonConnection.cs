@@ -28,7 +28,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "2";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "6-1.1";
+    public const string CodeRevision = "6-2.1";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -83,6 +83,19 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
     /// <summary>이 PC의 사용자를 PlayFab에서 알아보는 쪽. Photon에 접속할 때 PlayFab 인증을 낸다</summary>
     public PlayFabIdentity Identity { get; private set; }
+
+    /// <summary>방 안의 사람을 연결 번호와 게임 번호로 나눠 기억하는 곳. 방장 PC가 쓰고, 끊겼다 돌아온 사람을 같은 자리에 붙인다</summary>
+    public PlayerRegistry Registry { get; } = new PlayerRegistry();
+
+    /// <summary>
+    /// 그 연결의 계정(PlayFab ID). Photon이 PlayFab에 확인한 값이라 위조할 수 없다. (Shared 모드에서는 누구나 읽을 수 있다)
+    /// 아직 모르면 null.
+    /// </summary>
+    public string GetUserId(PlayerRef player)
+    {
+        try { return runner != null ? runner.GetPlayerUserId(player) : null; }
+        catch (Exception) { return null; }
+    }
 
     /// <summary>
     /// 연결돼 있던 중에(로비나 방 안에서) 우리가 끊지 않았는데 끊겼을 때 불린다. 알려 주는 값은 끊기기 직전의 상태다.

@@ -56,7 +56,29 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private readonly Queue<string> queued = new Queue<string>();   // 만드는 중에 들어온 요청 (방 설정 요청 등)
     private readonly HashSet<int> knownIds = new HashSet<int>();
     private string lastExcludedLog = "";
-    private string lastListedLog = "";           // 로비 목록에 올린 방을 로그로 남긴 마지막 내용         // 방 목록에서 제외된 방을 로그로 남긴 마지막 내용 (같은 내용을 반복해 남기지 않으려고)
+    private string lastListedLog = "";           // 로비 목록에 올린 방을 로그로 남긴 마지막 내용
+    private readonly HashSet<int> rejoiningRefs = new HashSet<int>(); // 게임 중인 방에 돌아온 연결. 곧 오는 입장 요청을 자기 자리로 돌려보낸다
+    private string lastRegistryJson;             // 방장이 나눠 준 사람 기록. 내가 방장을 이어받을 때 쓴다
+    private bool lastStatusPlaying;              // 직전 방 정보가 게임 중이었는지 (게임이 끝나는 순간을 알려고)
+
+    private const string LastGameRoomKey = "Photon.LastGameRoom";
+
+    /// <summary>
+    /// 내가 하던 게임 방의 코드. 게임이 시작되면 기억하고, 게임이 끝나거나 일부러 방을 나가면 지운다.
+    /// 앱을 껐다 켜도 남아 있어서, 로비 목록에 그 방이 "이어하기"로 보인다.
+    /// </summary>
+    private string LastGameRoom
+    {
+        get => PlayerPrefs.GetString(LastGameRoomKey, "");
+        set
+        {
+            string next = value ?? "";
+            if (PlayerPrefs.GetString(LastGameRoomKey, "") == next) return;
+
+            PlayerPrefs.SetString(LastGameRoomKey, next);
+            PlayerPrefs.Save();
+        }
+    }         // 방 목록에서 제외된 방을 로그로 남긴 마지막 내용 (같은 내용을 반복해 남기지 않으려고)
 
     // 요청을 보낸 사람의 연결. 접속자 목록(ActivePlayers)이 늦게 갱신돼도 그 사람에게 답을 보낼 수 있게 요청에서 알아 둔다.
     private readonly Dictionary<int, PlayerRef> seenRefs = new Dictionary<int, PlayerRef>();
@@ -260,17 +282,25 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.ROOM_LIST, json);
     }
 
-    // 게임이 시작된 방, 가득 찬 방(Photon이 닫아 둠), 호스트가 없는 방은 목록에 올리지 않는다.
+    // 가득 찬 방(Photon이 닫아 둠), 호스트가 없는 방은 목록에 올리지 않는다.
     // 호스트가 없는 방은 들어가도 요청에 답해 줄 PC가 없다. (테스트 창의 만들기로 만든 방, 로비 연결을 켜지 않은 PC가 만든 방)
-    private static bool IsListable(SessionInfo info) =>
-        info.IsOpen
-        && IntProp(info, KeyHosted, 0) == 1
-        && StringProp(info, KeyState, StateWaiting) == StateWaiting;
+    // 게임 중인 방은 남에게는 보이지 않고, 내가 하던 게임(마지막 게임 방)만 "이어하기"로 보인다.
+    // 게임 중에도 방은 열어 둔다. (닫힌 방에는 돌아오는 사람도 못 들어온다. 참가자가 아닌 사람은 방장이 들여보내지 않는다)
+    private bool IsListable(SessionInfo info)
+    {
+        if (!info.IsOpen || IntProp(info, KeyHosted, 0) != 1) return false;
+
+        string state = StringProp(info, KeyState, StateWaiting);
+        if (state == StateWaiting) return true;
+
+        string mine = LastGameRoom;
+        return state == StatePlaying && !string.IsNullOrEmpty(mine) && info.Name == mine;
+    }
 
     private static RoomSummary ToSummary(SessionInfo info) => new RoomSummary
     {
         roomId = info.Name,
-        hostNickname = StringProp(info, KeyHost, ""),
+        hostNickname = (StringProp(info, KeyState, StateWaiting) == StatePlaying ? "[이어하기] " : "") + StringProp(info, KeyHost, ""),
         mapId = IntProp(info, KeyMap, 0),
         playerCount = IntProp(info, KeyCount, info.PlayerCount),
         maxPlayers = IntProp(info, KeyMax, PhotonConnection.MaxHumansLimit),
@@ -514,8 +544,12 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         if (host != null) LocalLobbyHost.Reset();
 
         connection.GameBridge.Reset();
+        connection.Registry.Clear();
         host = null;
         lastSnapshot = null;
+        lastRegistryJson = null;
+        lastStatusPlaying = false;
+        rejoiningRefs.Clear();
         busy = false;
         awaitingAnswer = false;
         queued.Clear();
@@ -537,7 +571,8 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         if (!IsActive || domain != PhotonMessenger.DomainLobby) return;
 
         seenRefs[sender.PlayerId] = sender;
-        Log($"요청 받음: {ReadType(json)} (보낸 사람 {sender.PlayerId}번)");
+        string type = ReadType(json);
+        Log($"요청 받음: {type} (보낸 사람 {sender.PlayerId}번)");
 
         if (host == null)
         {
@@ -547,9 +582,10 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             return;
         }
 
-        long senderId = sender.PlayerId;
+        // 방과 게임은 사람을 게임 번호로 구분한다. 처음 온 사람은 연결 번호와 같고, 끊겼다 돌아온 사람은 예전 번호다.
+        long senderId = ResolveSender(sender);
 
-        if (ReadType(json) == "PLAYER_HELLO")
+        if (type == "PLAYER_HELLO")
         {
             try
             {
@@ -560,7 +596,47 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             return;
         }
 
+        // 게임 중인 방으로 돌아온 사람: 처음부터 입장시키지 않고, 자기 자리로 다시 들여보낸다
+        if (type == "ENTER_ROOM" && rejoiningRefs.Remove(sender.PlayerId))
+        {
+            host.RejoinPlayingRoom(senderId);
+            return;
+        }
+
         host.OnRequest(senderId, json);
+    }
+
+    // 연결 번호의 게임 번호를 정한다. 처음 보는 연결이면 계정(PlayFab ID)으로 예전에 이 게임에 있던 사람인지 확인한다.
+    private long ResolveSender(PlayerRef sender)
+    {
+        PlayerRegistry registry = connection.Registry;
+        if (registry.TryGetGameId(sender.PlayerId, out long known)) return known;
+
+        string account = connection.GetUserId(sender);
+        long gameId = registry.Resolve(sender.PlayerId, account, id => host != null && host.IsMemberOfPlayingRoom(id), out bool returning);
+
+        if (returning)
+        {
+            rejoiningRefs.Add(sender.PlayerId);
+            Log($"게임 중이던 {gameId}번 자리로 돌아온 사람입니다 (연결 {sender.PlayerId}번, 계정 {account})");
+        }
+        else
+        {
+            Log($"새 연결을 기록했습니다: 연결 {sender.PlayerId}번 = 게임 {gameId}번 (계정 {(string.IsNullOrEmpty(account) ? "알 수 없음" : account)})");
+        }
+
+        // 그 사람에게 자기 게임 번호를 알린다. 화면이 입장 응답을 받기 전에 번호를 맞춰 두려는 것이다.
+        DeliverRaw(sender, "ASSIGN_ID", JsonConvert.SerializeObject(new { playerId = gameId }));
+        BroadcastRegistry();
+        return gameId;
+    }
+
+    // 방장이 바뀌어도 새 방장이 사람 기록을 이어받을 수 있게, 기록이 바뀔 때마다 모두에게 나눠 준다.
+    private void BroadcastRegistry()
+    {
+        string json = connection.Registry.Export();
+        foreach (int refId in connection.Registry.ConnectedRefs())
+            DeliverRaw(connection.FindPlayerRef(refId), "REGISTRY", json);
     }
 
     // 호스트가 보내는 알림을 Photon으로 내보낸다. 봇(1001번부터)이나 이미 나간 사람에게는 보내지 않는다.
@@ -579,6 +655,12 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         DeliverTo(target, type, json);
     }
 
+    // 로비 알림 종류에 없는 방 안의 내부 메시지(ASSIGN_ID, REGISTRY)를 보낸다
+    private void DeliverRaw(PlayerRef target, string typeName, string json)
+    {
+        connection.Messenger.SendNotify(target, PhotonMessenger.DomainLobby, typeName, json);
+    }
+
     private void DeliverTo(PlayerRef target, LobbyMessageType type, string json)
     {
         connection.Messenger.SendNotify(target, PhotonMessenger.DomainLobby, type.ToString(), json);
@@ -586,6 +668,13 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     private bool TryFindPlayer(long playerId, out PlayerRef found)
     {
+        // 게임 번호의 사람이 지금 어느 연결로 들어와 있는지는 사람 기록이 안다
+        if (connection.Registry.TryGetRef(playerId, out int refId))
+        {
+            found = connection.FindPlayerRef(refId);
+            return true;
+        }
+
         foreach (PlayerRef player in connection.Players)
         {
             if (player.PlayerId == playerId) { found = player; return true; }
@@ -634,6 +723,8 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
         int humans = room.Players.Count(p => !p.bot);
         bool waiting = room.status == RoomStatus.WAITING;
+        bool gameJustFinished = waiting && lastStatusPlaying;
+        lastStatusPlaying = !waiting;
         PlayerSnapshot hostPlayer = room.Players.FirstOrDefault(p => p.playerId == room.hostId);
 
         var properties = new Dictionary<string, SessionProperty>
@@ -649,10 +740,27 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         connection.UpdateRoomProperties(properties);
         Log($"방 속성 갱신: 사람 {humans}명, 전체 {room.Players.Count}/{room.maxPlayers}명, 맵 {room.mapId}, 상태 {(waiting ? "대기" : "게임 중")}");
 
-        // 들어올 수 있는 사람 수는 최대 인원에서 봇을 뺀 만큼이다. 다 찼거나 게임이 시작되면 닫는다.
-        bool open = waiting && humans < room.maxPlayers - room.botCount;
+        // 대기 중에는 들어올 수 있는 사람 수(최대 인원에서 봇을 뺀 만큼)가 다 차면 닫는다.
+        // 게임 중에는 닫지 않는다. 닫힌 방에는 연결이 끊겼다 돌아오는 참가자도 못 들어온다. (참가자가 아닌 사람은 방장이 들여보내지 않는다)
+        bool open = !waiting || humans < room.maxPlayers - room.botCount;
         connection.SetRoomOpen(open, forceOpen);
         if (forceOpen) Log($"방 정보를 Photon 방에 반영했습니다 (사람 {humans}명, 자리 {room.maxPlayers - room.botCount}개, 상태 {(waiting ? "대기" : "게임 중")}, 열림 {open})");
+
+        // 게임 중에는 연결이 끊긴 사람의 자리도 남겨 두었다. 게임이 끝나면 돌아오지 않은 사람은 방에서 뺀다.
+        if (gameJustFinished && host != null && connection.IsMaster) RemoveDisconnectedMembers(room);
+    }
+
+    private void RemoveDisconnectedMembers(RoomSnapshot room)
+    {
+        foreach (PlayerSnapshot member in room.Players.Where(p => !p.bot).ToList())
+        {
+            if (member.playerId == LocalPlayer.Id) continue;
+            if (connection.Registry.TryGetRef(member.playerId, out int refId) && connection.IsPlayerPresent(refId)) continue;
+            if (!host.IsMember(member.playerId)) continue;
+
+            Log($"게임 중 연결이 끊긴 {member.playerId}번을 방에서 뺍니다");
+            host.OnRequest(member.playerId, LeaveRoomJson);
+        }
     }
 
     // ───────────── 타이틀 화면으로 돌아갈 때 ─────────────
@@ -697,9 +805,10 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
         if (inGame)
         {
-            // 게임 중에 끊기면 이어하기는 아직 지원하지 않아서 타이틀로 보낸다. (재접속 작업에서 이어하기로 바꾼다)
-            Log("게임 중 연결이 끊겨 타이틀로 돌아갑니다");
-            SceneFlow.ToLogin("연결이 끊어져 게임에서 나왔어요");
+            // 게임 중에 끊기면 로비로 보낸다. 하던 게임은 방 목록에 "이어하기"로 보여서, 누르면 자기 자리로 돌아간다.
+            Log("게임 중 연결이 끊겨 로비로 돌아갑니다. 방 목록의 이어하기로 돌아올 수 있습니다");
+            LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.LOBBY_ERROR, ErrorJson("CONNECTION_LOST", "연결이 끊어졌어요. 목록의 '이어하기' 방을 누르면 게임으로 돌아가요"));
+            SceneFlow.ToLobby();
             return;
         }
 
@@ -720,12 +829,16 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         // 인사 없이 연결이 끊긴 사람은 방에서 나간 것으로 처리한다
         if (host != null && connection.IsMaster)
         {
-            foreach (int id in knownIds)
+            foreach (int refId in knownIds)
             {
-                if (now.Contains(id)) continue;
+                if (now.Contains(refId)) continue;
 
-                if (host.IsMember(id)) host.OnRequest(id, LeaveRoomJson);
-                connection.GameBridge.OnPlayerGone(id); // 게임 중이면 그 사람의 차례는 기다리지 않고 자동으로 진행한다
+                long gameId = connection.Registry.GameIdOfRef(refId);
+                connection.Registry.Release(refId); // 연결 번호만 지우고 게임 번호와 계정은 남겨서, 돌아오면 같은 자리로 붙인다
+
+                // 게임 중이면 자리를 남겨 둔다. (돌아올 수 있다) 대기 중이면 방에서 내보낸다.
+                if (host.IsMember(gameId) && !host.IsMemberOfPlayingRoom(gameId)) host.OnRequest(gameId, LeaveRoomJson);
+                connection.GameBridge.OnPlayerGone(gameId); // 게임 중이면 그 사람의 차례는 기다리지 않고 자동으로 진행한다
             }
         }
 
@@ -745,6 +858,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         Log("방장이 되었습니다. 마지막으로 받은 방 정보로 호스트를 이어받습니다");
         StartHost();
         host.RestoreRoom(lastSnapshot);
+        connection.Registry.Import(lastRegistryJson, connection.IsPlayerPresent); // 방장이 나눠 준 사람 기록으로 연결 번호와 게임 번호를 되살린다
         RemoveMembersWhoLeft();
         ApplyRoomToSession(lastSnapshot, true); // 이전 방장의 마지막 변경이 반영됐는지 알 수 없어서, 열림 여부를 다시 맞춘다
 
@@ -758,6 +872,9 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     // Photon에 이미 없는 사람을 방에서 뺀다.
     private void RemoveMembersWhoLeft()
     {
+        // 게임 중에는 나간 사람의 자리도 남겨 둔다. (돌아올 수 있고, 게임이 끝날 때 정리한다)
+        if (lastSnapshot.status == RoomStatus.PLAYING) return;
+
         foreach (PlayerSnapshot member in lastSnapshot.Players.ToList())
         {
             if (member.bot) continue;
@@ -776,6 +893,10 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     {
         if (!IsActive || domain != PhotonMessenger.DomainLobby) return;
 
+        // 방 안의 내부 메시지: 방장이 정해 준 내 게임 번호, 방장이 나눠 준 사람 기록
+        if (typeName == "ASSIGN_ID") { HandleAssignId(json); return; }
+        if (typeName == "REGISTRY") { lastRegistryJson = json; return; }
+
         if (!Enum.TryParse(typeName, out LobbyMessageType type))
         {
             Log("알 수 없는 로비 알림입니다: " + typeName);
@@ -789,13 +910,38 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         {
             try { lastSnapshot = JsonConvert.DeserializeObject<RoomUpdatedBroadcast>(json).room; }
             catch (Exception e) { Log("방 정보를 읽지 못했습니다: " + e.Message); }
+
+            // 게임이 시작되면 이 방을 기억하고(끊겼다 돌아올 때 이어하기로 보인다), 게임이 끝나면 지운다
+            if (lastSnapshot != null)
+            {
+                if (lastSnapshot.status == RoomStatus.PLAYING) LastGameRoom = lastSnapshot.roomId;
+                else if (LastGameRoom == lastSnapshot.roomId) LastGameRoom = null;
+            }
         }
 
         if (type == LobbyMessageType.GAME_STARTED) connection.GameBridge.ResetForNewGame(); // 새 게임: 이전 게임의 보관 중인 것을 버린다
 
         LobbyNetwork.Instance.ReceiveLobbyMessage(type, json);
 
-        if (type == LobbyMessageType.ROOM_LEFT) Run(FinishLeave(), "방 나가기 마무리");
+        if (type == LobbyMessageType.ROOM_LEFT)
+        {
+            if (leaving) LastGameRoom = null; // 일부러 나간 방은 이어하기로 보이지 않는다
+            Run(FinishLeave(), "방 나가기 마무리");
+        }
+    }
+
+    // 방장이 정해 준 내 게임 번호. 처음 들어온 사람은 연결 번호와 같고, 끊겼다 돌아온 사람은 예전 번호를 다시 받는다.
+    private void HandleAssignId(string json)
+    {
+        try
+        {
+            long id = (long)JObject.Parse(json)["playerId"];
+            if (id == LocalPlayer.Id) return;
+
+            LocalPlayer.Set(id, LocalPlayer.Nickname);
+            Log($"내 게임 번호는 {id}번입니다");
+        }
+        catch (Exception e) { Log("게임 번호를 읽지 못했습니다: " + e.Message); }
     }
 
     // ───────────── 도우미 ─────────────
