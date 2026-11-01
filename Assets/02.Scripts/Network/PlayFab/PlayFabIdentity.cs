@@ -215,6 +215,8 @@ public class PlayFabIdentity
         {
             case "InvalidTitleId":
                 return $" → Title ID({PlayFabConfig.TitleId})가 맞는지 확인하세요";
+            case "PlayerCreationDisabled":
+                return " → PlayFab Game Manager의 Settings > API Features에서 'Disable Player Creation' 아래의 Custom ID(LoginWithCustomID) 항목 체크를 풀고 저장하세요. 반영에 몇 분 걸릴 수 있습니다";
             case "PhotonNotEnabledForTitle":
                 return " → PlayFab 타이틀의 Add-ons에서 Photon 애드온이 설치되지 않았습니다";
             case "PhotonApplicationNotFound":
