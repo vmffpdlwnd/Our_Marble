@@ -27,7 +27,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "2";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "3-2.1";
+    public const string CodeRevision = "3-2.3";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -358,14 +358,15 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     }
 
     /// <summary>방을 닫으면 새로 들어올 수 없다. (게임이 시작되면 닫는다) 사람 수 제한과는 별개다.</summary>
-    public bool SetRoomOpen(bool open)
+    /// <param name="force">true면 지금 값이 같아 보여도 다시 설정한다. (방장이 바뀐 직후, 이전 방장의 변경이 반영됐는지 알 수 없을 때)</param>
+    public bool SetRoomOpen(bool open, bool force = false)
     {
         if (!IsInSession) return false;
 
         SessionInfo info = runner.SessionInfo;
         if (info == null || !info.IsValid) return false;
 
-        if (info.IsOpen == open) return true; // 바뀌는 게 없으면 로그도 남기지 않는다
+        if (!force && info.IsOpen == open) return true; // 바뀌는 게 없으면 로그도 남기지 않는다
 
         info.IsOpen = open;
         Add(open ? "방을 열었습니다" : "방을 닫았습니다 (새로 들어올 수 없음)");

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Fusion;
 using Newtonsoft.Json;
@@ -35,6 +36,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private const long OfflinePlayerId = 1;      // Photon을 쓰지 않을 때 이 PC 플레이어의 번호 (TitleManager와 같다)
     private const float LeaveWaitSeconds = 3f;   // 방을 나갈 때 방장의 답을 기다리는 시간
     private const float HandshakeSeconds = 2.5f; // 방에 들어온 직후 방장의 퐁을 기다리는 시간. 퐁이 없어도 요청은 보낸다 (옛 버전 방장은 퐁을 못 준다)
+    private const float MasterLeaveFlushSeconds = 0.5f; // 방장이 나갈 때, 방금 보낸 알림이 Photon으로 나갈 시간을 준다
     private const float AnswerWarnSeconds = 5f;  // 입장 요청을 보낸 뒤 이 시간 안에 답이 없으면 방에서 나온다 (화면의 10초 제한보다 먼저)
 
     private const string LeaveRoomJson = "{\"type\":\"LEAVE_ROOM\"}";
@@ -50,6 +52,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private bool awaitingAnswer;                 // 방 만들기나 입장 요청을 보내고 방장의 답을 기다리는 중
     private readonly Queue<string> queued = new Queue<string>();   // 만드는 중에 들어온 요청 (방 설정 요청 등)
     private readonly HashSet<int> knownIds = new HashSet<int>();
+    private string lastExcludedLog = "";         // 방 목록에서 제외된 방을 로그로 남긴 마지막 내용 (같은 내용을 반복해 남기지 않으려고)
 
     // 요청을 보낸 사람의 연결. 접속자 목록(ActivePlayers)이 늦게 갱신돼도 그 사람에게 답을 보낼 수 있게 요청에서 알아 둔다.
     private readonly Dictionary<int, PlayerRef> seenRefs = new Dictionary<int, PlayerRef>();
@@ -175,8 +178,27 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         if (IsActive && connection.Current == PhotonConnection.ConnectionState.InLobby) SendRoomListToScreen();
     }
 
+    // 방 목록에 올리지 않은 방과 그 이유를 로그로 남긴다. (방이 안 보일 때 이유를 바로 알 수 있게. 내용이 바뀔 때만 남긴다)
+    private void LogExcludedSessions()
+    {
+        var text = new StringBuilder();
+        foreach (SessionInfo info in connection.Sessions)
+        {
+            if (IsListable(info)) continue;
+            text.Append($"{PhotonConnection.FormatCode(info.Name)}(열림 {info.IsOpen}, 호스트 표시 {IntProp(info, KeyHosted, 0)}, 상태 {StringProp(info, KeyState, "?")}, 인원 {info.PlayerCount}/{info.MaxPlayers}) ");
+        }
+
+        string now = text.ToString();
+        if (now == lastExcludedLog) return;
+
+        lastExcludedLog = now;
+        if (now.Length > 0) Log("방 목록에서 제외된 방: " + now);
+    }
+
     private void SendRoomListToScreen()
     {
+        LogExcludedSessions();
+
         List<RoomSummary> list = connection.Sessions.Where(IsListable).Select(ToSummary).ToList();
         string json = JsonConvert.SerializeObject(new RoomListResponse { type = "ROOM_LIST", rooms = list });
         LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.ROOM_LIST, json);
@@ -328,6 +350,13 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
         try
         {
+            // 방장이 나가면서 보낸 "새 방장" 알림이 끊기기 전에 나가도록 잠깐 기다린다. (바로 끊으면 남은 사람이 못 받을 수 있다)
+            if (host != null)
+            {
+                float until = Time.unscaledTime + MasterLeaveFlushSeconds;
+                while (Time.unscaledTime < until) await Task.Yield();
+            }
+
             ClearRoomState();
             LocalPlayer.Set(0, LocalPlayer.Nickname);
 
@@ -494,7 +523,9 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     }
 
     // 방의 상태가 바뀔 때마다 방 목록에 보일 값(방장 이름, 인원, 상태)과 열림 여부를 Photon 방에 반영한다
-    private void OnHostRoomUpdated(RoomSnapshot room)
+    private void OnHostRoomUpdated(RoomSnapshot room) => ApplyRoomToSession(room, false);
+
+    private void ApplyRoomToSession(RoomSnapshot room, bool forceOpen)
     {
         lastSnapshot = room;
 
@@ -515,7 +546,9 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         connection.UpdateRoomProperties(properties);
 
         // 들어올 수 있는 사람 수는 최대 인원에서 봇을 뺀 만큼이다. 다 찼거나 게임이 시작되면 닫는다.
-        connection.SetRoomOpen(waiting && humans < room.maxPlayers - room.botCount);
+        bool open = waiting && humans < room.maxPlayers - room.botCount;
+        connection.SetRoomOpen(open, forceOpen);
+        if (forceOpen) Log($"방 정보를 Photon 방에 반영했습니다 (사람 {humans}명, 자리 {room.maxPlayers - room.botCount}개, 상태 {(waiting ? "대기" : "게임 중")}, 열림 {open})");
     }
 
     // ───────────── 방장이 바뀌거나 사람이 나갈 때 ─────────────
@@ -549,7 +582,25 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         Log("방장이 되었습니다. 마지막으로 받은 방 정보로 호스트를 이어받습니다");
         StartHost();
         host.RestoreRoom(lastSnapshot);
-        OnHostRoomUpdated(lastSnapshot);
+        RemoveMembersWhoLeft();
+        ApplyRoomToSession(lastSnapshot, true); // 이전 방장의 마지막 변경이 반영됐는지 알 수 없어서, 열림 여부를 다시 맞춘다
+    }
+
+    // 이어받은 방 정보에는 방금 나간 전 방장 같은 사람이 아직 들어 있을 수 있다. (나가기 직전의 방 정보를 못 받은 경우)
+    // 그대로 두면 빈자리가 없는 방으로 보여서 방이 닫히고, 나간 사람이 다시 들어올 수 없다.
+    // Photon에 이미 없는 사람을 방에서 뺀다.
+    private void RemoveMembersWhoLeft()
+    {
+        foreach (PlayerSnapshot member in lastSnapshot.Players.ToList())
+        {
+            if (member.bot) continue;
+            if (member.playerId == connection.LocalPlayerRef.PlayerId) continue;
+            if (connection.IsPlayerPresent((int)member.playerId)) continue;
+            if (!host.IsMember(member.playerId)) continue;
+
+            Log($"이미 나간 {member.playerId}번을 방에서 뺍니다");
+            host.OnRequest(member.playerId, LeaveRoomJson);
+        }
     }
 
     // ───────────── 알림 받기 (방장 호스트 → 화면) ─────────────

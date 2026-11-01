@@ -31,13 +31,7 @@ public class HostGameService : IHostRequestReceiver
     private readonly GameState state;
     private readonly GameData gameData; // 규칙이 읽는 보드, 땅 가격표, 카드
 
-    private bool started; // 첫 차례를 시작했는지
-
-    // 사람이 모두 게임 화면을 열고 상태를 요청한 뒤에 첫 차례를 시작한다. (늦게 열린 화면이 첫 알림들을 놓치지 않게)
-    // 한 사람 PC에서는 그 사람이 요청하면 바로 시작한다. 게임 화면을 못 여는 사람이 있어도 이 시간이 지나면 시작한다.
-    private const float StartGraceSeconds = 10f;
-    private readonly HashSet<long> stateRequested = new HashSet<long>();
-    private float startWaited;
+    private bool started; // 첫 GAME_STATE_REQUEST를 받아 첫 차례를 시작했는지
 
     // ───────────── 이 PC의 게임 호스트 ─────────────
 
@@ -239,23 +233,17 @@ public class HostGameService : IHostRequestReceiver
     private void HandleGameStateRequest(long senderId)
     {
         SendState(senderId);
-        stateRequested.Add(senderId);
 
-        // 사람이 모두 상태를 받은 뒤에 첫 차례를 시작한다.
+        // 최초 요청이면 상태를 보낸 뒤에 첫 차례를 시작한다.
         // (보낸 상태는 TurnNumber 1이라서 받은 쪽이 StartGame을 부르고, 호스트도 같은 시점에 첫 차례를 시작해 둘이 같은 상태가 된다)
-        if (!started && AllHumansRequestedState()) BeginGame();
-    }
-
-    private bool AllHumansRequestedState()
-    {
-        return state.PlayerStates.Where(p => !p.IsBot).All(p => stateRequested.Contains(p.PlayerId));
-    }
-
-    private void BeginGame()
-    {
-        started = true;
-        Debug.Log("[HostGameService] 게임 시작");
-        StartTurn(state.PlayerOrder[0]);
+        // 첫 차례 시작은 알림으로 보내지 않고 받은 쪽이 스스로 하므로, 호스트가 시작을 미루면 상태를 먼저 받은 쪽만 앞서 가서 어긋난다.
+        // 늦게 요청한 사람은 그때의 현재 상태를 받아 따라잡는다. (재접속과 같은 경로)
+        if (!started)
+        {
+            started = true;
+            Debug.Log("[HostGameService] 게임 시작");
+            StartTurn(state.PlayerOrder[0]);
+        }
     }
 
     // ───────────── 검증 (기획서 5장 "검증 순서") ─────────────
@@ -833,17 +821,7 @@ public class HostGameService : IHostRequestReceiver
 
     public void Tick(float deltaTime)
     {
-        // 아직 시작 전이면, 첫 요청이 온 뒤로 기다린 시간만 센다. 상태를 요청하지 않은 사람이 있어도 이 시간이 지나면 시작한다.
-        if (!started)
-        {
-            if (stateRequested.Count == 0) return;
-
-            startWaited += deltaTime;
-            if (startWaited >= StartGraceSeconds) BeginGame();
-            return;
-        }
-
-        if (state.IsGameOver || state.WaitingType == null) return;
+        if (!started || state.IsGameOver || state.WaitingType == null) return;
 
         PlayerState actor = GetPlayer(state.CurrentPlayerId);
         if (actor == null || actor.IsBankrupt) return;
