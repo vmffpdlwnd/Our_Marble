@@ -14,12 +14,6 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/01.Scenes/GameScene.unity
     guid: 9b9cfb96cf111a844b5d4fddea860f89
-  - enabled: 1
-    path: Assets/Photon/FusionDemos/Fusion-Intro-Shared/Scenes/FusionIntroShared.unity
-    guid: 00000000000000000000000000000000
-  - enabled: 1
-    path: Assets/Photon/FusionMenu/FusionSampleMenu.unity
-    guid: 74c3b330900a03442806ce69f1fe5955
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0
