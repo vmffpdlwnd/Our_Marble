@@ -65,6 +65,12 @@ public class GameNetwork : Singleton<GameNetwork>
     // 게임 씬마다 새로 만들어지는 GameNetwork가 세므로 게임이 바뀌면 0부터 다시 센다.
     public int ProcessedBroadcastCount { get; private set; }
 
+    /// <summary>화면이 아직 처리하지 못하고 쌓아 둔 알림 수. 0이면 화면이 받은 알림을 모두 반영한 상태다. (방장을 이어받아도 되는 때를 가리는 데 쓴다)</summary>
+    public int PendingMessageCount
+    {
+        get { lock (messageQueue) return messageQueue.Count; }
+    }
+
     public void TryDequeueMessage(GameMessageType waitingType)
     {
         GameServerMessage serverMessage;

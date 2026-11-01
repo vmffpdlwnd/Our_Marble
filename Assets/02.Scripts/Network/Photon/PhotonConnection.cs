@@ -28,7 +28,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "2";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "5-2.1";
+    public const string CodeRevision = "6-1.1";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -45,6 +45,9 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     private NetworkRunner runner;
     private List<SessionInfo> sessions = new List<SessionInfo>();
     private int lastMasterId = int.MinValue;
+
+    /// <summary>방장이 바뀌기 직전의 방장 번호. (바뀐 뒤 MasterChanged 때 "누가 나갔는지" 알려고)</summary>
+    public int PreviousMasterId { get; private set; } = -1;
     private int rawLogged;   // 신뢰 데이터가 도착했다는 기록을 남긴 횟수 (방마다 처음 30개만)
 
     // 접속자 변화는 Fusion 콜백에 기대지 않고 ActivePlayers를 지켜봐서 알아낸다.
@@ -528,6 +531,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         int masterId = runner.GetMasterClient().PlayerId;
         if (masterId != lastMasterId)
         {
+            PreviousMasterId = lastMasterId;
             lastMasterId = masterId;
             Add($"방장이 바뀌었습니다: {masterId}번 {(runner.IsSharedModeMasterClient ? "(나)" : "")}");
             MasterChanged?.Invoke();

@@ -26,8 +26,10 @@ public static class PhotonAutoStart
     {
         if (scene.path == SceneFlow.LoginScenePath)
         {
-            // 타이틀로 돌아오면 다음 입장 때 다시 온라인을 시도한다
-            PhotonConnection.Instance.OfflineMode = false;
+            // 타이틀로 돌아오면 방과 연결을 정리하고, 다음 입장 때 다시 온라인을 시도한다
+            PhotonConnection connection = PhotonConnection.Instance;
+            connection.OfflineMode = false;
+            _ = connection.LobbyBridge.LeaveForLogin();
             return;
         }
 

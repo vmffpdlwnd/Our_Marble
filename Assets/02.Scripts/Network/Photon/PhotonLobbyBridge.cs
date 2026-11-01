@@ -566,6 +566,9 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     // 호스트가 보내는 알림을 Photon으로 내보낸다. 봇(1001번부터)이나 이미 나간 사람에게는 보내지 않는다.
     private void Deliver(long playerId, LobbyMessageType type, string json)
     {
+        // 이 PC의 호스트가 게임을 시작시켰다. 이 PC의 게임 호스트가 새 게임을 처음부터 만들어도 된다는 표시다.
+        if (type == LobbyMessageType.GAME_STARTED) connection.GameBridge.OnLocalHostStartedGame();
+
         if (!TryFindPlayer(playerId, out PlayerRef target))
         {
             if (playerId < 1000) Log($"알림을 보낼 사람을 찾지 못했습니다: {type} → {playerId}번"); // 1000번 이상은 봇이라 받을 필요가 없다
@@ -652,6 +655,21 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         if (forceOpen) Log($"방 정보를 Photon 방에 반영했습니다 (사람 {humans}명, 자리 {room.maxPlayers - room.botCount}개, 상태 {(waiting ? "대기" : "게임 중")}, 열림 {open})");
     }
 
+    // ───────────── 타이틀 화면으로 돌아갈 때 ─────────────
+
+    /// <summary>
+    /// 타이틀 화면으로 돌아갈 때 방과 연결을 정리한다. 방에 그대로 남아 있으면 다른 사람들이 내가 나간 것을 알 수 없고,
+    /// 내가 방장이면 게임을 이어받을 새 방장도 정해지지 않는다. 이미 연결이 없으면 아무것도 하지 않는다.
+    /// </summary>
+    public async Task LeaveForLogin()
+    {
+        if (!IsActive || connection.Current == PhotonConnection.ConnectionState.Disconnected) return;
+
+        Log("타이틀로 돌아가서 방과 연결을 정리합니다");
+        ClearRoomState();
+        await connection.Disconnect();
+    }
+
     // ───────────── 연결이 예기치 않게 끊겼을 때 ─────────────
 
     private void OnConnectionLost(PhotonConnection.ConnectionState previous, ShutdownReason reason)
@@ -703,7 +721,12 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         if (host != null && connection.IsMaster)
         {
             foreach (int id in knownIds)
-                if (!now.Contains(id) && host.IsMember(id)) host.OnRequest(id, LeaveRoomJson);
+            {
+                if (now.Contains(id)) continue;
+
+                if (host.IsMember(id)) host.OnRequest(id, LeaveRoomJson);
+                connection.GameBridge.OnPlayerGone(id); // 게임 중이면 그 사람의 차례는 기다리지 않고 자동으로 진행한다
+            }
         }
 
         foreach (int id in knownIds)
@@ -724,6 +747,10 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         host.RestoreRoom(lastSnapshot);
         RemoveMembersWhoLeft();
         ApplyRoomToSession(lastSnapshot, true); // 이전 방장의 마지막 변경이 반영됐는지 알 수 없어서, 열림 여부를 다시 맞춘다
+
+        // 게임이 진행 중이었다면 게임도 이어받는다. (내 화면이 가진 상태로 게임 호스트를 시작한다)
+        if (lastSnapshot.status == RoomStatus.PLAYING)
+            connection.GameBridge.BeginTakeOver(lastSnapshot, connection.PreviousMasterId);
     }
 
     // 이어받은 방 정보에는 방금 나간 전 방장 같은 사람이 아직 들어 있을 수 있다. (나가기 직전의 방 정보를 못 받은 경우)
