@@ -27,7 +27,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "2";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "3-1.8";
+    public const string CodeRevision = "3-2.1";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -63,6 +63,9 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     /// <summary>게임의 로비 화면을 Photon에 이어 주는 쪽</summary>
     public PhotonLobbyBridge LobbyBridge { get; private set; }
 
+    /// <summary>게임 진행(주사위, 구매 등)을 Photon에 이어 주는 쪽. 로비 연결을 켜면 같이 켜진다</summary>
+    public PhotonGameBridge GameBridge { get; private set; }
+
     public event Action StateChanged;
     public event Action SessionsChanged;
     public event Action PlayersChanged;
@@ -73,6 +76,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     {
         Messenger = new PhotonMessenger(this);
         LobbyBridge = new PhotonLobbyBridge(this);
+        GameBridge = new PhotonGameBridge(this);
     }
 
     // ───────────── 상태 조회 ─────────────
@@ -456,6 +460,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         if (!IsInSession) return;
 
         Messenger.Tick();
+        GameBridge.Tick();
 
         int masterId = runner.GetMasterClient().PlayerId;
         if (masterId != lastMasterId)

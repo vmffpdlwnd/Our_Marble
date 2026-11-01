@@ -71,6 +71,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         IsActive = true;
 
         LobbyNetwork.Instance.Host = this;
+        connection.GameBridge.Enable(); // 게임 진행도 같이 Photon으로 보낸다
         connection.Messenger.RequestReceived += OnRequestReceived;
         connection.Messenger.NotifyReceived += OnNotifyReceived;
         connection.SessionsChanged += OnSessionsChanged;
@@ -91,6 +92,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         connection.PlayersChanged -= OnPlayersChanged;
         connection.MasterChanged -= OnMasterChanged;
         if (LobbyNetwork.Instance.Host == this) LobbyNetwork.Instance.Host = null;
+        connection.GameBridge.Disable();
 
         ClearRoomState();
         LocalPlayer.Set(OfflinePlayerId, LocalPlayer.Nickname);
@@ -398,6 +400,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         if (host != null) host.RoomUpdated -= OnHostRoomUpdated;
         if (host != null) LocalLobbyHost.Reset();
 
+        connection.GameBridge.Reset();
         host = null;
         lastSnapshot = null;
         busy = false;
@@ -569,6 +572,8 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             try { lastSnapshot = JsonConvert.DeserializeObject<RoomUpdatedBroadcast>(json).room; }
             catch (Exception e) { Log("방 정보를 읽지 못했습니다: " + e.Message); }
         }
+
+        if (type == LobbyMessageType.GAME_STARTED) connection.GameBridge.ResetForNewGame(); // 새 게임: 이전 게임의 보관 중인 것을 버린다
 
         LobbyNetwork.Instance.ReceiveLobbyMessage(type, json);
 

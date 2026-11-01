@@ -31,7 +31,13 @@ public class HostGameService : IHostRequestReceiver
     private readonly GameState state;
     private readonly GameData gameData; // 규칙이 읽는 보드, 땅 가격표, 카드
 
-    private bool started; // 첫 GAME_STATE_REQUEST를 받아 첫 차례를 시작했는지
+    private bool started; // 첫 차례를 시작했는지
+
+    // 사람이 모두 게임 화면을 열고 상태를 요청한 뒤에 첫 차례를 시작한다. (늦게 열린 화면이 첫 알림들을 놓치지 않게)
+    // 한 사람 PC에서는 그 사람이 요청하면 바로 시작한다. 게임 화면을 못 여는 사람이 있어도 이 시간이 지나면 시작한다.
+    private const float StartGraceSeconds = 10f;
+    private readonly HashSet<long> stateRequested = new HashSet<long>();
+    private float startWaited;
 
     // ───────────── 이 PC의 게임 호스트 ─────────────
 
@@ -76,6 +82,21 @@ public class HostGameService : IHostRequestReceiver
         HostAutoPlayRunner.Create(host); // 봇 차례와 제한 시간을 돌린다
         return host;
     }
+
+    /// <summary>
+    /// 방 정보로 새 게임 호스트를 시작하고, 알림을 deliver로 내보낸다. (Photon에서 방장 PC가 쓴다)
+    /// 게임 씬이 열려 보드가 있어야 하므로 CanStart가 true일 때 부른다.
+    /// </summary>
+    public static HostGameService StartNew(RoomSnapshot room, Action<long, GameMessageType, string> deliver)
+    {
+        HostGameService host = new HostGameService(room, deliver);
+        current = host;
+        HostAutoPlayRunner.Create(host); // 봇 차례와 제한 시간을 돌린다
+        return host;
+    }
+
+    /// <summary>게임 호스트를 만들 수 있는 때인지. (게임 씬이 열려 보드 데이터가 있다)</summary>
+    public static bool CanStart => BoardManager.Instance != null && BoardManager.Instance.BoardData != null;
 
     /// <summary>진행 중인 게임을 버린다. 타이틀로 돌아갈 때 부른다.</summary>
     public static void Reset() => current = null;
@@ -218,15 +239,23 @@ public class HostGameService : IHostRequestReceiver
     private void HandleGameStateRequest(long senderId)
     {
         SendState(senderId);
+        stateRequested.Add(senderId);
 
-        // 최초 요청이면 상태를 보낸 뒤에 첫 차례를 시작한다.
+        // 사람이 모두 상태를 받은 뒤에 첫 차례를 시작한다.
         // (보낸 상태는 TurnNumber 1이라서 받은 쪽이 StartGame을 부르고, 호스트도 같은 시점에 첫 차례를 시작해 둘이 같은 상태가 된다)
-        if (!started)
-        {
-            started = true;
-            Debug.Log("[HostGameService] 게임 시작");
-            StartTurn(state.PlayerOrder[0]);
-        }
+        if (!started && AllHumansRequestedState()) BeginGame();
+    }
+
+    private bool AllHumansRequestedState()
+    {
+        return state.PlayerStates.Where(p => !p.IsBot).All(p => stateRequested.Contains(p.PlayerId));
+    }
+
+    private void BeginGame()
+    {
+        started = true;
+        Debug.Log("[HostGameService] 게임 시작");
+        StartTurn(state.PlayerOrder[0]);
     }
 
     // ───────────── 검증 (기획서 5장 "검증 순서") ─────────────
@@ -804,7 +833,17 @@ public class HostGameService : IHostRequestReceiver
 
     public void Tick(float deltaTime)
     {
-        if (!started || state.IsGameOver || state.WaitingType == null) return;
+        // 아직 시작 전이면, 첫 요청이 온 뒤로 기다린 시간만 센다. 상태를 요청하지 않은 사람이 있어도 이 시간이 지나면 시작한다.
+        if (!started)
+        {
+            if (stateRequested.Count == 0) return;
+
+            startWaited += deltaTime;
+            if (startWaited >= StartGraceSeconds) BeginGame();
+            return;
+        }
+
+        if (state.IsGameOver || state.WaitingType == null) return;
 
         PlayerState actor = GetPlayer(state.CurrentPlayerId);
         if (actor == null || actor.IsBankrupt) return;
