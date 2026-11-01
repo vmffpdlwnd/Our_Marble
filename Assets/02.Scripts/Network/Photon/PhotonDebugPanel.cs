@@ -73,6 +73,16 @@ public class PhotonDebugPanel : MonoBehaviour
         GUILayout.Label($"AppId: {(conn.HasAppId ? "있음" : "없음 (Fusion Hub에서 입력)")}   지역: {PhotonConnection.Region}   버전: {PhotonConnection.NetworkVersion}");
         GUILayout.Label($"상태: {conn.Current}");
 
+        // 게임의 로비 화면을 Photon에 이어 쓰는 스위치. 로비 화면에 들어가기 전에 켠다. 켠 동안은 아래 버튼 대신 게임 로비 화면으로 조작한다.
+        GUILayout.BeginHorizontal();
+        GUILayout.Label($"게임 로비 연결: {(conn.LobbyBridge.IsActive ? "켜짐 (게임 로비 화면으로 조작)" : "꺼짐")}");
+        if (GUILayout.Button(conn.LobbyBridge.IsActive ? "끄기" : "켜기", GUILayout.Width(80)))
+        {
+            if (conn.LobbyBridge.IsActive) _ = conn.LobbyBridge.Disable();
+            else conn.LobbyBridge.Enable();
+        }
+        GUILayout.EndHorizontal();
+
         GUILayout.BeginHorizontal();
         GUI.enabled = conn.Current == PhotonConnection.ConnectionState.Disconnected || conn.Current == PhotonConnection.ConnectionState.InLobby;
         if (GUILayout.Button(conn.Current == PhotonConnection.ConnectionState.InLobby ? "로비 다시 입장" : "로비 입장"))

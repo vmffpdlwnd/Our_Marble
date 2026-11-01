@@ -55,6 +55,9 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     /// <summary>방 안에서 메시지를 주고받는 쪽</summary>
     public PhotonMessenger Messenger { get; private set; }
 
+    /// <summary>게임의 로비 화면을 Photon에 이어 주는 쪽</summary>
+    public PhotonLobbyBridge LobbyBridge { get; private set; }
+
     public event Action StateChanged;
     public event Action SessionsChanged;
     public event Action PlayersChanged;
@@ -64,6 +67,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     protected override void OnAwake()
     {
         Messenger = new PhotonMessenger(this);
+        LobbyBridge = new PhotonLobbyBridge(this);
     }
 
     // ───────────── 상태 조회 ─────────────
@@ -325,6 +329,8 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
         SessionInfo info = runner.SessionInfo;
         if (info == null || !info.IsValid) return false;
+
+        if (info.IsOpen == open) return true; // 바뀌는 게 없으면 로그도 남기지 않는다
 
         info.IsOpen = open;
         Add(open ? "방을 열었습니다" : "방을 닫았습니다 (새로 들어올 수 없음)");
