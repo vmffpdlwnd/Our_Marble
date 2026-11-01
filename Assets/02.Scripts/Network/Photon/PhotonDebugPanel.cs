@@ -95,6 +95,17 @@ public class PhotonDebugPanel : MonoBehaviour
         }
         GUILayout.EndHorizontal();
 
+        // 인터넷을 끊지 않고 "연결 실패 → 혼자 하기 전환"을 확인하는 방법:
+        // 흉내를 고르고 → 아래 "연결 끊기"를 누른 뒤 → 로비 화면의 새로고침을 누른다.
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("연결 실패 흉내", GUILayout.Width(110));
+        foreach (PhotonConnection.SimulatedFailure kind in System.Enum.GetValues(typeof(PhotonConnection.SimulatedFailure)))
+        {
+            string label = kind == PhotonConnection.SimulatedFailure.None ? "끔" : kind == PhotonConnection.SimulatedFailure.Immediate ? "바로 실패" : "응답 없음";
+            if (GUILayout.Button((conn.Simulated == kind ? "● " : "") + label)) conn.Simulated = kind;
+        }
+        GUILayout.EndHorizontal();
+
         GUILayout.BeginHorizontal();
         GUI.enabled = conn.Current == PhotonConnection.ConnectionState.Disconnected || conn.Current == PhotonConnection.ConnectionState.InLobby;
         if (GUILayout.Button(conn.Current == PhotonConnection.ConnectionState.InLobby ? "로비 다시 입장" : "로비 입장"))
