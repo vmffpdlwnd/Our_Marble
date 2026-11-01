@@ -75,11 +75,34 @@ public class PhotonDebugPanel : MonoBehaviour
 
         // 게임의 로비 화면을 Photon에 이어 쓰는 스위치. 로비 화면에 들어가기 전에 켠다. 켠 동안은 아래 버튼 대신 게임 로비 화면으로 조작한다.
         GUILayout.BeginHorizontal();
-        GUILayout.Label($"게임 로비 연결: {(conn.LobbyBridge.IsActive ? "켜짐 (게임 로비 화면으로 조작)" : "꺼짐")}");
+        string mode = conn.LobbyBridge.IsActive ? "켜짐 (게임 로비 화면으로 조작)"
+            : conn.OfflineMode ? "꺼짐 (연결하지 못해 혼자 하기로 전환됨. 타이틀로 돌아가면 다시 시도)"
+            : conn.AutoStartDisabled ? "꺼짐 (개발용으로 끔)" : "꺼짐";
+        GUILayout.Label($"게임 로비 연결: {mode}");
         if (GUILayout.Button(conn.LobbyBridge.IsActive ? "끄기" : "켜기", GUILayout.Width(80)))
         {
-            if (conn.LobbyBridge.IsActive) _ = conn.LobbyBridge.Disable();
-            else conn.LobbyBridge.Enable();
+            if (conn.LobbyBridge.IsActive)
+            {
+                conn.AutoStartDisabled = true; // 일부러 끈 것이라 로비 화면이 뜰 때 다시 자동으로 켜지 않는다
+                _ = conn.LobbyBridge.Disable();
+            }
+            else
+            {
+                conn.AutoStartDisabled = false;
+                conn.OfflineMode = false;
+                conn.LobbyBridge.Enable();
+            }
+        }
+        GUILayout.EndHorizontal();
+
+        // 인터넷을 끊지 않고 "연결 실패 → 혼자 하기 전환"을 확인하는 방법:
+        // 흉내를 고르고 → 아래 "연결 끊기"를 누른 뒤 → 로비 화면의 새로고침을 누른다.
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("연결 실패 흉내", GUILayout.Width(110));
+        foreach (PhotonConnection.SimulatedFailure kind in System.Enum.GetValues(typeof(PhotonConnection.SimulatedFailure)))
+        {
+            string label = kind == PhotonConnection.SimulatedFailure.None ? "끔" : kind == PhotonConnection.SimulatedFailure.Immediate ? "바로 실패" : "응답 없음";
+            if (GUILayout.Button((conn.Simulated == kind ? "● " : "") + label)) conn.Simulated = kind;
         }
         GUILayout.EndHorizontal();
 
@@ -135,7 +158,7 @@ public class PhotonDebugPanel : MonoBehaviour
         foreach (SessionInfo info in conn.Sessions)
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label($"{DisplayName(info)}  코드 {PhotonConnection.FormatCode(info.Name)}   {info.PlayerCount}/{info.MaxPlayers}   {(info.IsOpen ? "열림" : "닫힘")}   [{info.Region}]");
+            GUILayout.Label($"{DisplayName(info)}  코드 {PhotonConnection.FormatCode(info.Name)}   게임 인원 {PhotonLobbyBridge.DescribeCapacity(info)} (Photon 최대 {info.MaxPlayers})   {(info.IsOpen ? "열림" : "닫힘")}   [{info.Region}]");
 
             GUI.enabled = info.IsOpen && info.PlayerCount < info.MaxPlayers;
             if (GUILayout.Button("입장", GUILayout.Width(70)))

@@ -35,6 +35,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     private const long OfflinePlayerId = 1;      // Photon을 쓰지 않을 때 이 PC 플레이어의 번호 (TitleManager와 같다)
     private const float LeaveWaitSeconds = 3f;   // 방을 나갈 때 방장의 답을 기다리는 시간
+    private const float LobbyConnectSeconds = 7f;  // 로비에 연결되기를 기다리는 시간. 넘으면 혼자 하기로 전환한다 (화면의 10초 제한보다 먼저)
     private const float HandshakeSeconds = 2.5f; // 방에 들어온 직후 방장의 퐁을 기다리는 시간. 퐁이 없어도 요청은 보낸다 (옛 버전 방장은 퐁을 못 준다)
     private const float MasterLeaveFlushSeconds = 0.5f; // 방장이 나갈 때, 방금 보낸 알림이 Photon으로 나갈 시간을 준다
     private const float AnswerWarnSeconds = 5f;  // 입장 요청을 보낸 뒤 이 시간 안에 답이 없으면 방에서 나온다 (화면의 10초 제한보다 먼저)
@@ -52,7 +53,8 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private bool awaitingAnswer;                 // 방 만들기나 입장 요청을 보내고 방장의 답을 기다리는 중
     private readonly Queue<string> queued = new Queue<string>();   // 만드는 중에 들어온 요청 (방 설정 요청 등)
     private readonly HashSet<int> knownIds = new HashSet<int>();
-    private string lastExcludedLog = "";         // 방 목록에서 제외된 방을 로그로 남긴 마지막 내용 (같은 내용을 반복해 남기지 않으려고)
+    private string lastExcludedLog = "";
+    private string lastListedLog = "";           // 로비 목록에 올린 방을 로그로 남긴 마지막 내용         // 방 목록에서 제외된 방을 로그로 남긴 마지막 내용 (같은 내용을 반복해 남기지 않으려고)
 
     // 요청을 보낸 사람의 연결. 접속자 목록(ActivePlayers)이 늦게 갱신돼도 그 사람에게 답을 보낼 수 있게 요청에서 알아 둔다.
     private readonly Dictionary<int, PlayerRef> seenRefs = new Dictionary<int, PlayerRef>();
@@ -154,22 +156,57 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
         if (!await EnsureLobby())
         {
-            DeliverError("CONNECT_FAILED", "Photon에 연결하지 못했어요");
+            await FallbackToLocal("로비에 연결하지 못했습니다");
             return;
         }
         SendRoomListToScreen();
     }
 
     // 로비에 있게 만든다. 이미 있으면 그대로, 들어가는 중이면 기다리고, 끊겨 있으면 들어간다.
+    // 연결이 오래 걸리면 포기하고 false를 돌려준다. (인터넷이 없을 때 화면이 10초 뒤 "서버 응답이 없어요"만 띄우지 않게)
     private async Task<bool> EnsureLobby()
     {
+        float until = Time.unscaledTime + LobbyConnectSeconds;
+
         // 웹(WebGL)에서는 Task.Delay가 동작하지 않아서 프레임마다 확인한다
-        while (connection.Current == PhotonConnection.ConnectionState.JoiningLobby)
+        while (connection.Current == PhotonConnection.ConnectionState.JoiningLobby && Time.unscaledTime < until)
             await Task.Yield();
 
         if (connection.Current == PhotonConnection.ConnectionState.InLobby) return true;
-        if (connection.Current == PhotonConnection.ConnectionState.Disconnected) return await connection.JoinLobby();
+        if (connection.Current != PhotonConnection.ConnectionState.Disconnected) return false;
+
+        Task<bool> join = connection.JoinLobby();
+        while (!join.IsCompleted && Time.unscaledTime < until)
+            await Task.Yield();
+
+        if (join.IsCompleted) return join.Result;
+
+        Log($"로비 연결이 {LobbyConnectSeconds}초 안에 되지 않았습니다");
+        _ = connection.Disconnect(); // 늦게 연결되더라도 쓰지 않는다
         return false;
+    }
+
+    // Photon에 연결하지 못했을 때, 이 PC 안의 호스트를 쓰는 혼자 하기로 전환한다. (v1.0.1과 같은 동작)
+    // 화면이 이미 보낸 요청(방 만들기 등)은 이 PC의 호스트에게 다시 보내고, 전환했다는 안내는 그 뒤에 보낸다.
+    // (안내를 먼저 보내면 화면이 "입장 중" 상태를 끝내 버려서 뒤따르는 방 입장 응답과 겹친다)
+    private async Task FallbackToLocal(string reason, List<string> replay = null)
+    {
+        Log($"온라인에 연결하지 못해 이 PC에서 혼자 하기로 전환합니다 ({reason})");
+
+        connection.OfflineMode = true; // 타이틀로 돌아갈 때까지 다시 시도하지 않는다
+        await Disable();               // 이 PC 안의 호스트를 쓰도록 되돌린다. (내 번호도 원래대로)
+
+        if (replay != null && replay.Count > 0)
+        {
+            foreach (string json in replay)
+                LocalLobbyHost.Instance.OnRequest(LocalPlayer.Id, json);
+        }
+        else
+        {
+            LobbyNetwork.Instance.SendRoomListRequest();
+        }
+
+        LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.LOBBY_ERROR, ErrorJson("OFFLINE_MODE", "온라인에 연결하지 못해 혼자 하기로 전환했어요"));
     }
 
     private void OnSessionsChanged()
@@ -195,11 +232,26 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         if (now.Length > 0) Log("방 목록에서 제외된 방: " + now);
     }
 
+    // 로비 목록에 올린 방과 그 인원을 로그로 남긴다. (내용이 바뀔 때만) 방장이 바꾼 인원이 로비에 반영되는지 볼 수 있다.
+    private void LogListedRooms(List<RoomSummary> list)
+    {
+        string now = string.Join(" ", list.Select(r => $"{PhotonConnection.FormatCode(r.roomId)}({r.playerCount}/{r.maxPlayers}명, 맵 {r.mapId})"));
+        if (now == lastListedLog) return;
+
+        lastListedLog = now;
+        Log("방 목록: " + (now.Length > 0 ? now : "없음"));
+    }
+
+    /// <summary>방 목록에 보일 인원. 게임이 정한 값(현재 인원/최대 인원)이고, 없으면 Photon이 세는 값이다.</summary>
+    public static string DescribeCapacity(SessionInfo info) =>
+        $"{IntProp(info, KeyCount, info.PlayerCount)}/{IntProp(info, KeyMax, info.MaxPlayers)}";
+
     private void SendRoomListToScreen()
     {
         LogExcludedSessions();
 
         List<RoomSummary> list = connection.Sessions.Where(IsListable).Select(ToSummary).ToList();
+        LogListedRooms(list);
         string json = JsonConvert.SerializeObject(new RoomListResponse { type = "ROOM_LIST", rooms = list });
         LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.ROOM_LIST, json);
     }
@@ -243,11 +295,22 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         busy = true;
         try
         {
-            if (!await EnsureLobby()) { DeliverError("CONNECT_FAILED", "Photon에 연결하지 못했어요"); return; }
+            // 화면은 방 만들기 요청 바로 뒤에 방 설정(인원, 맵)을 보낸다. 한 프레임 기다려서 그 요청을 받아 둔다.
+            await Task.Yield();
+
+            if (!await EnsureLobby())
+            {
+                var replay = new List<string> { json };
+                replay.AddRange(queued);
+                queued.Clear();
+                await FallbackToLocal("로비에 연결하지 못했습니다", replay);
+                return;
+            }
 
             // 방 이름은 화면이 정하지 않으므로 만든 사람의 이름으로 정한다.
             // 방 목록에 보일 속성(방장, 인원, 호스트 표시 등)은 방을 만들 때 함께 정해야 다른 PC의 방 목록에 보인다.
-            if (!await connection.CreateRoom($"{LocalPlayer.Nickname}의 방", PhotonConnection.MaxHumansLimit, InitialRoomProperties()))
+            // 화면이 고른 인원과 맵을 처음부터 반영한다. (Photon 방의 최대 인원은 만든 뒤에 못 바꿔서 4로 두고, 실제 자리는 게임 규칙이 막는다)
+            if (!await connection.CreateRoom($"{LocalPlayer.Nickname}의 방", PhotonConnection.MaxHumansLimit, InitialRoomProperties(PeekRoomConfig())))
             {
                 DeliverError("CREATE_FAILED", "방을 만들지 못했어요");
                 return;
@@ -279,7 +342,11 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             try { roomId = JsonConvert.DeserializeObject<EnterRoomRequest>(json).roomId; }
             catch (Exception e) { Log("입장 요청을 읽지 못했습니다: " + e.Message); DeliverError("BAD_REQUEST", "요청을 처리하지 못했어요"); return; }
 
-            if (!await EnsureLobby()) { DeliverError("CONNECT_FAILED", "Photon에 연결하지 못했어요"); return; }
+            if (!await EnsureLobby())
+            {
+                await FallbackToLocal("로비에 연결하지 못했습니다");
+                return;
+            }
 
             SessionInfo target = connection.Sessions.FirstOrDefault(session => session.Name == roomId);
             if (target != null && IntProp(target, KeyHosted, 0) != 1)
@@ -510,14 +577,30 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     // 방을 만들 때 Photon에 함께 넘길 방 목록용 속성. 이후 방 정보가 바뀔 때 OnHostRoomUpdated가 같은 이름으로 값을 갱신한다.
     // (Photon은 방 목록에 방을 만들 때 정한 속성 이름만 보여 준다. 나중에 새 이름을 더해도 다른 PC에는 안 보인다)
-    private static Dictionary<string, SessionProperty> InitialRoomProperties()
+    // 보관 중인 요청에서 화면이 보낸 방 설정(인원, 맵, 봇 수)을 찾는다. 없으면 null.
+    private RoomConfigRequest PeekRoomConfig()
     {
+        foreach (string json in queued)
+        {
+            if (ReadType(json) != "ROOM_CONFIG_REQUEST") continue;
+            try { return JsonConvert.DeserializeObject<RoomConfigRequest>(json); }
+            catch (Exception e) { Log("방 설정 요청을 읽지 못했습니다: " + e.Message); }
+        }
+        return null;
+    }
+
+    private static Dictionary<string, SessionProperty> InitialRoomProperties(RoomConfigRequest config)
+    {
+        int max = config != null ? config.maxPlayers : PhotonConnection.MaxHumansLimit;
+        int bots = config != null ? config.botCount : 0;
+        int map = config != null && config.config != null ? config.config.mapId : 0;
+
         return new Dictionary<string, SessionProperty>
         {
             [KeyHost] = LocalPlayer.Nickname,
-            [KeyMap] = 0,
-            [KeyCount] = 1,
-            [KeyMax] = PhotonConnection.MaxHumansLimit,
+            [KeyMap] = map,
+            [KeyCount] = 1 + bots,
+            [KeyMax] = max,
             [KeyHosted] = 1,
         };
     }
@@ -544,6 +627,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             [KeyHosted] = 1,
         };
         connection.UpdateRoomProperties(properties);
+        Log($"방 속성 갱신: 사람 {humans}명, 전체 {room.Players.Count}/{room.maxPlayers}명, 맵 {room.mapId}, 상태 {(waiting ? "대기" : "게임 중")}");
 
         // 들어올 수 있는 사람 수는 최대 인원에서 봇을 뺀 만큼이다. 다 찼거나 게임이 시작되면 닫는다.
         bool open = waiting && humans < room.maxPlayers - room.botCount;

@@ -27,7 +27,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "2";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "3-2.3";
+    public const string CodeRevision = "4-1.2";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -53,6 +53,17 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     private float nextPlayerCheckTime;
 
     public ConnectionState Current { get; private set; } = ConnectionState.Disconnected;
+
+    /// <summary>Photon에 연결하지 못해 이 PC 안에서 혼자 하기로 전환된 상태. 타이틀 화면으로 돌아가면 풀려서 다시 온라인을 시도한다</summary>
+    public bool OfflineMode { get; set; }
+
+    /// <summary>개발용: 테스트 창에서 연결을 끈 뒤로는 자동으로 켜지 않는다</summary>
+    public bool AutoStartDisabled { get; set; }
+
+    /// <summary>개발용: 다음 로비 연결을 일부러 실패시킨다. 인터넷을 끊지 않고도 "연결 실패 → 혼자 하기 전환"을 확인하려는 것이다.</summary>
+    public enum SimulatedFailure { None, Immediate, NoResponse }
+
+    public SimulatedFailure Simulated { get; set; }
 
     /// <summary>로비에서 받은 방 목록 (로비에 있을 때만 갱신된다)</summary>
     public IReadOnlyList<SessionInfo> Sessions => sessions;
@@ -170,6 +181,22 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public async Task<bool> JoinLobby()
     {
         if (!CheckReady()) return false;
+
+        if (Simulated != SimulatedFailure.None)
+        {
+            SetState(ConnectionState.JoiningLobby);
+            Add($"[개발용] 연결 실패를 흉내 냅니다 ({(Simulated == SimulatedFailure.Immediate ? "바로 실패" : "응답 없음")})");
+
+            if (Simulated == SimulatedFailure.NoResponse)
+            {
+                // 응답이 없는 상황: 연결되기를 기다리던 쪽이 포기하고 연결을 끊을 때까지 그대로 둔다 (최대 30초)
+                float until = Time.unscaledTime + 30f;
+                while (Current == ConnectionState.JoiningLobby && Time.unscaledTime < until) await Task.Yield();
+            }
+
+            if (Current == ConnectionState.JoiningLobby) SetState(ConnectionState.Disconnected);
+            return false;
+        }
 
         await ResetRunner();
         SetState(ConnectionState.JoiningLobby);
