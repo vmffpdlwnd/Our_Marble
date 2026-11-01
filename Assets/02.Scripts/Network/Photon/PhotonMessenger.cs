@@ -42,6 +42,7 @@ public class PhotonMessenger
     public int DuplicateCount { get; private set; }
 
     private const float GapWarningSeconds = 5f;
+    private const float ParkedFallbackSeconds = 2f; // 접속자 목록에 오르지 않는 사람에게도 이 시간이 지나면 그냥 보낸다
 
     private class Packet { public int Channel; public int Domain; public byte[] Data; }
 
@@ -55,10 +56,23 @@ public class PhotonMessenger
 
     private class LocalItem { public Channel Channel; public int Domain; public string TypeName; public string Json; }
 
+    // 접속자 목록에 아직 오르지 않은 사람에게 보내려던 메시지. 목록에 오를 때까지(또는 시간이 지날 때까지) 보관한다.
+    private class Parked
+    {
+        public PlayerRef Target;
+        public Channel Channel;
+        public int Domain;
+        public string TypeName;
+        public string Json;
+        public float Since;
+    }
+
     private readonly PhotonConnection connection;
     private readonly Dictionary<int, int> sendSeq = new Dictionary<int, int>();   // 받는 사람 → 다음에 보낼 번호
     private readonly Dictionary<int, Stream> streams = new Dictionary<int, Stream>(); // 보낸 사람 → 받은 메시지 정리
     private readonly Queue<LocalItem> localQueue = new Queue<LocalItem>();
+    private readonly List<Parked> parked = new List<Parked>();
+    private readonly HashSet<int> blockedTargets = new HashSet<int>();
 
     public PhotonMessenger(PhotonConnection connection)
     {
@@ -108,6 +122,28 @@ public class PhotonMessenger
     private bool SendOverNetwork(PlayerRef target, Channel channel, int domain, string typeName, string json)
     {
         int targetId = target.PlayerId;
+
+        // 방금 들어온 사람은 Fusion의 접속자 목록에 늦게 오를 수 있다. 그 사람에게 바로 보내면 사라질 수 있어서,
+        // 목록에 오를 때까지 보관했다가 순서대로 보낸다. (앞서 보관 중인 메시지가 있으면 순서를 지키려고 뒤에 붙인다)
+        if (!connection.IsPlayerPresent(targetId) || HasParked(targetId))
+        {
+            parked.Add(new Parked { Target = target, Channel = channel, Domain = domain, TypeName = typeName, Json = json, Since = Time.unscaledTime });
+            return true;
+        }
+
+        return SendNow(target, channel, domain, typeName, json);
+    }
+
+    private bool HasParked(int targetId)
+    {
+        foreach (Parked item in parked)
+            if (item.Target.PlayerId == targetId) return true;
+        return false;
+    }
+
+    private bool SendNow(PlayerRef target, Channel channel, int domain, string typeName, string json)
+    {
+        int targetId = target.PlayerId;
         sendSeq.TryGetValue(targetId, out int seq);
 
         // 알림은 "종류 이름\n내용", 요청은 내용만 (종류는 요청 JSON 안의 type 필드에 있다)
@@ -126,6 +162,9 @@ public class PhotonMessenger
             return false;
         }
 
+        if (domain == DomainLobby)
+            connection.WriteLog($"[메시지] 보냄 {channel} → {targetId}번 (번호 {seq}, {bytes.Length}바이트{(typeName != null ? ", " + typeName : "")})");
+
         sendSeq[targetId] = seq + 1;
         SentCount++;
         return true;
@@ -140,6 +179,9 @@ public class PhotonMessenger
         if (channel != (int)Channel.Request && channel != (int)Channel.Notify) return; // 우리 메시지가 아닌 데이터
 
         ReceivedCount++;
+        if (domain == DomainLobby)
+            connection.WriteLog($"[메시지] 받음 {(Channel)channel} ← {sender.PlayerId}번 (번호 {seq}, {data.Length}바이트)");
+
         Stream stream = GetStream(sender.PlayerId);
 
         if (seq < stream.Next || stream.Pending.ContainsKey(seq))
@@ -219,6 +261,8 @@ public class PhotonMessenger
                 DispatchLocalRequest(item);
         }
 
+        SendParked();
+
         foreach (KeyValuePair<int, Stream> pair in streams)
         {
             Stream stream = pair.Value;
@@ -227,6 +271,28 @@ public class PhotonMessenger
 
             stream.Warned = true;
             connection.WriteLog($"{pair.Key}번의 메시지 {stream.Next}번이 {GapWarningSeconds}초 넘게 도착하지 않습니다 (뒤의 {stream.Pending.Count}개가 기다리는 중)");
+        }
+    }
+
+    // 보관 중인 메시지 중 받을 사람이 목록에 올랐거나 기다린 시간이 지난 것을 순서대로 보낸다.
+    // 같은 사람 앞에 아직 못 보낸 메시지가 있으면 그 뒤의 메시지도 기다린다.
+    private void SendParked()
+    {
+        if (parked.Count == 0) return;
+
+        blockedTargets.Clear();
+        for (int i = 0; i < parked.Count;)
+        {
+            Parked item = parked[i];
+            int targetId = item.Target.PlayerId;
+
+            if (blockedTargets.Contains(targetId)) { i++; continue; }
+
+            bool ready = connection.IsPlayerPresent(targetId) || Time.unscaledTime - item.Since >= ParkedFallbackSeconds;
+            if (!ready) { blockedTargets.Add(targetId); i++; continue; }
+
+            parked.RemoveAt(i);
+            SendNow(item.Target, item.Channel, item.Domain, item.TypeName, item.Json);
         }
     }
 
@@ -250,6 +316,7 @@ public class PhotonMessenger
     {
         sendSeq.Remove(playerId);
         streams.Remove(playerId);
+        parked.RemoveAll(item => item.Target.PlayerId == playerId);
     }
 
     /// <summary>연결이 바뀌거나 끝났을 때 모든 기록을 지운다.</summary>
@@ -258,5 +325,6 @@ public class PhotonMessenger
         sendSeq.Clear();
         streams.Clear();
         localQueue.Clear();
+        parked.Clear();
     }
 }

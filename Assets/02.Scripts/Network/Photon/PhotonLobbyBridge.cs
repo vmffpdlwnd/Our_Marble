@@ -33,6 +33,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     private const long OfflinePlayerId = 1;      // Photon을 쓰지 않을 때 이 PC 플레이어의 번호 (TitleManager와 같다)
     private const float LeaveWaitSeconds = 3f;   // 방을 나갈 때 방장의 답을 기다리는 시간
+    private const float AnswerWarnSeconds = 6f;  // 방 만들기와 입장 요청을 보낸 뒤 이 시간 안에 답이 없으면 로그로 알린다
 
     private const string LeaveRoomJson = "{\"type\":\"LEAVE_ROOM\"}";
 
@@ -43,6 +44,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private bool busy;                           // 방을 만들거나 들어가는 중
     private bool leaving;                        // 방을 나가는 중
     private int? pendingPortrait;                // 방에 들어가기 전에 고른 초상화
+    private bool awaitingAnswer;                 // 방 만들기나 입장 요청을 보내고 방장의 답을 기다리는 중
     private readonly Queue<string> queued = new Queue<string>();   // 만드는 중에 들어온 요청 (방 설정 요청 등)
     private readonly HashSet<int> knownIds = new HashSet<int>();
 
@@ -222,6 +224,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             StartHost();
             SendHello();
             connection.Messenger.SendRequest(PhotonMessenger.DomainLobby, json);
+            Log("방 만들기 요청을 호스트로 보냈습니다");
             FlushQueue();
         }
         finally
@@ -253,7 +256,11 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             OnSessionJoined();
             SendHello();
             connection.Messenger.SendRequest(PhotonMessenger.DomainLobby, json); // 방장의 호스트가 나를 방에 넣는다
+            Log($"방 입장 요청을 방장({connection.MasterPlayerRef.PlayerId}번)에게 보냈습니다");
             FlushQueue();
+
+            awaitingAnswer = true;
+            Run(WatchAnswer(), "방장의 답 확인");
         }
         finally
         {
@@ -287,6 +294,16 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
         await connection.Disconnect();
         if (IsActive) await connection.JoinLobby();
+    }
+
+    // 입장 요청을 보낸 뒤 방장의 답이 오는지 지켜보고, 늦으면 로그로 알린다. (어디서 막혔는지 가리는 용도)
+    private async Task WatchAnswer()
+    {
+        float until = Time.unscaledTime + AnswerWarnSeconds;
+        while (awaitingAnswer && Time.unscaledTime < until) await Task.Yield();
+
+        if (awaitingAnswer)
+            Log($"방장의 답이 {AnswerWarnSeconds}초 넘게 오지 않습니다 (요청은 보냈음). 방장 쪽 로그에 '요청 받음: ENTER_ROOM'이 있는지 확인하세요");
     }
 
     // 화면은 방에 없는데 Photon 연결만 방 안에 남아 있는 어긋난 상태를 정리한다. (방 입장 답이 오지 않아 화면이 포기한 경우 등)
@@ -334,6 +351,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         host = null;
         lastSnapshot = null;
         busy = false;
+        awaitingAnswer = false;
         queued.Clear();
         knownIds.Clear();
         seenRefs.Clear();
@@ -479,6 +497,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         }
 
         Log($"알림 받음: {type} (보낸 사람 {sender.PlayerId}번)");
+        if (type == LobbyMessageType.ROOM_ENTERED || type == LobbyMessageType.LOBBY_ERROR) awaitingAnswer = false;
 
         if (type == LobbyMessageType.ROOM_UPDATED)
         {

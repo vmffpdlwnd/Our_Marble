@@ -124,6 +124,16 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         return !string.IsNullOrEmpty(code) && code.Length == CodeLength ? code.Substring(0, 4) + "-" + code.Substring(4) : code;
     }
 
+    /// <summary>접속자 목록(ActivePlayers)에 이 번호의 사람이 이미 올라 있는지</summary>
+    public bool IsPlayerPresent(int playerId)
+    {
+        if (runner == null) return false;
+
+        foreach (PlayerRef player in runner.ActivePlayers)
+            if (player.PlayerId == playerId) return true;
+        return false;
+    }
+
     public string SessionName
     {
         get
