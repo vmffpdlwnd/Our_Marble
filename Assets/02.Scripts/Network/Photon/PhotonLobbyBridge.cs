@@ -34,8 +34,8 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     private const long OfflinePlayerId = 1;      // Photon을 쓰지 않을 때 이 PC 플레이어의 번호 (TitleManager와 같다)
     private const float LeaveWaitSeconds = 3f;   // 방을 나갈 때 방장의 답을 기다리는 시간
-    private const float HandshakeSeconds = 5f;   // 방에 들어온 직후 방장과 연결이 확인될 때까지 기다리는 시간
-    private const float AnswerWarnSeconds = 4f;  // 입장 요청을 보낸 뒤 이 시간 안에 답이 없으면 방에서 나온다 (화면의 10초 제한보다 먼저)
+    private const float HandshakeSeconds = 2.5f; // 방에 들어온 직후 방장의 퐁을 기다리는 시간. 퐁이 없어도 요청은 보낸다 (옛 버전 방장은 퐁을 못 준다)
+    private const float AnswerWarnSeconds = 5f;  // 입장 요청을 보낸 뒤 이 시간 안에 답이 없으면 방에서 나온다 (화면의 10초 제한보다 먼저)
 
     private const string LeaveRoomJson = "{\"type\":\"LEAVE_ROOM\"}";
 
@@ -273,15 +273,16 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             // 방장이 답(퐁)을 줄 때까지 확인한 뒤에 요청을 보낸다.
             Log("방장과 연결을 확인하는 중...");
             float handshakeStart = Time.unscaledTime;
-            if (!await connection.Messenger.WaitForMaster(HandshakeSeconds))
+            bool answered = await connection.Messenger.WaitForMaster(HandshakeSeconds);
+            if (!connection.IsInSession)
             {
-                Log("방장과 연결을 확인하지 못했습니다. 방에서 나옵니다");
+                Log("방장과 연결을 확인하는 중에 연결이 끊어졌습니다");
                 DeliverError("HOST_NO_RESPONSE", "방장 PC와 연결하지 못했어요. 잠시 후 다시 시도해 주세요");
-                leaving = true;
-                await FinishLeave();
                 return;
             }
-            Log($"방장과 연결이 확인되었습니다 ({Time.unscaledTime - handshakeStart:0.0}초)");
+            Log(answered
+                ? $"방장과 연결이 확인되었습니다 ({Time.unscaledTime - handshakeStart:0.0}초)"
+                : $"방장의 퐁이 {HandshakeSeconds}초 안에 오지 않았지만 요청을 보냅니다. (방장 PC가 같은 코드 버전({PhotonConnection.CodeRevision})으로 빌드됐는지 확인하세요)");
 
             SendHello();
             connection.Messenger.SendRequest(PhotonMessenger.DomainLobby, json); // 방장의 호스트가 나를 방에 넣는다

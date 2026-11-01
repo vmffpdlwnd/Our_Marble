@@ -81,6 +81,7 @@ public class PhotonMessenger
     private readonly List<Parked> parked = new List<Parked>();
     private readonly HashSet<int> blockedTargets = new HashSet<int>();
     private readonly HashSet<int> handshakeAnswered = new HashSet<int>(); // 퐁을 받은 사람(방장) 번호
+    private readonly HashSet<int> pingLogged = new HashSet<int>();        // 핑을 받았다고 로그를 남긴 사람 (한 번만 남긴다)
 
     public PhotonMessenger(PhotonConnection connection)
     {
@@ -262,9 +263,16 @@ public class PhotonMessenger
     private void HandleHandshake(PlayerRef sender, int channel)
     {
         if (channel == (int)Channel.Request)
+        {
+            if (pingLogged.Add(sender.PlayerId))
+                connection.WriteLog($"[메시지] 핑 받음 ← {sender.PlayerId}번. 퐁으로 답합니다");
             SendNotify(sender, DomainHandshake, "PONG", "");   // 핑을 받으면 퐁으로 답한다
+        }
         else
-            handshakeAnswered.Add(sender.PlayerId);            // 퐁을 받으면 그 사람과 연결이 확인된 것이다
+        {
+            if (handshakeAnswered.Add(sender.PlayerId))        // 퐁을 받으면 그 사람과 연결이 확인된 것이다
+                connection.WriteLog($"[메시지] 퐁 받음 ← {sender.PlayerId}번");
+        }
     }
 
     /// <summary>방장과 양방향 연결이 확인될 때까지 기다린다. 내가 방장이면 바로 true. 시간 안에 확인되지 않으면 false.</summary>
@@ -272,6 +280,7 @@ public class PhotonMessenger
     {
         float until = Time.unscaledTime + timeoutSeconds;
         float nextPing = 0f;
+        int pings = 0;
 
         while (Time.unscaledTime < until)
         {
@@ -283,6 +292,9 @@ public class PhotonMessenger
             {
                 nextPing = Time.unscaledTime + PingIntervalSeconds;
                 SendRequest(DomainHandshake, "");
+                pings++;
+                if (pings == 1 || pings % 3 == 0)
+                    connection.WriteLog($"[메시지] 방장({connection.MasterPlayerRef.PlayerId}번)에게 핑 {pings}번째 보냄 (퐁 기다리는 중)");
             }
             await Task.Yield(); // 웹(WebGL)에서는 Task.Delay가 동작하지 않아서 프레임마다 확인한다
         }
@@ -386,6 +398,7 @@ public class PhotonMessenger
         sendSeq.Remove(playerId);
         streams.Remove(playerId);
         handshakeAnswered.Remove(playerId);
+        pingLogged.Remove(playerId);
         parked.RemoveAll(item => item.Target.PlayerId == playerId);
     }
 
@@ -397,5 +410,6 @@ public class PhotonMessenger
         localQueue.Clear();
         parked.Clear();
         handshakeAnswered.Clear();
+        pingLogged.Clear();
     }
 }

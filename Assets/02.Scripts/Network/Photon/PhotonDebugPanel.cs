@@ -70,7 +70,7 @@ public class PhotonDebugPanel : MonoBehaviour
     {
         PhotonConnection conn = PhotonConnection.Instance;
 
-        GUILayout.Label($"AppId: {(conn.HasAppId ? "있음" : "없음 (Fusion Hub에서 입력)")}   지역: {PhotonConnection.Region}   버전: {PhotonConnection.NetworkVersion}");
+        GUILayout.Label($"AppId: {(conn.HasAppId ? "있음" : "없음 (Fusion Hub에서 입력)")}   지역: {PhotonConnection.Region}   네트워크 버전: {PhotonConnection.NetworkVersion}   코드: {PhotonConnection.CodeRevision}");
         GUILayout.Label($"상태: {conn.Current}");
 
         // 게임의 로비 화면을 Photon에 이어 쓰는 스위치. 로비 화면에 들어가기 전에 켠다. 켠 동안은 아래 버튼 대신 게임 로비 화면으로 조작한다.

@@ -22,8 +22,12 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     // 지역은 코드에서 고정한다. (PhotonAppSettings는 저장소에 올리지 않아서 거기에 의존하지 않는다)
     public const string Region = "kr";
 
-    // 이 값이 다른 빌드끼리는 서로의 방이 보이지 않는다. 방 규칙이 바뀌어 호환되지 않으면 올린다.
-    public const string NetworkVersion = "1";
+    // 이 값이 다른 빌드끼리는 서로의 방이 보이지 않는다. 통신 방식이 바뀌어 호환되지 않으면 올린다.
+    // (옛 빌드의 방이 보이지 않게 해서, 응답 없는 옛 방에 들어가 헤매는 일을 막는다)
+    public const string NetworkVersion = "2";
+
+    // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
+    public const string CodeRevision = "3-1.6";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -314,7 +318,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         lastMasterId = runner.GetMasterClient().PlayerId;
         RefreshKnownPlayers(announce: false);
         SetState(ConnectionState.InSession);
-        Add($"방 안에 들어왔습니다: 코드 {FormatCode(runner.SessionInfo.Name)} (나 {runner.LocalPlayer.PlayerId}번, 방장 {lastMasterId}번)");
+        Add($"방 안에 들어왔습니다: 코드 {FormatCode(runner.SessionInfo.Name)} (나 {runner.LocalPlayer.PlayerId}번, 방장 {lastMasterId}번, 코드 버전 {CodeRevision})");
 
         // 들어가려던 방이 없었으면(코드가 틀렸거나 그 사이에 사라짐) 방금 새로 만들어진 방이다.
         // 그 방은 내가 방장이고 우리가 넣는 방 속성(state)이 없어서 알아볼 수 있다. 둘 다 맞을 때만 나가서, 정상 입장은 건드리지 않는다.
@@ -420,8 +424,9 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         Messenger?.Reset();
         if (!createNew) return;
 
+        // 러너는 루트 오브젝트여야 한다. (Fusion이 DontDestroyOnLoad를 부르는데, 다른 오브젝트의 자식이면 경고가 나고 적용되지 않는다)
         var go = new GameObject("NetworkRunner");
-        go.transform.SetParent(transform);
+        DontDestroyOnLoad(go);
 
         runner = go.AddComponent<NetworkRunner>();
         runner.ProvideInput = false;  // 우리 게임은 Fusion 입력을 쓰지 않는다
