@@ -16,6 +16,7 @@ public class PhotonDebugPanel : MonoBehaviour
     private Rect windowRect = new Rect(12, 12, 480, 10);
     private string roomName = "테스트방";
     private string maxHumansText = "4";
+    private string codeInput = "";
     private Vector2 listScroll;
     private Vector2 logScroll;
     private readonly List<string> logs = new List<string>();
@@ -106,13 +107,20 @@ public class PhotonDebugPanel : MonoBehaviour
         }
         GUILayout.EndHorizontal();
 
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("코드", GUILayout.Width(40));
+        codeInput = GUILayout.TextField(codeInput);
+        if (GUILayout.Button("코드로 입장", GUILayout.Width(110)))
+            _ = conn.JoinRoomByCode(codeInput);
+        GUILayout.EndHorizontal();
+
         GUILayout.Space(6);
         GUILayout.Label($"방 목록 ({conn.Sessions.Count}개)");
         listScroll = GUILayout.BeginScrollView(listScroll, GUILayout.Height(120));
         foreach (SessionInfo info in conn.Sessions)
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label($"{DisplayName(info)}   {info.PlayerCount}/{info.MaxPlayers}   {(info.IsOpen ? "열림" : "닫힘")}   [{info.Region}]");
+            GUILayout.Label($"{DisplayName(info)}  코드 {PhotonConnection.FormatCode(info.Name)}   {info.PlayerCount}/{info.MaxPlayers}   {(info.IsOpen ? "열림" : "닫힘")}   [{info.Region}]");
 
             GUI.enabled = info.IsOpen && info.PlayerCount < info.MaxPlayers;
             if (GUILayout.Button("입장", GUILayout.Width(70)))
@@ -127,7 +135,7 @@ public class PhotonDebugPanel : MonoBehaviour
     private void DrawSession(PhotonConnection conn)
     {
         GUILayout.Space(6);
-        GUILayout.Label($"방: {conn.SessionName}   나: {conn.LocalPlayerRef.PlayerId}번   {(conn.IsMaster ? "내가 방장" : "방장 아님")}");
+        GUILayout.Label($"방 코드: {PhotonConnection.FormatCode(conn.RoomCode)}   나: {conn.LocalPlayerRef.PlayerId}번   {(conn.IsMaster ? "내가 방장" : "방장 아님")}");
 
         GUILayout.Label("접속자 (봇은 Photon 접속자가 아니라서 여기에 없음)");
         foreach (PlayerRef player in conn.Players)

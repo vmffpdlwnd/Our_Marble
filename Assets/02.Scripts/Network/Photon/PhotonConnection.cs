@@ -28,11 +28,17 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
 
+    // 방 코드: 헷갈리는 글자(0, O, 1, I, L)를 뺀 31자에서 고른 무작위 8자리. (약 8천억 가지라서 겹칠 일이 사실상 없다)
+    // Photon 세션 이름이 곧 방 코드다. 사람이 보는 방 이름은 방 속성(name)에 따로 둔다.
+    public const int CodeLength = 8;
+    private const string CodeAlphabet = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+
     public enum ConnectionState { Disconnected, JoiningLobby, InLobby, StartingSession, InSession }
+
+    private enum StartResult { Ok, Failed, WrongRoom }
 
     private NetworkRunner runner;
     private List<SessionInfo> sessions = new List<SessionInfo>();
-    private bool expectExistingSession;   // 입장(Join)이라서 이미 있는 방이어야 하는 경우
     private int lastMasterId = int.MinValue;
 
     public ConnectionState Current { get; private set; } = ConnectionState.Disconnected;
@@ -63,6 +69,31 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
     /// <summary>방에 접속해 있는 사람들 (봇은 Photon에 접속한 게 아니라서 들어 있지 않다)</summary>
     public IEnumerable<PlayerRef> Players => runner != null ? runner.ActivePlayers : Enumerable.Empty<PlayerRef>();
+
+    /// <summary>지금 들어 있는 방의 코드 (8자리). 방 안에 없으면 빈 문자열</summary>
+    public string RoomCode => SessionName;
+
+    /// <summary>새 방 코드를 만든다.</summary>
+    public static string NewRoomCode()
+    {
+        var chars = new char[CodeLength];
+        for (int i = 0; i < CodeLength; i++)
+            chars[i] = CodeAlphabet[UnityEngine.Random.Range(0, CodeAlphabet.Length)];
+        return new string(chars);
+    }
+
+    /// <summary>사람이 입력한 코드를 정리한다. (공백과 하이픈을 빼고 대문자로)</summary>
+    public static string NormalizeCode(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return "";
+        return new string(input.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+    }
+
+    /// <summary>화면에 보일 모양: ABCD-EFGH</summary>
+    public static string FormatCode(string code)
+    {
+        return !string.IsNullOrEmpty(code) && code.Length == CodeLength ? code.Substring(0, 4) + "-" + code.Substring(4) : code;
+    }
 
     public string SessionName
     {
@@ -112,60 +143,86 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     // ───────────── 방 ─────────────
 
     /// <summary>
-    /// 방을 만든다. 방 번호는 겹치지 않게 무작위로 정하고, 사람이 보는 이름은 방 속성(name)에 넣는다.
-    /// (Shared 모드는 같은 이름의 방이 있으면 새로 만들지 않고 들어가 버려서, 이름을 직접 쓰지 않는다)
+    /// 방을 만든다. 방 코드(8자리)가 곧 Photon 세션 이름이고, 사람이 보는 이름은 방 속성(name)에 넣는다.
+    /// (Shared 모드는 같은 이름의 방이 있으면 새로 만들지 않고 들어가 버려서, 목록에 이미 있는 코드는 피한다)
     /// </summary>
-    /// <param name="displayName">방 목록에 보일 이름</param>
+    /// <param name="displayName">방 목록에 보일 이름. 비우면 방 코드를 쓴다</param>
     /// <param name="maxHumans">방에 들어올 수 있는 최대 사람 수 (봇 제외)</param>
-    public Task<bool> CreateRoom(string displayName, int maxHumans)
+    public async Task<bool> CreateRoom(string displayName, int maxHumans)
     {
         maxHumans = Math.Max(1, Math.Min(maxHumans, MaxHumansLimit));
-        string sessionName = "room-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+
+        string code = NewRoomCode();
+        for (int i = 0; i < 5 && sessions.Any(session => session.Name == code); i++)
+            code = NewRoomCode();
 
         var properties = new Dictionary<string, SessionProperty>
         {
-            ["name"] = string.IsNullOrWhiteSpace(displayName) ? sessionName : displayName,
+            ["name"] = string.IsNullOrWhiteSpace(displayName) ? FormatCode(code) : displayName,
             ["state"] = "waiting",
         };
 
-        return StartSession(sessionName, maxHumans, properties, expectExisting: false);
+        return await StartSession(code, maxHumans, properties, expectExisting: false, visible: true) == StartResult.Ok;
     }
 
     /// <summary>방 목록에서 고른 방에 들어간다.</summary>
-    public Task<bool> JoinRoom(string sessionName)
+    public async Task<bool> JoinRoom(string sessionName)
     {
-        // 방이 없으면 Shared 모드는 새로 만들어 버리므로, 목록에서 확인하고 들어간다
         SessionInfo found = sessions.FirstOrDefault(s => s.Name == sessionName);
         if (found == null)
         {
             Add("방 목록에 없는 방입니다: " + sessionName);
-            return Task.FromResult(false);
+            return false;
         }
         if (!found.IsOpen || found.PlayerCount >= found.MaxPlayers)
         {
             Add("들어갈 수 없는 방입니다 (닫혔거나 가득 참)");
-            return Task.FromResult(false);
+            return false;
         }
 
-        return StartSession(sessionName, null, null, expectExisting: true);
+        return await StartSession(sessionName, null, null, expectExisting: true, visible: true) == StartResult.Ok;
     }
 
-    private async Task<bool> StartSession(string sessionName, int? maxHumans, Dictionary<string, SessionProperty> properties, bool expectExisting)
+    /// <summary>
+    /// 방 코드로 들어간다. 방 목록에 없는 방(보이지 않는 방)도 코드를 알면 들어갈 수 있다.
+    /// 없는 코드면 Shared 모드가 빈 방을 새로 만들어 버리는데, 그 방은 보이지 않게 만들고 바로 나온다.
+    /// </summary>
+    public async Task<bool> JoinRoomByCode(string input)
     {
-        if (!CheckReady()) return false;
+        string code = NormalizeCode(input);
+        if (code.Length != CodeLength)
+        {
+            Add($"방 코드는 {CodeLength}자리입니다");
+            return false;
+        }
+
+        SessionInfo found = sessions.FirstOrDefault(s => s.Name == code);
+        if (found != null && (!found.IsOpen || found.PlayerCount >= found.MaxPlayers))
+        {
+            Add("들어갈 수 없는 방입니다 (닫혔거나 가득 참)");
+            return false;
+        }
+
+        StartResult result = await StartSession(code, null, null, expectExisting: true, visible: found != null);
+        if (result == StartResult.WrongRoom) Add("그 코드의 방이 없습니다");
+        return result == StartResult.Ok;
+    }
+
+    private async Task<StartResult> StartSession(string sessionName, int? maxHumans, Dictionary<string, SessionProperty> properties, bool expectExisting, bool visible)
+    {
+        if (!CheckReady()) return StartResult.Failed;
         if (Current == ConnectionState.StartingSession || Current == ConnectionState.InSession)
         {
             Add("이미 방에 들어가는 중이거나 방 안에 있습니다");
-            return false;
+            return StartResult.Failed;
         }
 
         if (runner == null) await ResetRunner();
 
         PhotonRunnerSetup.Prepare(runner, out INetworkSceneManager sceneManager, out INetworkObjectProvider objectProvider);
 
-        expectExistingSession = expectExisting;
         SetState(ConnectionState.StartingSession);
-        Add($"{(expectExisting ? "방 입장" : "방 만들기")} 시도: {sessionName}");
+        Add($"{(expectExisting ? "방 입장" : "방 만들기")} 시도: {FormatCode(sessionName)}");
 
         var args = new StartGameArgs
         {
@@ -173,7 +230,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
             SessionName = sessionName,
             PlayerCount = maxHumans,
             IsOpen = true,
-            IsVisible = true,
+            IsVisible = visible,
             SessionProperties = properties,
             CustomPhotonAppSettings = BuildAppSettings(),
             SceneManager = sceneManager,
@@ -189,31 +246,40 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         {
             Add("방 시작 오류: " + e.Message);
             await Disconnect();
-            return false;
+            return StartResult.Failed;
         }
 
         if (!result.Ok)
         {
             Add($"방 시작 실패: {result.ShutdownReason} {result.ErrorMessage}");
             await Disconnect();
-            return false;
+            return StartResult.Failed;
         }
 
         lastMasterId = runner.GetMasterClient().PlayerId;
         SetState(ConnectionState.InSession);
-        Add($"방 안에 들어왔습니다: {runner.SessionInfo.Name} (나 {runner.LocalPlayer.PlayerId}번, 방장 {lastMasterId}번)");
+        Add($"방 안에 들어왔습니다: 코드 {FormatCode(runner.SessionInfo.Name)} (나 {runner.LocalPlayer.PlayerId}번, 방장 {lastMasterId}번)");
 
-        // 입장하려던 방이 그 사이에 사라졌으면 방금 새로 만들어졌다. 혼자뿐이라서 바로 나간다.
-        if (expectExisting && runner.ActivePlayers.Count() == 1)
+        // 들어가려던 방이 없었으면(코드가 틀렸거나 그 사이에 사라짐) 방금 새로 만들어진 방이다.
+        // 그 방은 내가 방장이고 우리가 넣는 방 속성(state)이 없어서 알아볼 수 있다. 둘 다 맞을 때만 나가서, 정상 입장은 건드리지 않는다.
+        if (expectExisting && IsEmptyNewRoom())
         {
-            Add("들어가려던 방이 이미 없어져서 나갑니다");
+            Add("들어가려던 방이 없어서 나갑니다 (코드가 틀렸거나 방이 사라짐)");
             await Disconnect();
-            return false;
+            return StartResult.WrongRoom;
         }
 
         PlayersChanged?.Invoke();
         MasterChanged?.Invoke();
-        return true;
+        return StartResult.Ok;
+    }
+
+    // 우리가 만든 방이면 항상 들어 있는 방 속성(state)이 없고, 내가 방장이면 방금 새로 만들어진 방이다
+    private bool IsEmptyNewRoom()
+    {
+        SessionInfo info = runner.SessionInfo;
+        bool hasOurProperties = info != null && info.Properties != null && info.Properties.ContainsKey("state");
+        return runner.IsSharedModeMasterClient && !hasOurProperties;
     }
 
     /// <summary>방에서 나가 연결을 끊는다. (로비로 돌아가려면 이어서 JoinLobby를 부른다)</summary>
