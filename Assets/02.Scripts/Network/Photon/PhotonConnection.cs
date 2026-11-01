@@ -124,6 +124,17 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         return !string.IsNullOrEmpty(code) && code.Length == CodeLength ? code.Substring(0, 4) + "-" + code.Substring(4) : code;
     }
 
+    /// <summary>번호로 접속자의 연결을 찾는다. 목록에 없으면 번호만 가진 연결을 만든다.</summary>
+    public PlayerRef FindPlayerRef(int playerId)
+    {
+        if (runner != null)
+        {
+            foreach (PlayerRef player in runner.ActivePlayers)
+                if (player.PlayerId == playerId) return player;
+        }
+        return PlayerRef.FromIndex(playerId - 1);
+    }
+
     /// <summary>접속자 목록(ActivePlayers)에 이 번호의 사람이 이미 올라 있는지</summary>
     public bool IsPlayerPresent(int playerId)
     {

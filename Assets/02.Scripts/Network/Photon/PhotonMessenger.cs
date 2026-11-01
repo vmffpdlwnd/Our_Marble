@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 using Fusion;
 using Fusion.Sockets;
 using UnityEngine;
@@ -26,6 +27,9 @@ public class PhotonMessenger
     public const int DomainGame = 1;
     public const int DomainTest = 99;
 
+    // 연결 확인(핑/퐁)용. 메신저가 안에서 처리하고 밖으로 알리지 않는다.
+    private const int DomainHandshake = 98;
+
     public delegate void RequestHandler(PlayerRef sender, int domain, string json);
     public delegate void NotifyHandler(PlayerRef sender, int domain, string typeName, string json);
 
@@ -43,12 +47,15 @@ public class PhotonMessenger
 
     private const float GapWarningSeconds = 5f;
     private const float ParkedFallbackSeconds = 2f; // 접속자 목록에 오르지 않는 사람에게도 이 시간이 지나면 그냥 보낸다
+    private const float PingIntervalSeconds = 0.7f; // 방장과 연결이 되었는지 확인하는 핑을 보내는 간격
+    private const float StartGapSkipSeconds = 1.5f; // 처음 받는 번호가 0이 아니면 앞 번호가 이 시간 안에 안 올 때 건너뛴다
 
     private class Packet { public int Channel; public int Domain; public byte[] Data; }
 
     private class Stream
     {
         public int Next;
+        public int Delivered;   // 지금까지 꺼내서 전달한 메시지 수
         public readonly Dictionary<int, Packet> Pending = new Dictionary<int, Packet>();
         public float WaitingSince;
         public bool Warned;
@@ -73,6 +80,7 @@ public class PhotonMessenger
     private readonly Queue<LocalItem> localQueue = new Queue<LocalItem>();
     private readonly List<Parked> parked = new List<Parked>();
     private readonly HashSet<int> blockedTargets = new HashSet<int>();
+    private readonly HashSet<int> handshakeAnswered = new HashSet<int>(); // 퐁을 받은 사람(방장) 번호
 
     public PhotonMessenger(PhotonConnection connection)
     {
@@ -213,15 +221,18 @@ public class PhotonMessenger
         {
             stream.Pending.Remove(stream.Next);
             stream.Next++;
+            stream.Delivered++;
             Dispatch(sender, packet.Channel, packet.Domain, Encoding.UTF8.GetString(packet.Data));
         }
 
-        stream.WaitingSince = stream.Pending.Count > 0 ? Time.unscaledTime : 0f;
-        stream.Warned = false;
+        if (stream.Pending.Count == 0) { stream.WaitingSince = 0f; stream.Warned = false; }
+        else if (stream.WaitingSince == 0f) stream.WaitingSince = Time.unscaledTime;
     }
 
     private void Dispatch(PlayerRef sender, int channel, int domain, string text)
     {
+        if (domain == DomainHandshake) { HandleHandshake(sender, channel); return; }
+
         try
         {
             if (channel == (int)Channel.Notify)
@@ -244,6 +255,40 @@ public class PhotonMessenger
         }
     }
 
+    // ───────────── 연결 확인 (핑/퐁) ─────────────
+
+    // 방에 막 들어온 직후에는 서로를 Fusion이 아직 모르는 사이라서, 이때 보낸 메시지는 상대에게 닿지 않을 수 있다.
+    // 그래서 첫 요청을 보내기 전에, 방장이 답(퐁)을 줄 때까지 핑을 반복해서 양방향 연결을 확인한다.
+    private void HandleHandshake(PlayerRef sender, int channel)
+    {
+        if (channel == (int)Channel.Request)
+            SendNotify(sender, DomainHandshake, "PONG", "");   // 핑을 받으면 퐁으로 답한다
+        else
+            handshakeAnswered.Add(sender.PlayerId);            // 퐁을 받으면 그 사람과 연결이 확인된 것이다
+    }
+
+    /// <summary>방장과 양방향 연결이 확인될 때까지 기다린다. 내가 방장이면 바로 true. 시간 안에 확인되지 않으면 false.</summary>
+    public async Task<bool> WaitForMaster(float timeoutSeconds)
+    {
+        float until = Time.unscaledTime + timeoutSeconds;
+        float nextPing = 0f;
+
+        while (Time.unscaledTime < until)
+        {
+            if (!connection.IsInSession) return false;
+            if (connection.IsMaster) return true;
+            if (handshakeAnswered.Contains(connection.MasterPlayerRef.PlayerId)) return true;
+
+            if (Time.unscaledTime >= nextPing)
+            {
+                nextPing = Time.unscaledTime + PingIntervalSeconds;
+                SendRequest(DomainHandshake, "");
+            }
+            await Task.Yield(); // 웹(WebGL)에서는 Task.Delay가 동작하지 않아서 프레임마다 확인한다
+        }
+        return false;
+    }
+
     // ───────────── 주기적으로 / 상태가 바뀔 때 ─────────────
 
     /// <summary>나에게 돌려주는 메시지를 처리하고, 오래 기다리는 어긋난 메시지가 있는지 본다. 매 프레임 부른다.</summary>
@@ -262,6 +307,8 @@ public class PhotonMessenger
         }
 
         SendParked();
+
+        SkipMissingStart();
 
         foreach (KeyValuePair<int, Stream> pair in streams)
         {
@@ -296,6 +343,28 @@ public class PhotonMessenger
         }
     }
 
+    // 한 번도 전달한 적 없는 스트림인데 0번이 아니라 뒤 번호부터 왔다면, 앞 번호는 상대가 우리를 알기 전에 보내져 사라진 것이다.
+    // (연결 직후 Fusion이 서로를 알기 전에 보낸 메시지) 일정 시간 기다려도 앞 번호가 안 오면 가장 작은 번호부터 시작한다.
+    private void SkipMissingStart()
+    {
+        foreach (KeyValuePair<int, Stream> pair in streams)
+        {
+            Stream stream = pair.Value;
+            if (stream.Delivered > 0 || stream.Pending.Count == 0 || stream.WaitingSince == 0f) continue;
+            if (Time.unscaledTime - stream.WaitingSince < StartGapSkipSeconds) continue;
+
+            int lowest = int.MaxValue;
+            foreach (int seq in stream.Pending.Keys) if (seq < lowest) lowest = seq;
+
+            connection.WriteLog($"[메시지] {pair.Key}번의 처음 {lowest}개가 오지 않아 {lowest}번부터 시작합니다");
+            stream.Next = lowest;
+            stream.WaitingSince = 0f;
+            stream.Warned = false;
+            Drain(connection.FindPlayerRef(pair.Key), stream);
+            return; // 목록이 바뀌었을 수 있어서 다음 프레임에 이어서 확인한다
+        }
+    }
+
     private void DispatchLocalNotify(LocalItem item)
     {
         try { NotifyReceived?.Invoke(connection.LocalPlayerRef, item.Domain, item.TypeName, item.Json); }
@@ -316,6 +385,7 @@ public class PhotonMessenger
     {
         sendSeq.Remove(playerId);
         streams.Remove(playerId);
+        handshakeAnswered.Remove(playerId);
         parked.RemoveAll(item => item.Target.PlayerId == playerId);
     }
 
@@ -326,5 +396,6 @@ public class PhotonMessenger
         streams.Clear();
         localQueue.Clear();
         parked.Clear();
+        handshakeAnswered.Clear();
     }
 }
