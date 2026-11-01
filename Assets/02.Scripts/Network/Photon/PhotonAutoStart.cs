@@ -52,5 +52,9 @@ public static class PhotonAutoStart
         }
 
         connection.LobbyBridge.Enable();
+
+        // PlayFab 로그인을 미리 해 둔다. 방 목록 요청이 올 때쯤이면 끝나 있어서 Photon 연결이 그만큼 빨라진다.
+        // (실패하면 연결을 시도할 때 다시 로그인한다)
+        _ = connection.Identity.EnsureLoggedIn();
     }
 }

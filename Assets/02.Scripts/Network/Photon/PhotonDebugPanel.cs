@@ -95,6 +95,21 @@ public class PhotonDebugPanel : MonoBehaviour
         }
         GUILayout.EndHorizontal();
 
+        // PlayFab 로그인 상태와 사용자 바꾸기. 같은 PC에서 빌드를 여러 개 띄우면 같은 사용자가 되므로, 실행 때 -userSlot 2 처럼 번호를 주거나 아래 버튼을 쓴다.
+        PlayFabIdentity identity = conn.Identity;
+        string playFabState = identity.IsLoggedIn
+            ? $"로그인됨 (ID {identity.PlayFabId}{(identity.NewlyCreated ? ", 새 계정" : "")})"
+            : string.IsNullOrEmpty(identity.LastError) ? "로그인 전" : "실패: " + identity.LastError;
+        GUILayout.Label($"PlayFab: {playFabState}");
+        GUILayout.BeginHorizontal();
+        GUILayout.Label($"사용자 값 {identity.CustomId.Substring(0, System.Math.Min(10, identity.CustomId.Length))}...", GUILayout.Width(190));
+        if (GUILayout.Button("다른 사용자로 시작"))
+        {
+            identity.ResetIdentity();
+            _ = conn.Disconnect(); // 다음 접속부터 새 계정으로 인증한다
+        }
+        GUILayout.EndHorizontal();
+
         // 인터넷을 끊지 않고 "연결 실패 → 혼자 하기 전환"을 확인하는 방법:
         // 흉내를 고르고 → 아래 "연결 끊기"를 누른 뒤 → 로비 화면의 새로고침을 누른다.
         GUILayout.BeginHorizontal();

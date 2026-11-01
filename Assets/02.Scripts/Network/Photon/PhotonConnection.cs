@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Fusion;
 using Fusion.Photon.Realtime;
 using Fusion.Sockets;
+using Photon.Realtime;
 using UnityEngine;
 
 /// <summary>
@@ -27,7 +28,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "2";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "4-1.2";
+    public const string CodeRevision = "5-1.1";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -77,6 +78,9 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     /// <summary>게임 진행(주사위, 구매 등)을 Photon에 이어 주는 쪽. 로비 연결을 켜면 같이 켜진다</summary>
     public PhotonGameBridge GameBridge { get; private set; }
 
+    /// <summary>이 PC의 사용자를 PlayFab에서 알아보는 쪽. Photon에 접속할 때 PlayFab 인증을 낸다</summary>
+    public PlayFabIdentity Identity { get; private set; }
+
     public event Action StateChanged;
     public event Action SessionsChanged;
     public event Action PlayersChanged;
@@ -88,11 +92,15 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         Messenger = new PhotonMessenger(this);
         LobbyBridge = new PhotonLobbyBridge(this);
         GameBridge = new PhotonGameBridge(this);
+        Identity = new PlayFabIdentity(Add);
     }
 
     // ───────────── 상태 조회 ─────────────
 
     /// <summary>Photon AppId가 들어 있는지 (Fusion Hub에서 입력)</summary>
+    // Fusion 앱의 AppId. PlayFab에서 Photon용 토큰을 받을 때 어느 앱에 들어갈지 알려 주는 값이다
+    private string AppIdFusion => PhotonAppSettings.Global.AppSettings.AppIdFusion;
+
     public bool HasAppId =>
         PhotonAppSettings.TryGetGlobal(out PhotonAppSettings global) && !string.IsNullOrEmpty(global.AppSettings.AppIdFusion);
 
@@ -198,14 +206,25 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
             return false;
         }
 
-        await ResetRunner();
         SetState(ConnectionState.JoiningLobby);
         Add($"로비 입장 시도 (지역 {Region})");
+
+        // Photon은 PlayFab 인증을 요구한다. PlayFab에서 Photon용 토큰을 받아 오고, 못 받으면 연결하지 않는다.
+        // (연결하지 못하면 로비 쪽이 혼자 하기로 전환한다)
+        AuthenticationValues auth = await Identity.CreatePhotonAuthAsync(AppIdFusion);
+        if (auth == null)
+        {
+            Add("PlayFab 인증을 받지 못해 Photon에 연결하지 않습니다");
+            await Disconnect();
+            return false;
+        }
+
+        await ResetRunner();
 
         StartGameResult result;
         try
         {
-            result = await runner.JoinSessionLobby(SessionLobby.Shared, null, null, BuildAppSettings());
+            result = await runner.JoinSessionLobby(SessionLobby.Shared, null, auth, BuildAppSettings());
         }
         catch (Exception e)
         {
@@ -315,8 +334,18 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         SetState(ConnectionState.StartingSession);
         Add($"{(expectExisting ? "방 입장" : "방 만들기")} 시도: {FormatCode(sessionName)}");
 
+        // 방에 들어갈 때도 PlayFab 인증을 새로 받아서 낸다. (Photon 토큰은 접속마다 새로 받는다)
+        AuthenticationValues auth = await Identity.CreatePhotonAuthAsync(AppIdFusion);
+        if (auth == null)
+        {
+            Add("PlayFab 인증을 받지 못해 방에 들어가지 못했습니다");
+            await Disconnect();
+            return StartResult.Failed;
+        }
+
         var args = new StartGameArgs
         {
+            AuthValues = auth,
             GameMode = GameMode.Shared,
             SessionName = sessionName,
             PlayerCount = maxHumans,
