@@ -1,0 +1,10 @@
+﻿fileFormatVersion: 2
+guid: 954fa5b03a164742a17a847f1148a245
+timeCreated: 1759952749
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/Fusion/Runtime/Statistics/Scripts/FusionStatisticsNetworkObjectStats.cs
+  uploadId: 1001324

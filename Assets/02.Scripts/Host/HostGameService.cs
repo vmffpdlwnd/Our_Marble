@@ -77,6 +77,21 @@ public class HostGameService : IHostRequestReceiver
         return host;
     }
 
+    /// <summary>
+    /// 방 정보로 새 게임 호스트를 시작하고, 알림을 deliver로 내보낸다. (Photon에서 방장 PC가 쓴다)
+    /// 게임 씬이 열려 보드가 있어야 하므로 CanStart가 true일 때 부른다.
+    /// </summary>
+    public static HostGameService StartNew(RoomSnapshot room, Action<long, GameMessageType, string> deliver)
+    {
+        HostGameService host = new HostGameService(room, deliver);
+        current = host;
+        HostAutoPlayRunner.Create(host); // 봇 차례와 제한 시간을 돌린다
+        return host;
+    }
+
+    /// <summary>게임 호스트를 만들 수 있는 때인지. (게임 씬이 열려 보드 데이터가 있다)</summary>
+    public static bool CanStart => BoardManager.Instance != null && BoardManager.Instance.BoardData != null;
+
     /// <summary>진행 중인 게임을 버린다. 타이틀로 돌아갈 때 부른다.</summary>
     public static void Reset() => current = null;
 
@@ -221,6 +236,8 @@ public class HostGameService : IHostRequestReceiver
 
         // 최초 요청이면 상태를 보낸 뒤에 첫 차례를 시작한다.
         // (보낸 상태는 TurnNumber 1이라서 받은 쪽이 StartGame을 부르고, 호스트도 같은 시점에 첫 차례를 시작해 둘이 같은 상태가 된다)
+        // 첫 차례 시작은 알림으로 보내지 않고 받은 쪽이 스스로 하므로, 호스트가 시작을 미루면 상태를 먼저 받은 쪽만 앞서 가서 어긋난다.
+        // 늦게 요청한 사람은 그때의 현재 상태를 받아 따라잡는다. (재접속과 같은 경로)
         if (!started)
         {
             started = true;

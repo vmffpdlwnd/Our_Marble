@@ -16,9 +16,19 @@ public class GameNetwork : Singleton<GameNetwork>
     /// </summary>
     public IHostRequestReceiver Host { get; set; }
 
+    /// <summary>
+    /// 게임 씬마다 새로 만들어지는 GameNetwork가 모두 쓰는 기본 호스트. (Photon에서는 방장에게 요청을 보내는 쪽을 여기에 둔다)
+    /// Host도 이 값도 정하지 않으면 이 PC 안의 호스트를 쓴다.
+    /// </summary>
+    public static IHostRequestReceiver DefaultHost { get; set; }
+
+    // 에디터에서 도메인 리로드 없이 플레이를 다시 시작해도 이전 플레이의 값이 남지 않게 한다
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => DefaultHost = null;
+
     private void SendGameMessage(string message)
     {
-        IHostRequestReceiver receiver = Host ?? HostGameService.GetOrCreate();
+        IHostRequestReceiver receiver = Host ?? DefaultHost ?? HostGameService.GetOrCreate();
         if (receiver == null)
         {
             Debug.LogWarning($"[GameNetwork] 요청을 받을 호스트가 없어 보내지 않았습니다: {message}");
@@ -302,5 +312,3 @@ public class GameServerMessage
     public GameMessageType Type;
     public string Json;
 }
-
-

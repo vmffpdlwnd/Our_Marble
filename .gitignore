@@ -107,3 +107,7 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Photon AppId 설정 (AppId가 들어 있어 저장소에 올리지 않는다. 가져온 뒤 각자 Fusion Hub에서 입력한다)
+/[Aa]ssets/Photon/Fusion/Resources/PhotonAppSettings.asset
+/[Aa]ssets/Photon/Fusion/Resources/PhotonAppSettings.asset.meta

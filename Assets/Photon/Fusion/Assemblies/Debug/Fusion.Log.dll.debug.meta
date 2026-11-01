@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 54201b5e1466c493881f4d100b9807de
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 267958
+  packageName: Photon Fusion - Multiplayer SDK
+  packageVersion: 2.1.3
+  assetPath: Assets/Photon/Fusion/Assemblies/Debug/Fusion.Log.dll.debug
+  uploadId: 1001324

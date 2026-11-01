@@ -43,6 +43,12 @@ public class LocalLobbyHost : IHostRequestReceiver
     private readonly Dictionary<long, int> portraits = new Dictionary<long, int>();
     private int nextRoomNumber = 1;
 
+    /// <summary>방 번호를 정하는 방법. 정하지 않으면 "room-1", "room-2"처럼 센다. (Photon에서는 방 코드를 쓴다)</summary>
+    public Func<string> RoomIdFactory;
+
+    /// <summary>방의 상태가 바뀌어 전원에게 알릴 때마다 불린다. (Photon 방 목록에 보일 값을 갱신하는 데 쓴다)</summary>
+    public event Action<RoomSnapshot> RoomUpdated;
+
     /// <param name="deliver">응답을 받는 사람에게 보낸다. (playerId, 응답 종류, 응답 JSON)</param>
     public LocalLobbyHost(Action<long, LobbyMessageType, string> deliver)
     {
@@ -58,6 +64,9 @@ public class LocalLobbyHost : IHostRequestReceiver
 
     /// <summary>방 정보를 모두 버린다. 타이틀로 돌아갈 때 부른다.</summary>
     public static void Reset() => instance = null;
+
+    /// <summary>이 PC의 호스트를 직접 만든 것으로 바꾼다. (Photon에서 방장이 된 PC가 쓴다)</summary>
+    public static void Use(LocalLobbyHost host) => instance = host;
 
     // 에디터에서 도메인 리로드 없이 플레이를 다시 시작해도 이전 플레이의 방이 남지 않게 한다
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -127,7 +136,7 @@ public class LocalLobbyHost : IHostRequestReceiver
 
         Room room = new Room
         {
-            Id = "room-" + nextRoomNumber++,
+            Id = RoomIdFactory != null ? RoomIdFactory() : "room-" + nextRoomNumber++,
             HostId = senderId,
             Status = RoomStatus.WAITING,
             Config = new GameConfig(),
@@ -288,6 +297,18 @@ public class LocalLobbyHost : IHostRequestReceiver
         BroadcastRoomUpdated(room);
     }
 
+    // ───────────── 다른 PC에서 온 사람 ─────────────
+
+    /// <summary>다른 PC에서 온 사람의 닉네임과 초상화를 기억한다. 요청 JSON에는 이 값이 없어서 입장 전에 따로 알려 받는다.</summary>
+    public void RegisterPlayer(long playerId, string nickname, int? portraitId)
+    {
+        if (!string.IsNullOrWhiteSpace(nickname)) nicknames[playerId] = nickname;
+        if (portraitId.HasValue) portraits[playerId] = portraitId.Value;
+    }
+
+    /// <summary>이 사람이 방에 들어 있는지</summary>
+    public bool IsMember(long playerId) => roomOfPlayer.ContainsKey(playerId);
+
     // ───────────── 방 이어받기 (방장이 바뀔 때) ─────────────
 
     /// <summary>
@@ -419,7 +440,9 @@ public class LocalLobbyHost : IHostRequestReceiver
 
     private void BroadcastRoomUpdated(Room room)
     {
-        Broadcast(room, LobbyMessageType.ROOM_UPDATED, new RoomUpdatedBroadcast { type = "ROOM_UPDATED", room = ToSnapshot(room) });
+        RoomSnapshot snapshot = ToSnapshot(room);
+        Broadcast(room, LobbyMessageType.ROOM_UPDATED, new RoomUpdatedBroadcast { type = "ROOM_UPDATED", room = snapshot });
+        RoomUpdated?.Invoke(snapshot);
     }
 
     // 방에 있는 사람 모두에게 (봇 제외)
