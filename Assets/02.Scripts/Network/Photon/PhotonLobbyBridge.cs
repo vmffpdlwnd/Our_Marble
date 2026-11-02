@@ -39,6 +39,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private const float AutoRejoinSeconds = 30f;       // 게임 중 끊겼을 때 자동으로 다시 들어가기를 시도하는 전체 시간
     private const float AutoRejoinRetrySeconds = 3f;   // 시도 사이의 간격
     private const float RejoinAnswerSeconds = 6f;      // 방장이 돌아오는 것을 받아 주기를 기다리는 시간
+    private const float AutoLobbyRetrySeconds = 3f;  // 로비 연결이 끊겨 있을 때 스스로 다시 연결하는 간격
     private const float RoomListWaitSeconds = 2f;  // 로비에 방금 다시 연결했을 때, 고른 방이 목록에 나타나기를 기다리는 시간
     private const float LobbyConnectSeconds = 8f;  // 로비에 연결되기를 기다리는 시간. 넘으면 혼자 하기로 전환한다 (화면의 10초 제한보다 먼저)
     private const float HandshakeSeconds = 2.5f; // 방에 들어온 직후 방장의 퐁을 기다리는 시간. 퐁이 없어도 요청은 보낸다 (옛 버전 방장은 퐁을 못 준다)
@@ -180,6 +181,25 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     }
 
     // ───────────── 방 목록 (방 밖) ─────────────
+
+    private float nextLobbyAttemptAt;
+
+    /// <summary>
+    /// 로비 화면에 있는데 로비 연결이 없으면 스스로 연결한다. (끊긴 뒤 사용자가 아무것도 누르지 않아도 "연결 중"에서 "연결됨"으로 돌아가게)
+    /// 연결하지 못하면 RefreshRoomList가 혼자 하기로 전환한다. 매 프레임 불린다.
+    /// </summary>
+    public void Tick()
+    {
+        if (!IsActive || connection.OfflineMode) return;
+        if (connection.Current != PhotonConnection.ConnectionState.Disconnected) return;
+        if (busy || leaving || finishing || autoRejoining || lastSnapshot != null) return; // 방 안이거나 방에 드나드는 중이면 그쪽이 연결을 맡는다
+        if (SceneManager.GetActiveScene().path != SceneFlow.LobbyScenePath) return;
+        if (Time.unscaledTime < nextLobbyAttemptAt) return;
+
+        nextLobbyAttemptAt = Time.unscaledTime + AutoLobbyRetrySeconds;
+        Log("로비에 연결돼 있지 않아 연결합니다");
+        Run(RefreshRoomList(), "로비 연결");
+    }
 
     private async Task RefreshRoomList()
     {

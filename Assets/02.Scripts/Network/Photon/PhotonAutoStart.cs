@@ -33,7 +33,18 @@ public static class PhotonAutoStart
             return;
         }
 
-        if (scene.path == SceneFlow.LobbyScenePath) EnsureOnline();
+        if (scene.path == SceneFlow.LobbyScenePath)
+        {
+            EnsureOnline();
+
+            // 닉네임을 PlayFab 표시 이름으로 저장해 둔다. (같은 닉네임이면 아무것도 하지 않는다. 실패해도 게임에는 영향이 없다)
+            PhotonConnection connection = PhotonConnection.Instance;
+            if (connection.LobbyBridge.IsActive)
+            {
+                _ = connection.Profile.SyncNicknameAsync(LocalPlayer.Nickname);
+                _ = connection.Profile.SyncRecordAsync(); // 전적을 받아 온다. 게임에서 돌아왔을 때는 방금 결과도 반영된다
+            }
+        }
     }
 
     /// <summary>Photon 연결이 켜져 있게 한다. 켤 수 없거나 켜면 안 되는 때는 아무것도 하지 않는다.</summary>

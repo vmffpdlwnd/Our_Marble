@@ -40,6 +40,9 @@ public class PhotonGameBridge : IHostRequestReceiver
 
     public bool IsActive { get; private set; }
 
+    /// <summary>이 PC에서 지금까지 시작을 알린 게임 수. 같은 게임의 결과를 두 번 기록하지 않으려고 쓴다. (게임에 다시 들어와도 늘지 않는다)</summary>
+    public int GameSerial { get; private set; }
+
     public PhotonGameBridge(PhotonConnection connection)
     {
         this.connection = connection;
@@ -87,6 +90,7 @@ public class PhotonGameBridge : IHostRequestReceiver
     /// <summary>새 게임이 시작될 때 이전 게임의 보관 중인 요청과 알림을 버린다.</summary>
     public void ResetForNewGame()
     {
+        GameSerial++;
         gameHost = null;
         requestLogged = 0;
         takeOverRoom = null;

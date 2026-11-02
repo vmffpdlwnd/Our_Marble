@@ -28,7 +28,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "3";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "6-3.3";
+    public const string CodeRevision = "7-3.1";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -90,6 +90,9 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     /// <summary>이 PC의 사용자를 PlayFab에서 알아보는 쪽. Photon에 접속할 때 PlayFab 인증을 낸다</summary>
     public PlayFabIdentity Identity { get; private set; }
 
+    /// <summary>내 프로필(닉네임 등)을 PlayFab에 저장하는 쪽</summary>
+    public PlayFabProfile Profile { get; private set; }
+
     /// <summary>방 안의 사람을 연결 번호와 게임 번호로 나눠 기억하는 곳. 방장 PC가 쓰고, 끊겼다 돌아온 사람을 같은 자리에 붙인다</summary>
     public PlayerRegistry Registry { get; } = new PlayerRegistry();
 
@@ -121,6 +124,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         LobbyBridge = new PhotonLobbyBridge(this);
         GameBridge = new PhotonGameBridge(this);
         Identity = new PlayFabIdentity(Add);
+        Profile = new PlayFabProfile(Identity, Add);
     }
 
     // ───────────── 상태 조회 ─────────────
@@ -580,6 +584,8 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
     private void Update()
     {
+        LobbyBridge.Tick(); // 방 안이 아닐 때도 돈다 (로비 연결이 끊겨 있으면 스스로 다시 연결한다)
+
         if (!IsInSession) return;
 
         Messenger.Tick();
