@@ -1029,6 +1029,11 @@ public class UIManager : MonoBehaviour
                 IsBankrupt = bankrupt,
             });
         }
+
+        // 전적 기록: 결과 창이 1등으로 보여 주는 사람(파산하지 않은 1등)을 승리로 센다. 이 PC의 사람이 이 게임에 있었으면 한 판으로 센다.
+        if (ranked.Exists(p => p.PlayerId == LocalPlayer.Id))
+            GameRecord.Report(!ranked[0].IsBankrupt && ranked[0].PlayerId == LocalPlayer.Id);
+
         // 확인 버튼을 누르거나 정해진 시간이 지나면 방(로비)으로 돌아간다.
         gameResult.Show(entries, () =>
         {

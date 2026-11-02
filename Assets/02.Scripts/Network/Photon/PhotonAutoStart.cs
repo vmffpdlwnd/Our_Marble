@@ -39,7 +39,11 @@ public static class PhotonAutoStart
 
             // 닉네임을 PlayFab 표시 이름으로 저장해 둔다. (같은 닉네임이면 아무것도 하지 않는다. 실패해도 게임에는 영향이 없다)
             PhotonConnection connection = PhotonConnection.Instance;
-            if (connection.LobbyBridge.IsActive) _ = connection.Profile.SyncNicknameAsync(LocalPlayer.Nickname);
+            if (connection.LobbyBridge.IsActive)
+            {
+                _ = connection.Profile.SyncNicknameAsync(LocalPlayer.Nickname);
+                _ = connection.Profile.SyncRecordAsync(); // 전적을 받아 온다. 게임에서 돌아왔을 때는 방금 결과도 반영된다
+            }
         }
     }
 

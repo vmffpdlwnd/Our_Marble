@@ -170,6 +170,7 @@ public class LobbyManager : MonoBehaviour
     // 오른쪽 열
     private GameObject profileCard, playerListCard, detailCard;
     private TMP_Text nicknameText, marbleText;
+    private TMP_Text recordText; // 전적 칸 (ProfileCard/RecordCard/RecordText). 씬에 없으면 null이고 건너뛴다
     private Button profilePortraitButton;
     private Image profilePortraitImage;
     private PortraitPickerView portraitPicker;
@@ -367,6 +368,8 @@ public class LobbyManager : MonoBehaviour
         profileCard = side.Find("ProfileCard").gameObject;
         nicknameText = Get<TMP_Text>(side, "ProfileCard/NicknameText");
         marbleText = Get<TMP_Text>(side, "ProfileCard/MarbleChip/AmountText");
+        Transform recordTransform = side.Find("ProfileCard/RecordCard/RecordText");
+        recordText = recordTransform != null ? recordTransform.GetComponent<TMP_Text>() : null;
         profilePortraitButton = Get<Button>(side, "ProfileCard/Portrait");
         profilePortraitImage = Get<Image>(side, "ProfileCard/Portrait/PortraitMask/PortraitImage");
         var pickerCanvas = uiRoot.Find("Canvas_PortraitPicker");
@@ -466,6 +469,7 @@ public class LobbyManager : MonoBehaviour
 
         UpdateRefreshButton();
         PollConnection();
+        PollRecord();
 
         if (!Input.GetKeyDown(KeyCode.Escape) || Busy) return;
         if (settingsView.IsOpen) return; // 설정 창은 닫기 버튼으로만 닫는다
@@ -1291,12 +1295,33 @@ public class LobbyManager : MonoBehaviour
     private void RefreshProfile()
     {
         marbleText.text = "-";
+        shownRecordRevision = -1; // 전적도 다시 그린다
+        RefreshRecord();
         RefreshProfilePortrait();
         
         string nickname = LocalPlayer.Nickname;
         if (!string.IsNullOrEmpty(nickname)) RefreshNickname(nickname);
     }
     
+    // 전적(플레이 횟수, 승리 횟수)을 PlayFab에서 받아 온 값으로 채운다. 아직 못 받았거나 PlayFab을 안 쓰면 "-"
+    private int shownRecordRevision = -1;
+
+    private void RefreshRecord()
+    {
+        if (recordText == null) return;
+
+        PlayFabProfile profile = PhotonConnection.Instance.Profile;
+        shownRecordRevision = profile.Revision;
+        recordText.text = profile.RecordLoaded ? GameRecord.Describe(profile.Games, profile.Wins) : "-";
+    }
+
+    // 전적이 바뀌었을 때만 다시 그린다. (받아 오는 데 걸리는 시간 때문에 로비가 뜬 뒤에 바뀔 수 있다)
+    private void PollRecord()
+    {
+        if (recordText == null) return;
+        if (PhotonConnection.Instance.Profile.Revision != shownRecordRevision) RefreshRecord();
+    }
+
     private void RefreshNickname(string localNickname)
     {
         Debug.Log($"로비화면 닉네임 업데이트 -> {localNickname}");
