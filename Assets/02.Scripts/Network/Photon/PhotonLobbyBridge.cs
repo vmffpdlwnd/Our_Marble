@@ -751,7 +751,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         // 대기 중에는 들어올 수 있는 사람 수(최대 인원에서 봇을 뺀 만큼)가 다 차면 닫는다.
         // 게임 중에는 닫지 않는다. 닫힌 방에는 연결이 끊겼다 돌아오는 참가자도 못 들어온다. (참가자가 아닌 사람은 방장이 들여보내지 않는다)
         bool open = !waiting || humans < room.maxPlayers - room.botCount;
-        connection.SetRoomOpen(open, forceOpen);
+        connection.SetRoomOpen(open, forceOpen || !waiting); // 게임 중에는 지금 값이 열림으로 보여도 다시 열어 둔다. (돌아오는 사람이 못 들어오면 안 된다)
         if (forceOpen) Log($"방 정보를 Photon 방에 반영했습니다 (사람 {humans}명, 자리 {room.maxPlayers - room.botCount}개, 상태 {(waiting ? "대기" : "게임 중")}, 열림 {open})");
 
         // 게임 중에는 연결이 끊긴 사람의 자리도 남겨 두었다. 게임이 끝나면 돌아오지 않은 사람은 방에서 뺀다.
