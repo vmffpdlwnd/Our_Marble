@@ -95,6 +95,26 @@ public class HostGameService : IHostRequestReceiver
     /// <summary>진행 중인 게임을 버린다. 타이틀로 돌아갈 때 부른다.</summary>
     public static void Reset() => current = null;
 
+    /// <summary>
+    /// 이 사람을 AFK로 본다. 연결이 끊긴 사람의 차례를 제한 시간(60초)까지 기다리지 않고 AFK 시간(8초) 뒤에 자동으로 진행하려는 것이다.
+    /// 그 사람이 요청을 보내면(돌아오면) 풀린다.
+    /// </summary>
+    public void MarkAfk(long playerId)
+    {
+        PlayerState player = state.PlayerStates.Find(p => p.PlayerId == playerId);
+        if (player != null && !player.IsBot) afkPlayers.Add(playerId);
+    }
+
+    /// <summary>
+    /// 게임에 있는 모든 사람에게 지금의 게임 상태를 보낸다. 방장을 이어받은 직후, 모든 화면을 새 방장의 상태에 다시 맞추는 데 쓴다.
+    /// (이전 방장이 나가는 순간 보낸 알림을 화면마다 다르게 받았을 수 있어서)
+    /// </summary>
+    public void SyncAllHumans()
+    {
+        foreach (PlayerState player in state.PlayerStates.Where(p => !p.IsBot).ToList())
+            SendState(player.PlayerId);
+    }
+
     // 에디터에서 도메인 리로드 없이 플레이를 다시 시작해도 이전 플레이의 게임이 남지 않게 한다
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics() => current = null;

@@ -26,8 +26,10 @@ public static class PhotonAutoStart
     {
         if (scene.path == SceneFlow.LoginScenePath)
         {
-            // 타이틀로 돌아오면 다음 입장 때 다시 온라인을 시도한다
-            PhotonConnection.Instance.OfflineMode = false;
+            // 타이틀로 돌아오면 방과 연결을 정리하고, 다음 입장 때 다시 온라인을 시도한다
+            PhotonConnection connection = PhotonConnection.Instance;
+            connection.OfflineMode = false;
+            _ = connection.LobbyBridge.LeaveForLogin();
             return;
         }
 
@@ -52,5 +54,9 @@ public static class PhotonAutoStart
         }
 
         connection.LobbyBridge.Enable();
+
+        // PlayFab 로그인을 미리 해 둔다. 방 목록 요청이 올 때쯤이면 끝나 있어서 Photon 연결이 그만큼 빨라진다.
+        // (실패하면 연결을 시도할 때 다시 로그인한다)
+        _ = connection.Identity.EnsureLoggedIn();
     }
 }

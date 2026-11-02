@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Fusion;
 using Fusion.Photon.Realtime;
 using Fusion.Sockets;
+using Photon.Realtime;
 using UnityEngine;
 
 /// <summary>
@@ -24,10 +25,10 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
     // 이 값이 다른 빌드끼리는 서로의 방이 보이지 않는다. 통신 방식이 바뀌어 호환되지 않으면 올린다.
     // (옛 빌드의 방이 보이지 않게 해서, 응답 없는 옛 방에 들어가 헤매는 일을 막는다)
-    public const string NetworkVersion = "2";
+    public const string NetworkVersion = "3";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "4-1.2";
+    public const string CodeRevision = "6-3.3";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -44,6 +45,15 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     private NetworkRunner runner;
     private List<SessionInfo> sessions = new List<SessionInfo>();
     private int lastMasterId = int.MinValue;
+
+    // 방 열림 감시: 방장이 정한 값, 마지막으로 본 값, 다음 확인 시각, 다시 맞춘 횟수
+    private bool? desiredRoomOpen;
+    private bool? lastSeenRoomOpen;
+    private float nextRoomOpenCheckTime;
+    private int roomOpenFixCount;
+
+    /// <summary>방장이 바뀌기 직전의 방장 번호. (바뀐 뒤 MasterChanged 때 "누가 나갔는지" 알려고)</summary>
+    public int PreviousMasterId { get; private set; } = -1;
     private int rawLogged;   // 신뢰 데이터가 도착했다는 기록을 남긴 횟수 (방마다 처음 30개만)
 
     // 접속자 변화는 Fusion 콜백에 기대지 않고 ActivePlayers를 지켜봐서 알아낸다.
@@ -77,6 +87,28 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     /// <summary>게임 진행(주사위, 구매 등)을 Photon에 이어 주는 쪽. 로비 연결을 켜면 같이 켜진다</summary>
     public PhotonGameBridge GameBridge { get; private set; }
 
+    /// <summary>이 PC의 사용자를 PlayFab에서 알아보는 쪽. Photon에 접속할 때 PlayFab 인증을 낸다</summary>
+    public PlayFabIdentity Identity { get; private set; }
+
+    /// <summary>방 안의 사람을 연결 번호와 게임 번호로 나눠 기억하는 곳. 방장 PC가 쓰고, 끊겼다 돌아온 사람을 같은 자리에 붙인다</summary>
+    public PlayerRegistry Registry { get; } = new PlayerRegistry();
+
+    /// <summary>
+    /// 그 연결의 계정(PlayFab ID). Photon이 PlayFab에 확인한 값이라 위조할 수 없다. (Shared 모드에서는 누구나 읽을 수 있다)
+    /// 아직 모르면 null.
+    /// </summary>
+    public string GetUserId(PlayerRef player)
+    {
+        try { return runner != null ? runner.GetPlayerUserId(player) : null; }
+        catch (Exception) { return null; }
+    }
+
+    /// <summary>
+    /// 연결돼 있던 중에(로비나 방 안에서) 우리가 끊지 않았는데 끊겼을 때 불린다. 알려 주는 값은 끊기기 직전의 상태다.
+    /// 접속을 시도하다 실패한 경우에는 불리지 않는다. (그건 접속 함수가 실패로 돌려준다)
+    /// </summary>
+    public event Action<ConnectionState, ShutdownReason> ConnectionLost;
+
     public event Action StateChanged;
     public event Action SessionsChanged;
     public event Action PlayersChanged;
@@ -88,11 +120,15 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         Messenger = new PhotonMessenger(this);
         LobbyBridge = new PhotonLobbyBridge(this);
         GameBridge = new PhotonGameBridge(this);
+        Identity = new PlayFabIdentity(Add);
     }
 
     // ───────────── 상태 조회 ─────────────
 
     /// <summary>Photon AppId가 들어 있는지 (Fusion Hub에서 입력)</summary>
+    // Fusion 앱의 AppId. PlayFab에서 Photon용 토큰을 받을 때 어느 앱에 들어갈지 알려 주는 값이다
+    private string AppIdFusion => PhotonAppSettings.Global.AppSettings.AppIdFusion;
+
     public bool HasAppId =>
         PhotonAppSettings.TryGetGlobal(out PhotonAppSettings global) && !string.IsNullOrEmpty(global.AppSettings.AppIdFusion);
 
@@ -198,14 +234,25 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
             return false;
         }
 
-        await ResetRunner();
         SetState(ConnectionState.JoiningLobby);
         Add($"로비 입장 시도 (지역 {Region})");
+
+        // Photon은 PlayFab 인증을 요구한다. PlayFab에서 Photon용 토큰을 받아 오고, 못 받으면 연결하지 않는다.
+        // (연결하지 못하면 로비 쪽이 혼자 하기로 전환한다)
+        AuthenticationValues auth = await Identity.CreatePhotonAuthAsync(AppIdFusion);
+        if (auth == null)
+        {
+            Add("PlayFab 인증을 받지 못해 Photon에 연결하지 않습니다");
+            await Disconnect();
+            return false;
+        }
+
+        await ResetRunner();
 
         StartGameResult result;
         try
         {
-            result = await runner.JoinSessionLobby(SessionLobby.Shared, null, null, BuildAppSettings());
+            result = await runner.JoinSessionLobby(SessionLobby.Shared, null, auth, BuildAppSettings());
         }
         catch (Exception e)
         {
@@ -278,8 +325,12 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     /// 방 코드로 들어간다. 방 목록에 없는 방(보이지 않는 방)도 코드를 알면 들어갈 수 있다.
     /// 없는 코드면 Shared 모드가 빈 방을 새로 만들어 버리는데, 그 방은 보이지 않게 만들고 바로 나온다.
     /// </summary>
+    /// <summary>마지막 JoinRoomByCode가 "그 코드의 방이 없어서" 실패했는지. (연결이 안 돼서 실패한 것과 구분한다)</summary>
+    public bool LastJoinRoomMissing { get; private set; }
+
     public async Task<bool> JoinRoomByCode(string input)
     {
+        LastJoinRoomMissing = false;
         string code = NormalizeCode(input);
         if (code.Length != CodeLength)
         {
@@ -295,7 +346,11 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         }
 
         StartResult result = await StartSession(code, null, null, expectExisting: true, visible: found != null);
-        if (result == StartResult.WrongRoom) Add("그 코드의 방이 없습니다");
+        if (result == StartResult.WrongRoom)
+        {
+            LastJoinRoomMissing = true;
+            Add("그 코드의 방이 없습니다");
+        }
         return result == StartResult.Ok;
     }
 
@@ -315,8 +370,18 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         SetState(ConnectionState.StartingSession);
         Add($"{(expectExisting ? "방 입장" : "방 만들기")} 시도: {FormatCode(sessionName)}");
 
+        // 방에 들어갈 때도 PlayFab 인증을 새로 받아서 낸다. (Photon 토큰은 접속마다 새로 받는다)
+        AuthenticationValues auth = await Identity.CreatePhotonAuthAsync(AppIdFusion);
+        if (auth == null)
+        {
+            Add("PlayFab 인증을 받지 못해 방에 들어가지 못했습니다");
+            await Disconnect();
+            return StartResult.Failed;
+        }
+
         var args = new StartGameArgs
         {
+            AuthValues = auth,
             GameMode = GameMode.Shared,
             SessionName = sessionName,
             PlayerCount = maxHumans,
@@ -393,10 +458,12 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         SessionInfo info = runner.SessionInfo;
         if (info == null || !info.IsValid) return false;
 
+        desiredRoomOpen = open; // 방장이 정한 값. 감시가 이 값과 실제 값이 다르면 다시 맞춘다
+
         if (!force && info.IsOpen == open) return true; // 바뀌는 게 없으면 로그도 남기지 않는다
 
         info.IsOpen = open;
-        Add(open ? "방을 열었습니다" : "방을 닫았습니다 (새로 들어올 수 없음)");
+        Add((open ? "방을 열었습니다" : "방을 닫았습니다 (새로 들어올 수 없음)") + $" (설정 직후 값 {info.IsOpen})");
         return true;
     }
 
@@ -453,6 +520,9 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         }
 
         lastMasterId = int.MinValue;
+        desiredRoomOpen = null;
+        lastSeenRoomOpen = null;
+        roomOpenFixCount = 0;
         rawLogged = 0;
         knownPlayers.Clear();
         Messenger?.Reset();
@@ -483,16 +553,43 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
     // 방장과 접속자가 바뀌었는지 지켜본다.
     // Photon이 방장을 바꿀 때 따로 알려 주는 콜백이 없고, 접속자 콜백도 모든 사람에게 오지 않을 수 있어서 직접 확인한다.
+    // 방이 열려 있는지 1초마다 확인한다. 값이 바뀌면 로그로 남기고, 방장이 정한 값과 다르면(누가 닫았거나 반영이 안 된 경우) 다시 맞춘다.
+    // (게임 중에 방이 닫혀 있으면 끊겼다 돌아오는 사람이 "Game closed"로 못 들어온다)
+    private void WatchRoomOpen()
+    {
+        if (Time.unscaledTime < nextRoomOpenCheckTime) return;
+        nextRoomOpenCheckTime = Time.unscaledTime + 1f;
+
+        SessionInfo info = runner.SessionInfo;
+        if (info == null || !info.IsValid) return;
+
+        bool now = info.IsOpen;
+        if (lastSeenRoomOpen != now)
+        {
+            lastSeenRoomOpen = now;
+            Add($"[방 상태] 열림 {now}");
+        }
+
+        if (IsMaster && desiredRoomOpen.HasValue && now != desiredRoomOpen.Value)
+        {
+            roomOpenFixCount++;
+            if (roomOpenFixCount <= 5) Add($"방 열림({now})이 정해 둔 값({desiredRoomOpen.Value})과 다릅니다. 다시 맞춥니다 ({roomOpenFixCount}번째)");
+            info.IsOpen = desiredRoomOpen.Value;
+        }
+    }
+
     private void Update()
     {
         if (!IsInSession) return;
 
         Messenger.Tick();
         GameBridge.Tick();
+        WatchRoomOpen();
 
         int masterId = runner.GetMasterClient().PlayerId;
         if (masterId != lastMasterId)
         {
+            PreviousMasterId = lastMasterId;
             lastMasterId = masterId;
             Add($"방장이 바뀌었습니다: {masterId}번 {(runner.IsSharedModeMasterClient ? "(나)" : "")}");
             MasterChanged?.Invoke();
@@ -559,12 +656,28 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     {
         if (r != runner) return; // 우리가 일부러 끝낸 이전 러너는 무시한다
 
+        ConnectionState previous = Current;
+
         Add("연결이 끝났습니다: " + reason);
         runner = null;
         sessions.Clear();
         SetState(ConnectionState.Disconnected);
         SessionsChanged?.Invoke();
         PlayersChanged?.Invoke();
+
+        // 연결이 완성된 뒤에 끊긴 경우만 "끊김"으로 알린다
+        if (previous == ConnectionState.InLobby || previous == ConnectionState.InSession)
+            ConnectionLost?.Invoke(previous, reason);
+    }
+
+    /// <summary>개발용: 예기치 않은 연결 끊김을 흉내 낸다. (우리가 끊는 게 아니라서 끊김 처리가 실제처럼 동작한다)</summary>
+    public async void SimulateDrop()
+    {
+        if (runner == null) return;
+
+        Add("[개발용] 예기치 않은 연결 끊김을 흉내 냅니다");
+        try { await runner.Shutdown(); }
+        catch (Exception e) { Add("끊김 흉내 중 오류: " + e.Message); }
     }
 
     public void OnDisconnectedFromServer(NetworkRunner r, NetDisconnectReason reason)
