@@ -78,7 +78,7 @@ public class LobbyManager : MonoBehaviour
 
     #region 상태
 
-    private enum ConnectionState { Connected, Reconnecting, Disconnected }
+    private enum ConnectionState { Connected, Reconnecting, Disconnected, Offline }
     private ConnectionState connection = ConnectionState.Connected;
 
     // 응답을 기다리는 요청. 기다리는 동안 다른 요청과 입력을 막는다
@@ -92,7 +92,9 @@ public class LobbyManager : MonoBehaviour
     private int shownCooldown = -1; // 버튼에 지금 보이는 남은 초 (0이면 평소 글자)
     private TMP_Text refreshLabel;
     private bool Busy => pending != Pending.None;
-    private bool CanRequest => !Busy && connection == ConnectionState.Connected;
+    // 서버에 연결됐거나, 서버 없이 이 PC 안의 호스트로 혼자 하는 중(오프라인)이면 요청을 보낼 수 있다
+    private bool IsUsable => connection == ConnectionState.Connected || connection == ConnectionState.Offline;
+    private bool CanRequest => !Busy && IsUsable;
 
     private readonly List<RoomSummary> rooms = new List<RoomSummary>();
     private readonly Dictionary<string, RowView> rows = new Dictionary<string, RowView>();
@@ -463,6 +465,7 @@ public class LobbyManager : MonoBehaviour
         if (Net != null) Net.TryDequeueMessage();
 
         UpdateRefreshButton();
+        PollConnection();
 
         if (!Input.GetKeyDown(KeyCode.Escape) || Busy) return;
         if (settingsView.IsOpen) return; // 설정 창은 닫기 버튼으로만 닫는다
@@ -503,7 +506,7 @@ public class LobbyManager : MonoBehaviour
 
     private void RequestRoomList(bool userTriggered)
     {
-        if (Net == null || connection != ConnectionState.Connected) return;
+        if (Net == null || !IsUsable) return;
         if (userTriggered)
         {
             if (Busy) return;
@@ -735,11 +738,13 @@ public class LobbyManager : MonoBehaviour
         var previous = connection;
         connection = state;
 
-        bool online = state == ConnectionState.Connected;
+        bool online = state == ConnectionState.Connected || state == ConnectionState.Offline; // 오프라인(혼자 하기)은 이 PC 안의 호스트로 동작한다
         connectionDot.color = state == ConnectionState.Connected ? new Color32(140, 220, 184, 255)
             : state == ConnectionState.Reconnecting ? UIPalette.Gold : UIPalette.Red;
         connectionText.text = state == ConnectionState.Connected ? "서버 연결됨"
-            : state == ConnectionState.Reconnecting ? "재연결 중..." : "연결 끊김";
+            : state == ConnectionState.Reconnecting ? (everConnected ? "재연결 중..." : "연결 중...")
+            : state == ConnectionState.Offline ? "오프라인 (혼자 하기)" : "연결 끊김";
+        if (state == ConnectionState.Connected) everConnected = true;
 
         // 연결이 없으면 방 목록과 오른쪽 버튼을 흐리게 하고 누를 수 없게 한다
         listGroup.interactable = online;
@@ -764,6 +769,30 @@ public class LobbyManager : MonoBehaviour
     private void SetConnectionTrue()
     {
         SetConnection(ConnectionState.Connected, true);
+    }
+
+    // Photon 연결 상태를 화면의 연결 표시에 반영한다. 0.25초마다 확인해서 달라졌을 때만 바꾼다.
+    // 처음 연결될 때는 "다시 연결됐어요" 안내를 띄우지 않고, 연결된 적이 있다가 끊겼다 돌아온 경우에만 띄운다.
+    private float nextConnectionPollAt;
+    private bool everConnected;
+
+    private void PollConnection()
+    {
+        if (Time.unscaledTime < nextConnectionPollAt) return;
+        nextConnectionPollAt = Time.unscaledTime + 0.25f;
+
+        if (!LocalPlayer.IsSet) return; // 닉네임 없이 시작한 경우는 처음 정한 상태(연결 끊김)를 그대로 둔다
+
+        ConnectionState next;
+        switch (LobbyConnectionStatus.Current)
+        {
+            case LobbyLink.Online: next = ConnectionState.Connected; break;
+            case LobbyLink.Connecting: next = ConnectionState.Reconnecting; break;
+            default: next = ConnectionState.Offline; break;
+        }
+
+        if (next == connection) return;
+        SetConnection(next, everConnected);
     }
     #endregion
 
