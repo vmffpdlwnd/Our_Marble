@@ -315,7 +315,8 @@ public class LocalLobbyHost : IHostRequestReceiver
         Room room = RoomOf(playerId);
         if (room == null || room.Status != RoomStatus.PLAYING)
         {
-            SendError(playerId, "ROOM_NOT_FOUND", "돌아갈 수 있는 게임이 없어요");
+            // 해 봐야 소용없는 경우다. 화면이 다시 시도하지 않고 포기하도록 다른 오류 이름으로 알린다.
+            SendError(playerId, "NOT_REJOINABLE", "돌아갈 수 있는 게임이 없어요");
             return false;
         }
 

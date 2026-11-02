@@ -28,7 +28,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "2";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "6-2.1";
+    public const string CodeRevision = "6-3.1";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -319,8 +319,12 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     /// 방 코드로 들어간다. 방 목록에 없는 방(보이지 않는 방)도 코드를 알면 들어갈 수 있다.
     /// 없는 코드면 Shared 모드가 빈 방을 새로 만들어 버리는데, 그 방은 보이지 않게 만들고 바로 나온다.
     /// </summary>
+    /// <summary>마지막 JoinRoomByCode가 "그 코드의 방이 없어서" 실패했는지. (연결이 안 돼서 실패한 것과 구분한다)</summary>
+    public bool LastJoinRoomMissing { get; private set; }
+
     public async Task<bool> JoinRoomByCode(string input)
     {
+        LastJoinRoomMissing = false;
         string code = NormalizeCode(input);
         if (code.Length != CodeLength)
         {
@@ -336,7 +340,11 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         }
 
         StartResult result = await StartSession(code, null, null, expectExisting: true, visible: found != null);
-        if (result == StartResult.WrongRoom) Add("그 코드의 방이 없습니다");
+        if (result == StartResult.WrongRoom)
+        {
+            LastJoinRoomMissing = true;
+            Add("그 코드의 방이 없습니다");
+        }
         return result == StartResult.Ok;
     }
 

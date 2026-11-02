@@ -36,6 +36,9 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     private const long OfflinePlayerId = 1;      // Photon을 쓰지 않을 때 이 PC 플레이어의 번호 (TitleManager와 같다)
     private const float LeaveWaitSeconds = 3f;   // 방을 나갈 때 방장의 답을 기다리는 시간
+    private const float AutoRejoinSeconds = 30f;       // 게임 중 끊겼을 때 자동으로 다시 들어가기를 시도하는 전체 시간
+    private const float AutoRejoinRetrySeconds = 3f;   // 시도 사이의 간격
+    private const float RejoinAnswerSeconds = 6f;      // 방장이 돌아오는 것을 받아 주기를 기다리는 시간
     private const float RoomListWaitSeconds = 2f;  // 로비에 방금 다시 연결했을 때, 고른 방이 목록에 나타나기를 기다리는 시간
     private const float LobbyConnectSeconds = 8f;  // 로비에 연결되기를 기다리는 시간. 넘으면 혼자 하기로 전환한다 (화면의 10초 제한보다 먼저)
     private const float HandshakeSeconds = 2.5f; // 방에 들어온 직후 방장의 퐁을 기다리는 시간. 퐁이 없어도 요청은 보낸다 (옛 버전 방장은 퐁을 못 준다)
@@ -60,6 +63,11 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private readonly HashSet<int> rejoiningRefs = new HashSet<int>(); // 게임 중인 방에 돌아온 연결. 곧 오는 입장 요청을 자기 자리로 돌려보낸다
     private string lastRegistryJson;             // 방장이 나눠 준 사람 기록. 내가 방장을 이어받을 때 쓴다
     private bool lastStatusPlaying;              // 직전 방 정보가 게임 중이었는지 (게임이 끝나는 순간을 알려고)
+
+    // 게임 중 끊겨서 게임 화면에 머문 채 자동으로 다시 들어가는 중인지, 그리고 방장의 답
+    private bool autoRejoining;
+    private enum RejoinAnswer { Pending, Accepted, Rejected, Failed }
+    private RejoinAnswer rejoinAnswer;
 
     private const string LastGameRoomKey = "Photon.LastGameRoom";
 
@@ -782,7 +790,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
 
     private void OnConnectionLost(PhotonConnection.ConnectionState previous, ShutdownReason reason)
     {
-        if (!IsActive || leaving || finishing) return; // 우리가 나가는 중이면 이미 정리하고 있다
+        if (!IsActive || leaving || finishing || autoRejoining) return; // 우리가 나가는 중이거나 이미 다시 들어가는 중이면 이미 처리하고 있다
 
         if (previous == PhotonConnection.ConnectionState.InLobby)
         {
@@ -799,15 +807,25 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private async Task HandleRoomConnectionLost()
     {
         bool inGame = SceneManager.GetActiveScene().path == SceneFlow.GameScenePath;
+        string roomCode = lastSnapshot != null ? lastSnapshot.roomId : LastGameRoom; // 정리하기 전에 방 코드를 기억해 둔다
 
         ClearRoomState();
+
+        if (inGame && !string.IsNullOrEmpty(roomCode))
+        {
+            // 게임 중에 끊기면 게임 화면에 그대로 머물면서 자동으로 다시 들어가 본다.
+            // 들어가면 현재 게임 상태를 받아 이어지고, 안 되면 로비로 보낸다. (내 번호는 그대로 둔다. 게임 화면이 이 번호로 나를 찾는다)
+            await AutoRejoinFlow(roomCode);
+            return;
+        }
+
         LocalPlayer.Set(0, LocalPlayer.Nickname);
 
         if (inGame)
         {
-            // 게임 중에 끊기면 로비로 보낸다. 하던 게임은 방 목록에 "이어하기"로 보여서, 누르면 자기 자리로 돌아간다.
-            Log("게임 중 연결이 끊겨 로비로 돌아갑니다. 방 목록의 이어하기로 돌아올 수 있습니다");
-            LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.LOBBY_ERROR, ErrorJson("CONNECTION_LOST", "연결이 끊어졌어요. 목록의 '이어하기' 방을 누르면 게임으로 돌아가요"));
+            // 돌아갈 방 코드를 모르면 로비로 보낸다.
+            Log("게임 중 연결이 끊겼지만 돌아갈 방을 몰라 로비로 돌아갑니다");
+            LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.LOBBY_ERROR, ErrorJson("CONNECTION_LOST", "연결이 끊어졌어요"));
             SceneFlow.ToLobby();
             return;
         }
@@ -816,6 +834,96 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.ROOM_LEFT, JsonConvert.SerializeObject(new RoomLeftResponse { type = "ROOM_LEFT" }));
         LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.LOBBY_ERROR, ErrorJson("CONNECTION_LOST", "연결이 끊어져 방에서 나왔어요"));
         await RefreshRoomList();
+    }
+
+    // ───────────── 게임 중 끊겼을 때 자동으로 다시 들어가기 ─────────────
+
+    private async Task AutoRejoinFlow(string roomCode)
+    {
+        autoRejoining = true;
+        PhotonReconnectOverlay.Show("연결이 끊어졌어요. 다시 연결하는 중...", "Reconnecting...");
+
+        RejoinResult result;
+        try
+        {
+            result = await PhotonRejoinLoop.RunAsync(
+                attempt => TryRejoinOnce(roomCode, attempt),
+                () => Time.unscaledTime,
+                WaitUntil,
+                () => IsActive && autoRejoining,
+                AutoRejoinSeconds, AutoRejoinRetrySeconds);
+        }
+        finally
+        {
+            autoRejoining = false;
+            PhotonReconnectOverlay.Hide();
+        }
+
+        if (result == RejoinResult.Success) { Log("자동으로 다시 들어갔습니다"); return; }
+        if (result == RejoinResult.Cancelled) return;
+
+        // 돌아가지 못했다: 로비로 보낸다. 방이 아직 있다면 방 목록의 이어하기로 다시 들어갈 수 있다.
+        if (result == RejoinResult.RoomGone) LastGameRoom = null; // 게임이 끝났거나 방이 사라졌다
+        Log($"자동으로 다시 들어가지 못해 로비로 돌아갑니다 ({result})");
+
+        LocalPlayer.Set(0, LocalPlayer.Nickname);
+        string message = result == RejoinResult.RoomGone
+            ? "게임이 이미 끝났거나 방이 사라졌어요"
+            : "다시 연결하지 못했어요. 목록의 '이어하기' 방을 누르면 게임으로 돌아가요";
+        LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.LOBBY_ERROR, ErrorJson("CONNECTION_LOST", message));
+        SceneFlow.ToLobby();
+    }
+
+    private async Task<RejoinAttempt> TryRejoinOnce(string roomCode, int attempt)
+    {
+        PhotonReconnectOverlay.SetText($"연결이 끊어졌어요. 다시 연결하는 중... ({attempt})", $"Reconnecting... ({attempt})");
+        Log($"자동 재연결 시도 {attempt}번 ({PhotonConnection.FormatCode(roomCode)})");
+
+        // 방에 코드로 바로 들어간다. (PlayFab 인증은 접속 안에서 새로 받는다)
+        if (!await connection.JoinRoomByCode(roomCode))
+            return connection.LastJoinRoomMissing ? RejoinAttempt.RoomGone : RejoinAttempt.Retry;
+
+        // 내 게임 번호는 건드리지 않는다. 방장이 예전 번호를 다시 알려 준다. (ASSIGN_ID)
+        knownIds.Clear();
+        foreach (PlayerRef player in connection.Players) knownIds.Add(player.PlayerId);
+        rejoinAnswer = RejoinAnswer.Pending;
+
+        // 방에 막 들어온 직후에는 방장과 서로 연결되기 전이라서, 방장이 답을 줄 때까지 확인한 뒤에 요청을 보낸다.
+        await connection.Messenger.WaitForMaster(HandshakeSeconds);
+        if (!connection.IsInSession) return RejoinAttempt.Retry;
+
+        SendHello();
+        connection.Messenger.SendRequest(PhotonMessenger.DomainLobby, JsonConvert.SerializeObject(new EnterRoomRequest { type = "ENTER_ROOM", roomId = roomCode }));
+
+        float until = Time.unscaledTime + RejoinAnswerSeconds;
+        while (rejoinAnswer == RejoinAnswer.Pending && connection.IsInSession && Time.unscaledTime < until)
+            await Task.Yield();
+
+        if (rejoinAnswer == RejoinAnswer.Accepted) return RejoinAttempt.Success;
+
+        // 못 돌아갔다. 이 방의 참가자가 아니거나 게임이 끝난 경우는 포기하고, 그 밖에는 연결을 정리하고 다시 해 본다.
+        Log(rejoinAnswer == RejoinAnswer.Rejected ? "방장이 돌아오는 것을 받아 주지 않았습니다" : "방장의 답을 받지 못했습니다");
+        await connection.Disconnect();
+        return rejoinAnswer == RejoinAnswer.Rejected ? RejoinAttempt.RoomGone : RejoinAttempt.Retry;
+    }
+
+    private static async Task WaitUntil(float time)
+    {
+        while (Time.unscaledTime < time) await Task.Yield();
+    }
+
+    // 다시 들어가서 방장의 허락(게임 시작 알림)을 받으면, 게임 화면이 현재 게임 상태를 요청해서 따라잡게 한다.
+    private void ResyncGameAfterRejoin()
+    {
+        GameNetwork network = UnityEngine.Object.FindFirstObjectByType<GameNetwork>();
+        if (network != null) network.SendGameStateRequest();
+    }
+
+    // 방장의 오류가 "해 봐야 소용없다"는 뜻인지. (돌아올 수 있는 게임이 없거나 이 방의 참가자가 아닌 경우)
+    private static bool IsDefiniteRejection(string json)
+    {
+        try { return (string)JObject.Parse(json)["code"] == "NOT_REJOINABLE"; }
+        catch { return false; }
     }
 
     // ───────────── 방장이 바뀌거나 사람이 나갈 때 ─────────────
@@ -834,6 +942,11 @@ public class PhotonLobbyBridge : IHostRequestReceiver
                 if (now.Contains(refId)) continue;
 
                 long gameId = connection.Registry.GameIdOfRef(refId);
+
+                // 그 자리는 이미 새 연결이 이어받았다. (같은 사람이 다시 들어온 뒤에야 예전 연결이 사라지는 경우)
+                // 이때 나간 것으로 처리하면 방금 돌아온 사람이 AFK가 된다.
+                if (connection.Registry.TryGetRef(gameId, out int currentRef) && currentRef != refId) continue;
+
                 connection.Registry.Release(refId); // 연결 번호만 지우고 게임 번호와 계정은 남겨서, 돌아오면 같은 자리로 붙인다
 
                 // 게임 중이면 자리를 남겨 둔다. (돌아올 수 있다) 대기 중이면 방에서 내보낸다.
@@ -917,6 +1030,22 @@ public class PhotonLobbyBridge : IHostRequestReceiver
                 if (lastSnapshot.status == RoomStatus.PLAYING) LastGameRoom = lastSnapshot.roomId;
                 else if (LastGameRoom == lastSnapshot.roomId) LastGameRoom = null;
             }
+        }
+
+        if (autoRejoining)
+        {
+            // 게임 화면에서 다시 들어가는 중이다. 방장의 답으로 결과를 정하고 로비 화면에는 전달하지 않는다.
+            // (전달하면 나중에 로비에 들어갔을 때 낡은 입장, 게임 시작 알림이 처리돼서 게임 화면으로 다시 넘어간다)
+            if (type == LobbyMessageType.GAME_STARTED)
+            {
+                rejoinAnswer = RejoinAnswer.Accepted;
+                ResyncGameAfterRejoin();
+            }
+            else if (type == LobbyMessageType.LOBBY_ERROR)
+            {
+                rejoinAnswer = IsDefiniteRejection(json) ? RejoinAnswer.Rejected : RejoinAnswer.Failed;
+            }
+            return;
         }
 
         if (type == LobbyMessageType.GAME_STARTED) connection.GameBridge.ResetForNewGame(); // 새 게임: 이전 게임의 보관 중인 것을 버린다
