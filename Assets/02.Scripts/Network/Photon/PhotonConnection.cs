@@ -28,7 +28,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "3";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "6-3.2";
+    public const string CodeRevision = "6-3.3";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -45,6 +45,12 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     private NetworkRunner runner;
     private List<SessionInfo> sessions = new List<SessionInfo>();
     private int lastMasterId = int.MinValue;
+
+    // 방 열림 감시: 방장이 정한 값, 마지막으로 본 값, 다음 확인 시각, 다시 맞춘 횟수
+    private bool? desiredRoomOpen;
+    private bool? lastSeenRoomOpen;
+    private float nextRoomOpenCheckTime;
+    private int roomOpenFixCount;
 
     /// <summary>방장이 바뀌기 직전의 방장 번호. (바뀐 뒤 MasterChanged 때 "누가 나갔는지" 알려고)</summary>
     public int PreviousMasterId { get; private set; } = -1;
@@ -452,10 +458,12 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         SessionInfo info = runner.SessionInfo;
         if (info == null || !info.IsValid) return false;
 
+        desiredRoomOpen = open; // 방장이 정한 값. 감시가 이 값과 실제 값이 다르면 다시 맞춘다
+
         if (!force && info.IsOpen == open) return true; // 바뀌는 게 없으면 로그도 남기지 않는다
 
         info.IsOpen = open;
-        Add(open ? "방을 열었습니다" : "방을 닫았습니다 (새로 들어올 수 없음)");
+        Add((open ? "방을 열었습니다" : "방을 닫았습니다 (새로 들어올 수 없음)") + $" (설정 직후 값 {info.IsOpen})");
         return true;
     }
 
@@ -512,6 +520,9 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         }
 
         lastMasterId = int.MinValue;
+        desiredRoomOpen = null;
+        lastSeenRoomOpen = null;
+        roomOpenFixCount = 0;
         rawLogged = 0;
         knownPlayers.Clear();
         Messenger?.Reset();
@@ -542,12 +553,38 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
     // 방장과 접속자가 바뀌었는지 지켜본다.
     // Photon이 방장을 바꿀 때 따로 알려 주는 콜백이 없고, 접속자 콜백도 모든 사람에게 오지 않을 수 있어서 직접 확인한다.
+    // 방이 열려 있는지 1초마다 확인한다. 값이 바뀌면 로그로 남기고, 방장이 정한 값과 다르면(누가 닫았거나 반영이 안 된 경우) 다시 맞춘다.
+    // (게임 중에 방이 닫혀 있으면 끊겼다 돌아오는 사람이 "Game closed"로 못 들어온다)
+    private void WatchRoomOpen()
+    {
+        if (Time.unscaledTime < nextRoomOpenCheckTime) return;
+        nextRoomOpenCheckTime = Time.unscaledTime + 1f;
+
+        SessionInfo info = runner.SessionInfo;
+        if (info == null || !info.IsValid) return;
+
+        bool now = info.IsOpen;
+        if (lastSeenRoomOpen != now)
+        {
+            lastSeenRoomOpen = now;
+            Add($"[방 상태] 열림 {now}");
+        }
+
+        if (IsMaster && desiredRoomOpen.HasValue && now != desiredRoomOpen.Value)
+        {
+            roomOpenFixCount++;
+            if (roomOpenFixCount <= 5) Add($"방 열림({now})이 정해 둔 값({desiredRoomOpen.Value})과 다릅니다. 다시 맞춥니다 ({roomOpenFixCount}번째)");
+            info.IsOpen = desiredRoomOpen.Value;
+        }
+    }
+
     private void Update()
     {
         if (!IsInSession) return;
 
         Messenger.Tick();
         GameBridge.Tick();
+        WatchRoomOpen();
 
         int masterId = runner.GetMasterClient().PlayerId;
         if (masterId != lastMasterId)
