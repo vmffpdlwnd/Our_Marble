@@ -230,6 +230,27 @@ public class PlayFabIdentity
         }
     }
 
+    /// <summary>
+    /// 로그인한 사용자로 PlayFab API를 부른다. 로그인이 안 돼 있으면 먼저 로그인하고,
+    /// 세션이 끝났다고 거절당하면(연결 문제가 아니면) 한 번만 다시 로그인해서 다시 부른다.
+    /// </summary>
+    public async Task<PlayFabRest.Result> CallAsync(string path, object body)
+    {
+        if (!await EnsureLoggedIn()) return PlayFabRest.Result.Fail("NOT_LOGGED_IN", LastError ?? "PlayFab에 로그인하지 못했습니다");
+
+        PlayFabRest.Result result = await PlayFabRest.PostAsync(path, body, sessionTicket, RequestTimeoutSeconds);
+        if (!result.Ok && IsSessionProblem(result) && result.ErrorCode != "NameNotAvailable" && result.ErrorCode != "ProfaneDisplayName"
+            && result.ErrorCode != "InvalidParams")
+        {
+            // 호출한 내용이 잘못된 것이 아니라 세션이 문제일 수 있다
+            log("PlayFab 세션이 끝난 것 같아 다시 로그인합니다");
+            sessionTicket = null;
+            if (!await EnsureLoggedIn()) return PlayFabRest.Result.Fail("NOT_LOGGED_IN", LastError ?? "PlayFab에 로그인하지 못했습니다");
+            result = await PlayFabRest.PostAsync(path, body, sessionTicket, RequestTimeoutSeconds);
+        }
+        return result;
+    }
+
     private Task<PlayFabRest.Result> RequestPhotonToken(string photonAppId)
     {
         return PlayFabRest.PostAsync("/Client/GetPhotonAuthenticationToken", new { PhotonApplicationId = photonAppId }, sessionTicket, RequestTimeoutSeconds);

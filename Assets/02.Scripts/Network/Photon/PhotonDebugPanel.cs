@@ -98,7 +98,7 @@ public class PhotonDebugPanel : MonoBehaviour
         // PlayFab 로그인 상태와 사용자 바꾸기. 같은 PC에서 빌드를 여러 개 띄우면 같은 사용자가 되므로, 실행 때 -userSlot 2 처럼 번호를 주거나 아래 버튼을 쓴다.
         PlayFabIdentity identity = conn.Identity;
         string playFabState = identity.IsLoggedIn
-            ? $"로그인됨 (ID {identity.PlayFabId}{(identity.NewlyCreated ? ", 새 계정" : "")})"
+            ? $"로그인됨 (ID {identity.PlayFabId}{(identity.NewlyCreated ? ", 새 계정" : "")}, 표시 이름 {conn.Profile.DisplayName ?? "저장 전"})"
             : string.IsNullOrEmpty(identity.LastError) ? "로그인 전" : "실패: " + identity.LastError;
         GUILayout.Label($"PlayFab: {playFabState}");
         GUILayout.BeginHorizontal();
