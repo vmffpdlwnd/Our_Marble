@@ -19,6 +19,11 @@ public class PhotonDebugPanel : MonoBehaviour
     private string codeInput = "";
     private int testCount;                 // 보낸 테스트 요청 수
     private int seqExpected, seqOk, seqBad; // 순서 테스트: 다음에 올 번호, 맞게 온 수, 어긋난 수
+    // 이메일 계정 시험 입력
+    private string accountEmail = "";
+    private string accountPassword = "";
+    private string accountMessage = "";
+    private bool accountBusy;
     private Vector2 listScroll;
     private Vector2 logScroll;
     private readonly List<string> logs = new List<string>();
@@ -109,6 +114,24 @@ public class PhotonDebugPanel : MonoBehaviour
             _ = conn.Disconnect(); // 다음 접속부터 새 계정으로 인증한다
         }
         GUILayout.EndHorizontal();
+
+        // 이메일 계정 시험: 지금 계정에 이메일 붙이기 / 이메일로 로그인 / 비밀번호 재설정 메일
+        GUILayout.Label($"계정: {(identity.HasEmail ? "이메일 연결됨 (" + identity.Email + ")" : "익명 (이메일 없음)")}");
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("이메일", GUILayout.Width(60));
+        accountEmail = GUILayout.TextField(accountEmail);
+        GUILayout.Label("비밀번호", GUILayout.Width(70));
+        accountPassword = GUILayout.PasswordField(accountPassword, '*');
+        GUILayout.EndHorizontal();
+        GUILayout.BeginHorizontal();
+        GUI.enabled = !accountBusy;
+        if (GUILayout.Button("이메일 붙이기(가입)")) RunAccount(() => identity.RegisterEmailAsync(accountEmail, accountPassword));
+        if (GUILayout.Button("이메일로 로그인")) RunAccount(() => identity.LoginWithEmailAsync(accountEmail, accountPassword));
+        if (GUILayout.Button("비밀번호 재설정 메일")) RunAccount(() => identity.RequestPasswordResetAsync(accountEmail));
+        if (GUILayout.Button("계정 확인")) RunAccount(async () => (await identity.RefreshAccountInfoAsync()) ? AccountResult.Success("확인했습니다") : AccountResult.Fail("ERROR", "확인하지 못했습니다"));
+        GUI.enabled = true;
+        GUILayout.EndHorizontal();
+        if (!string.IsNullOrEmpty(accountMessage)) GUILayout.Label(accountMessage);
 
         // 인터넷을 끊지 않고 "연결 실패 → 혼자 하기 전환"을 확인하는 방법:
         // 흉내를 고르고 → 아래 "연결 끊기"를 누른 뒤 → 로비 화면의 새로고침을 누른다.
@@ -282,6 +305,27 @@ public class PhotonDebugPanel : MonoBehaviour
     }
 
     // 방 목록에 보일 이름: 만들 때 넣은 name 속성, 없으면 방 번호
+    // 계정 요청을 하나씩 돌리고 결과 문장을 보여 준다. 입력한 비밀번호는 요청이 끝나면 지운다.
+    private async void RunAccount(System.Func<System.Threading.Tasks.Task<AccountResult>> action)
+    {
+        accountBusy = true;
+        accountMessage = "처리 중...";
+        try
+        {
+            AccountResult result = await action();
+            accountMessage = (result.Ok ? "성공" : "실패") + (string.IsNullOrEmpty(result.Message) ? "" : ": " + result.Message);
+        }
+        catch (System.Exception e)
+        {
+            accountMessage = "오류: " + e.Message;
+        }
+        finally
+        {
+            accountPassword = "";
+            accountBusy = false;
+        }
+    }
+
     private static string DisplayName(SessionInfo info)
     {
         if (info.Properties != null && info.Properties.TryGetValue("name", out SessionProperty property) && property.IsString)

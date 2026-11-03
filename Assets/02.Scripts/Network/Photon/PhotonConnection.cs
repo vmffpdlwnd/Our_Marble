@@ -28,7 +28,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "3";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "7-3.1";
+    public const string CodeRevision = "8-1.1";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -125,6 +125,14 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         GameBridge = new PhotonGameBridge(this);
         Identity = new PlayFabIdentity(Add);
         Profile = new PlayFabProfile(Identity, Add);
+
+        // 다른 계정으로 바뀌면(이메일로 로그인 등) 이전 계정의 닉네임과 전적을 비우고, 이전 계정으로 맺은 Photon 연결을 끊는다.
+        // 다음 접속 때 새 계정의 PlayFab 인증으로 다시 연결한다.
+        Identity.AccountChanged += () =>
+        {
+            Profile.ResetForAccountChange();
+            _ = Disconnect();
+        };
     }
 
     // ───────────── 상태 조회 ─────────────
