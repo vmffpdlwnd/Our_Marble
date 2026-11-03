@@ -77,6 +77,9 @@ public class TitleManager : MonoBehaviour
 
         var toastTransform = uiRoot.Find("Canvas_Toast");
         if (toastTransform != null) toast = toastTransform.GetComponent<ToastView>();
+
+        // 이메일 계정 카드(로그인, 회원가입, 비밀번호 찾기). 씬에 카드가 없으면 건너뛰고 닉네임 시작만 쓴다.
+        gameObject.AddComponent<AccountCards>().Init(canvas, signupCard, nicknameInput, ShowToast);
         return true;
     }
 

@@ -55,6 +55,9 @@ public class PlayFabIdentity
     /// <summary>이 계정에 연결된 이메일 (연결돼 있지 않으면 null)</summary>
     public string Email { get; private set; }
 
+    /// <summary>서버에 저장된 이 계정의 표시 이름 (닉네임#끝글자). RefreshAccountInfoAsync가 읽어 온다. 없으면 null</summary>
+    public string ServerDisplayName { get; private set; }
+
     public PlayFabIdentity(Action<string> log, string[] commandLineArgs = null)
     {
         this.log = log ?? (_ => { });
@@ -114,6 +117,7 @@ public class PlayFabIdentity
         LastError = null;
         HasEmail = false;
         Email = null;
+        ServerDisplayName = null;
         log("다른 사용자로 시작합니다. 다음 접속부터 새 PlayFab 계정을 씁니다");
         Changed?.Invoke();
         AccountChanged?.Invoke();
@@ -310,11 +314,13 @@ public class PlayFabIdentity
             if (!result.Ok) return false;
 
             string email = (string)result.Data["AccountInfo"]?["PrivateInfo"]?["Email"];
+            string displayName = (string)result.Data["AccountInfo"]?["TitleInfo"]?["DisplayName"];
             bool has = !string.IsNullOrEmpty(email);
-            if (has != HasEmail || email != Email)
+            if (has != HasEmail || email != Email || displayName != ServerDisplayName)
             {
                 HasEmail = has;
                 Email = has ? email : null;
+                ServerDisplayName = string.IsNullOrEmpty(displayName) ? null : displayName;
                 Changed?.Invoke();
             }
             return true;

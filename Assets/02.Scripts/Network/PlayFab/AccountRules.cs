@@ -56,7 +56,7 @@ public static class AccountRules
             case "EmailRecipientBlacklisted": return "이 이메일로는 메일을 보낼 수 없어요";
             case "SmtpAddonNotEnabled": return "메일 발송 설정이 아직 준비되지 않았어요";
             case "NETWORK":
-            case "TIMEOUT": return "서버에 연결하지 못했어요. 인터넷을 확인해 주세요";
+            case "TIMEOUT": return "서버에 연결하지 못했어요. 연결 상태를 확인해 주세요";
             case "NOT_LOGGED_IN": return "서버에 로그인하지 못했어요";
             default: return $"처리하지 못했어요 ({errorCode})";
         }
