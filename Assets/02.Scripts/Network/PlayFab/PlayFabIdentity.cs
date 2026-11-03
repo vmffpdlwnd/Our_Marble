@@ -43,6 +43,18 @@ public class PlayFabIdentity
     /// <summary>로그인 상태나 사용자가 바뀌었을 때 불린다. (테스트 창 표시용)</summary>
     public event Action Changed;
 
+    /// <summary>
+    /// 다른 계정으로 바뀌었을 때(이메일로 로그인, 다른 사용자로 시작) 불린다.
+    /// 이전 계정의 닉네임, 전적, Photon 접속을 이 계정에서 다시 받아야 한다.
+    /// </summary>
+    public event Action AccountChanged;
+
+    /// <summary>이 계정에 이메일이 연결돼 있는지. RefreshAccountInfoAsync나 이메일 가입, 로그인 뒤에 정해진다</summary>
+    public bool HasEmail { get; private set; }
+
+    /// <summary>이 계정에 연결된 이메일 (연결돼 있지 않으면 null)</summary>
+    public string Email { get; private set; }
+
     public PlayFabIdentity(Action<string> log, string[] commandLineArgs = null)
     {
         this.log = log ?? (_ => { });
@@ -100,8 +112,11 @@ public class PlayFabIdentity
         PlayFabId = null;
         NewlyCreated = false;
         LastError = null;
+        HasEmail = false;
+        Email = null;
         log("다른 사용자로 시작합니다. 다음 접속부터 새 PlayFab 계정을 씁니다");
         Changed?.Invoke();
+        AccountChanged?.Invoke();
     }
 
     // ───────────── 로그인 ─────────────
@@ -130,15 +145,8 @@ public class PlayFabIdentity
                 return false;
             }
 
-            sessionTicket = (string)result.Data["SessionTicket"];
-            PlayFabId = (string)result.Data["PlayFabId"];
-            NewlyCreated = (bool?)result.Data["NewlyCreated"] ?? false;
-            loggedInAt = Time.realtimeSinceStartup;
-            LastError = null;
-
-            if (string.IsNullOrEmpty(sessionTicket) || string.IsNullOrEmpty(PlayFabId))
+            if (!AcceptLogin(result.Data))
             {
-                sessionTicket = null;
                 Fail("PlayFab 로그인 응답에 세션 정보가 없습니다");
                 return false;
             }
@@ -152,6 +160,23 @@ public class PlayFabIdentity
             Fail("PlayFab 로그인 중 오류: " + e.Message);
             return false;
         }
+    }
+
+    // 로그인 응답의 세션 티켓과 PlayFab ID를 받아들인다. 응답에 없으면 false (이전 세션은 지운다)
+    private bool AcceptLogin(Newtonsoft.Json.Linq.JObject data)
+    {
+        sessionTicket = (string)data["SessionTicket"];
+        PlayFabId = (string)data["PlayFabId"];
+        NewlyCreated = (bool?)data["NewlyCreated"] ?? false;
+        loggedInAt = Time.realtimeSinceStartup;
+        LastError = null;
+
+        if (string.IsNullOrEmpty(sessionTicket) || string.IsNullOrEmpty(PlayFabId))
+        {
+            sessionTicket = null;
+            return false;
+        }
+        return true;
     }
 
     // ───────────── Photon 인증 ─────────────
@@ -239,10 +264,9 @@ public class PlayFabIdentity
         if (!await EnsureLoggedIn()) return PlayFabRest.Result.Fail("NOT_LOGGED_IN", LastError ?? "PlayFab에 로그인하지 못했습니다");
 
         PlayFabRest.Result result = await PlayFabRest.PostAsync(path, body, sessionTicket, RequestTimeoutSeconds);
-        if (!result.Ok && IsSessionProblem(result) && result.ErrorCode != "NameNotAvailable" && result.ErrorCode != "ProfaneDisplayName"
-            && result.ErrorCode != "InvalidParams")
+        if (!result.Ok && LooksLikeExpiredSession(result.ErrorCode))
         {
-            // 호출한 내용이 잘못된 것이 아니라 세션이 문제일 수 있다
+            // 호출한 내용이 잘못된 것이 아니라 세션이 끝난 경우에만 다시 로그인한다
             log("PlayFab 세션이 끝난 것 같아 다시 로그인합니다");
             sessionTicket = null;
             if (!await EnsureLoggedIn()) return PlayFabRest.Result.Fail("NOT_LOGGED_IN", LastError ?? "PlayFab에 로그인하지 못했습니다");
@@ -250,6 +274,9 @@ public class PlayFabIdentity
         }
         return result;
     }
+
+    private static bool LooksLikeExpiredSession(string errorCode) =>
+        errorCode == "NotAuthenticated" || errorCode == "InvalidSessionTicket" || errorCode == "ExpiredAuthToken";
 
     private Task<PlayFabRest.Result> RequestPhotonToken(string photonAppId)
     {
@@ -267,5 +294,150 @@ public class PlayFabIdentity
         LastError = message;
         log(message);
         Changed?.Invoke();
+    }
+
+    // ───────────── 이메일 계정 ─────────────
+
+    /// <summary>
+    /// 이 계정에 이메일이 연결돼 있는지 서버에서 확인한다. (화면에 "가입하기"를 보여 줄지 정하려고 로비가 뜰 때 부른다)
+    /// 확인하지 못해도 게임에는 영향이 없다.
+    /// </summary>
+    public async Task<bool> RefreshAccountInfoAsync()
+    {
+        try
+        {
+            PlayFabRest.Result result = await CallAsync("/Client/GetAccountInfo", new { });
+            if (!result.Ok) return false;
+
+            string email = (string)result.Data["AccountInfo"]?["PrivateInfo"]?["Email"];
+            bool has = !string.IsNullOrEmpty(email);
+            if (has != HasEmail || email != Email)
+            {
+                HasEmail = has;
+                Email = has ? email : null;
+                Changed?.Invoke();
+            }
+            return true;
+        }
+        catch (Exception e)
+        {
+            log("계정 정보를 확인하는 중 오류: " + e.Message);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 지금 쓰는 계정에 이메일과 비밀번호를 붙인다. (익명 계정을 이메일 계정으로 올린다. 닉네임과 전적은 그대로 이어진다)
+    /// 로그인 이름은 PlayFab이 요구해서 계정 ID로 자동으로 정한다. 사용자는 이메일로 로그인한다.
+    /// </summary>
+    public async Task<AccountResult> RegisterEmailAsync(string email, string password)
+    {
+        string problem = AccountRules.CheckEmail(email) ?? AccountRules.CheckPassword(password);
+        if (problem != null) return AccountResult.Invalid(problem);
+
+        try
+        {
+            if (!await EnsureLoggedIn()) return AccountResult.Fail("NOT_LOGGED_IN", AccountRules.MessageFor("NOT_LOGGED_IN"));
+
+            string trimmed = email.Trim();
+            PlayFabRest.Result result = await CallAsync("/Client/AddUsernamePassword", new { Username = PlayFabId, Email = trimmed, Password = password });
+            if (!result.Ok)
+            {
+                log($"이메일 가입 실패: {result.ErrorCode}");
+                return AccountResult.Fail(result.ErrorCode, AccountRules.MessageFor(result.ErrorCode));
+            }
+
+            HasEmail = true;
+            Email = trimmed;
+            log("이메일 계정으로 가입했습니다");
+            Changed?.Invoke();
+            return AccountResult.Success();
+        }
+        catch (Exception e)
+        {
+            log("이메일 가입 중 오류: " + e.Message);
+            return AccountResult.Fail("ERROR", "처리하지 못했어요");
+        }
+    }
+
+    /// <summary>
+    /// 이메일과 비밀번호로 로그인한다. 성공하면 이 기기가 그 계정으로 바뀌고, 이 기기의 사용자 값을 그 계정에 연결해서
+    /// 다음부터는 이메일을 다시 넣지 않아도 자동으로 그 계정으로 로그인된다.
+    /// (이 기기에서 쓰던 익명 계정은 더 이상 이 기기와 연결되지 않는다)
+    /// 실패하면 지금 계정과 세션은 그대로다.
+    /// </summary>
+    public async Task<AccountResult> LoginWithEmailAsync(string email, string password)
+    {
+        string problem = AccountRules.CheckEmail(email) ?? AccountRules.CheckPassword(password);
+        if (problem != null) return AccountResult.Invalid(problem);
+
+        try
+        {
+            string trimmed = email.Trim();
+            PlayFabRest.Result result = await PlayFabRest.PostAsync("/Client/LoginWithEmailAddress",
+                new { TitleId = PlayFabConfig.TitleId, Email = trimmed, Password = password }, null, RequestTimeoutSeconds);
+
+            if (!result.Ok)
+            {
+                log($"이메일 로그인 실패: {result.ErrorCode}");
+                return AccountResult.Fail(result.ErrorCode, AccountRules.MessageFor(result.ErrorCode));
+            }
+
+            // 성공한 응답만 받아들인다. 응답이 이상하면 지금 세션을 그대로 둔다.
+            string oldTicket = sessionTicket, oldId = PlayFabId; bool oldNew = NewlyCreated; float oldAt = loggedInAt;
+            if (!AcceptLogin(result.Data))
+            {
+                sessionTicket = oldTicket; PlayFabId = oldId; NewlyCreated = oldNew; loggedInAt = oldAt;
+                return AccountResult.Fail("BAD_RESPONSE", "로그인 응답을 읽지 못했어요");
+            }
+
+            HasEmail = true;
+            Email = trimmed;
+            log($"이메일로 로그인했습니다: {PlayFabId}");
+
+            // 이 기기의 사용자 값을 이 계정에 연결한다. (이미 다른 계정에 연결돼 있으면 ForceLink로 옮긴다)
+            PlayFabRest.Result link = await CallAsync("/Client/LinkCustomID", new { CustomId = CustomId, ForceLink = true });
+            string warning = null;
+            if (!link.Ok)
+            {
+                log($"이 기기를 계정에 연결하지 못했습니다: {link.ErrorCode}");
+                warning = "이 기기에서 자동 로그인을 연결하지 못했어요. 다음에 실행하면 다시 로그인해야 할 수 있어요";
+            }
+
+            Changed?.Invoke();
+            AccountChanged?.Invoke();
+            return AccountResult.Success(warning);
+        }
+        catch (Exception e)
+        {
+            log("이메일 로그인 중 오류: " + e.Message);
+            return AccountResult.Fail("ERROR", "처리하지 못했어요");
+        }
+    }
+
+    /// <summary>비밀번호를 다시 정할 수 있는 링크를 이메일로 보낸다. (로그인하지 않은 상태에서도 쓴다)</summary>
+    public async Task<AccountResult> RequestPasswordResetAsync(string email)
+    {
+        string problem = AccountRules.CheckEmail(email);
+        if (problem != null) return AccountResult.Invalid(problem);
+
+        try
+        {
+            PlayFabRest.Result result = await PlayFabRest.PostAsync("/Client/SendAccountRecoveryEmail",
+                new { TitleId = PlayFabConfig.TitleId, Email = email.Trim() }, null, RequestTimeoutSeconds);
+
+            if (!result.Ok)
+            {
+                log($"비밀번호 재설정 메일 실패: {result.ErrorCode} {result.ErrorMessage}");
+                return AccountResult.Fail(result.ErrorCode, AccountRules.MessageFor(result.ErrorCode));
+            }
+
+            return AccountResult.Success("비밀번호를 다시 정하는 메일을 보냈어요. 메일함을 확인해 주세요");
+        }
+        catch (Exception e)
+        {
+            log("비밀번호 재설정 중 오류: " + e.Message);
+            return AccountResult.Fail("ERROR", "처리하지 못했어요");
+        }
     }
 }

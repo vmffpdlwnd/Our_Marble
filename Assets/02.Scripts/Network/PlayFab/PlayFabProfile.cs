@@ -59,6 +59,20 @@ public class PlayFabProfile
         this.log = log ?? (_ => { });
     }
 
+    /// <summary>
+    /// 다른 계정으로 바뀌었을 때 부른다. 이전 계정의 표시 이름과 전적을 지워서, 새 계정의 값을 다시 받아 오게 한다.
+    /// (이전 계정의 보관한 기록은 이전 계정의 것이라 새 계정에 더해지지 않는다)
+    /// </summary>
+    public void ResetForAccountChange()
+    {
+        DisplayName = null;
+        Games = 0;
+        Wins = 0;
+        RecordLoaded = false;
+        lastReportedSerial = -1;
+        RaiseChanged();
+    }
+
     // ───────────── 표시 이름 만들기와 닉네임 꺼내기 ─────────────
 
     /// <summary>닉네임과 계정 ID로 PlayFab 표시 이름을 만든다. 길이가 넘으면 닉네임을 자른다.</summary>
