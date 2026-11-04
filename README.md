@@ -104,7 +104,7 @@ Unity 6 (6000.3), C#, URP 2D, uGUI, TextMesh Pro, DOTween, Newtonsoft.Json
 - Build Settings에 씬을 `LoginScene`, `LobbyScene`, `GameScene` 순서로 등록해 둡니다. (`SceneFlow`가 등록된 씬만 불러오고, 씬 이름이 아니라 **경로**로 구분합니다. 씬 파일을 옮기거나 이름을 바꾸면 `SceneFlow`의 경로도 같이 고칩니다)
 - Web 빌드 설정에서 Compression Format을 **Disabled**로 둡니다. (itch.io 업로드용)
 - **Development Build는 끄고** 빌드합니다. (개발용 패널과 상태 비교 로그는 에디터와 개발 빌드에서만 나옵니다)
-- 버전은 `Edit > Project Settings > Player > Other Settings`의 Version에서 올립니다. (현재 1.0.1, 멀티 버전은 v1.1로 배포 예정)
+- 버전은 `Edit > Project Settings > Player > Other Settings`의 Version에서 올립니다. (현재 1.1)
 - 웹 빌드에서 Photon과 PlayFab 요청이 막히지 않는지는 **v1.1 배포 전에 확인**합니다. (에디터와 윈도우 빌드에서는 확인했습니다)
 - 결과는 `Builds/` 폴더 안에 만듭니다. (`.gitignore`에 포함)
 - itch.io에는 결과 폴더의 **내용물**(`index.html` 등)을 zip으로 묶어 올립니다.
