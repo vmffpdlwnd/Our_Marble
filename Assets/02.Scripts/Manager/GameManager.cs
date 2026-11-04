@@ -187,7 +187,8 @@ public class GameManager : Singleton<GameManager>
                 return;
         }
 
-        // 나머지는 모두 도착한 땅에 대한 선택이므로, 현재 위치의 땅 정보로 매개변수를 다시 계산합니다.
+        // 나머지는 모두 도착한 땅에 대한 선택이므로, 현재 위치의 땅 정보로 선택창에 넘길 값을 다시 구합니다.
+        // 구매 가능, 건설 가능, 인수가, 통행료는 처음 도착했을 때와 같은 규칙(Rules) 함수로 구합니다. 여기서 따로 계산하지 않습니다.
         TileData tile = BoardManager.Instance.GetTileData(player.Position);
         PropertyState propertyState = tile != null && tile.Type == TileType.PROPERTY ? GetPropertyState(tile.PropertyId) : null;
         if (propertyState == null)
@@ -200,28 +201,21 @@ public class GameManager : Singleton<GameManager>
         switch (gameState.WaitingType.Value)
         {
             case GameMessageType.PROPERTY_PURCHASED:
-            {
-                bool canAfford = player.Money >= PropertyManager.Instance.GetLandPrice(propertyId);
-                HandlePurchasePropertyPrompt(playerId, propertyId, canAfford);
+                HandlePurchasePropertyPrompt(playerId, propertyId, TradeRules.CheckPurchase(gameData, player, propertyState, true) == TradeError.None);
                 break;
-            }
+
             case GameMessageType.BUILT:
-            {
-                PropertyData data = PropertyManager.Instance.GetData(propertyId);
-                BuildingLevel level = propertyState.BuildingLevel;
-                bool canBuild = data != null && data.CanBuild && level != BuildingLevel.Hotel
-                                && player.Money >= PropertyManager.Instance.GetBuildCost(propertyId, (BuildingLevel)(level + 1));
-                HandleBuildPrompt(playerId, propertyId, canBuild);
+                HandleBuildPrompt(playerId, propertyId, TradeRules.CheckBuild(gameData, player, propertyState, true) == TradeError.None);
                 break;
-            }
+
             case GameMessageType.PROPERTY_ACQUIRED:
                 // 통행료는 서버에서 이미 낸 상태로 동기화되었습니다.
-                HandleAcquirePropertyPrompt(playerId, propertyId, PropertyManager.Instance.GetAcquireValue(propertyState));
+                HandleAcquirePropertyPrompt(playerId, propertyId, gameData.Properties.GetAcquireValue(propertyState));
                 break;
 
             case GameMessageType.PROPERTIES_SOLD:
                 if (propertyState.OwnerId == null) break;
-                HandleSellPropertiesPrompt(playerId, propertyState.OwnerId.Value, PropertyManager.Instance.GetToll(propertyState));
+                HandleSellPropertiesPrompt(playerId, propertyState.OwnerId.Value, gameData.Properties.GetToll(propertyState));
                 break;
         }
     }
