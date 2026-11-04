@@ -40,6 +40,18 @@ public static class AccountRules
         return null;
     }
 
+    /// <summary>
+    /// 이메일이 길면 앞부분만 남기고 끝을 "..."로 줄인다. (화면의 좁은 칸에 넣으려고)
+    /// 글꼴에 없는 글자(…)를 피하려고 점 세 개를 쓴다.
+    /// </summary>
+    public static string ShortenEmail(string email, int maxLength)
+    {
+        if (string.IsNullOrEmpty(email)) return "";
+        if (maxLength < 4 || email.Length <= maxLength) return email;
+
+        return email.Substring(0, maxLength - 3) + "...";
+    }
+
     /// <summary>서버 오류 이름을 사용자에게 보여 줄 문장으로 바꾼다.</summary>
     public static string MessageFor(string errorCode)
     {
