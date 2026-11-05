@@ -887,6 +887,13 @@ public class LobbyManager : MonoBehaviour
         RequestJoin(roomId);
     }
 
+    // 대기방의 방 코드 칩을 눌렀을 때: 코드를 복사하고 알려 준다. 웹 빌드는 복사하지 못해서 코드를 보여 주기만 한다.
+    private void CopyRoomCode(string code)
+    {
+        if (ClipboardCopy.Copy(code)) ShowToast("방 코드를 복사했어요");
+        else ShowToast($"방 코드 {code} (이 환경에서는 복사가 안 될 수 있어요)");
+    }
+
     // 코드로 입장: 방 코드를 넣는 창을 연다
     private void OpenJoinByCode()
     {
@@ -957,6 +964,7 @@ public class LobbyManager : MonoBehaviour
         try
         {
             roomSetup.SetRoomInfo(RoomTitle(room.roomName, host?.nickname));
+            roomSetup.SetRoomCode(RoomCodeRules.IsCode(room.roomId) ? RoomCodeRules.Format(room.roomId) : null, CopyRoomCode); // 혼자 하기의 방은 코드가 없어 칩을 숨긴다
             roomSetup.SetMapChoices(Maps, mapSprites, MapAvailable);
             roomSetup.SetLocalPlayer(Mathf.Max(0, local));
             roomSetup.SetHost(isHost);

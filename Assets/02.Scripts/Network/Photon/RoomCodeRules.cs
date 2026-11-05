@@ -43,6 +43,9 @@ public static class RoomCodeRules
         return Problem.None;
     }
 
+    /// <summary>방 코드 모양(8자리, 코드에 쓰는 글자만)이면 true. 혼자 하기의 "room-1" 같은 방 번호는 false다.</summary>
+    public static bool IsCode(string text) => Check(text, out _) == Problem.None;
+
     /// <summary>사용자에게 보여 줄 안내 문장. 문제가 없으면 null</summary>
     public static string MessageFor(Problem problem)
     {
