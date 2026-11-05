@@ -470,9 +470,13 @@ public class PhotonLobbyBridge : IHostRequestReceiver
                 return;
             }
 
-            if (!await connection.JoinRoom(roomId))
+            // 방 목록에 있는 방은 목록의 정보로 들어가고, 목록에 없는 방은 코드로 들어간다.
+            // (방 코드를 직접 입력해서 입장할 때, 방 목록이 아직 오지 않았거나 목록에 보이지 않는 방)
+            bool joined = target != null ? await connection.JoinRoom(roomId) : await connection.JoinRoomByCode(roomId);
+            if (!joined)
             {
-                DeliverError("ROOM_NOT_FOUND", "방이 사라졌거나 들어갈 수 없어요");
+                bool noSuchCode = target == null && connection.LastJoinRoomMissing;
+                DeliverError("ROOM_NOT_FOUND", noSuchCode ? "그 코드의 방이 없어요. 코드를 다시 확인해 주세요" : "방이 사라졌거나 들어갈 수 없어요");
                 return;
             }
 

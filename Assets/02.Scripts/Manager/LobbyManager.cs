@@ -175,6 +175,8 @@ public class LobbyManager : MonoBehaviour
     private Image profilePortraitImage;
     private PortraitPickerView portraitPicker;
     private Button quickStartButton, createRoomButton;
+    private Button joinByCodeButton;      // 코드로 입장 (SidePanel/JoinByCodeButton). 씬에 없으면 건너뛴다
+    private JoinByCodePopup joinByCode;   // 방 코드를 넣는 창 (Canvas_Password를 방 코드 입력 창으로 쓴다)
     private GameObject detailLockChip;
     private TMP_Text detailTitle, detailStatusText, detailMap, detailCount;
     private Image detailStatusChip;
@@ -378,6 +380,8 @@ public class LobbyManager : MonoBehaviour
         playerListCard = side.Find("PlayerListCard").gameObject;
         quickStartButton = Get<Button>(side, "QuickStartButton");
         createRoomButton = Get<Button>(side, "CreateRoomButton");
+        Transform joinByCodeTransform = side.Find("JoinByCodeButton");
+        joinByCodeButton = joinByCodeTransform != null ? joinByCodeTransform.GetComponent<Button>() : null;
 
         // 방 상세 카드
         detailCard = side.Find("RoomDetailCard").gameObject;
@@ -409,6 +413,11 @@ public class LobbyManager : MonoBehaviour
         }
 
         // 방 만들기 팝업: 서버로 보낼 수 있는 값은 맵과 최대 인원뿐이라 이름/비밀번호 칸은 숨긴다
+        // 코드로 입장: 씬에 있는 비밀번호 입력 창을 방 코드 입력 창으로 쓴다. 글자와 입력칸 설정은 코드가 바꾼다.
+        Transform codeCanvas = uiRoot.Find("Canvas_Password");
+        PopupView codePopup = codeCanvas != null ? codeCanvas.GetComponent<PopupView>() : null;
+        if (codePopup != null && joinByCodeButton != null) joinByCode = new JoinByCodePopup(codePopup, JoinByCode, ShowToast);
+
         createPopup = uiRoot.Find("Canvas_CreateRoom").GetComponent<PopupView>();
         var cw = createPopup.Window;
         Hide(cw, "NameSection");
@@ -450,6 +459,7 @@ public class LobbyManager : MonoBehaviour
         // 오른쪽 열
         quickStartButton.onClick.AddListener(QuickStart);
         createRoomButton.onClick.AddListener(OpenCreatePopup);
+        if (joinByCodeButton != null) joinByCodeButton.onClick.AddListener(OpenJoinByCode);
         if (profilePortraitButton != null) profilePortraitButton.onClick.AddListener(OpenPortraitPicker);
         detailClose.onClick.AddListener(Deselect);
         detailJoin.onClick.AddListener(() => { if (selectedId != null) TryJoin(selectedId); });
@@ -474,7 +484,8 @@ public class LobbyManager : MonoBehaviour
         if (!Input.GetKeyDown(KeyCode.Escape) || Busy) return;
         if (settingsView.IsOpen) return; // 설정 창은 닫기 버튼으로만 닫는다
         if (roomSetup != null && roomSetup.IsOpen) return; // 방 안에서는 X 버튼으로만 나간다
-        if (portraitPicker != null && portraitPicker.IsOpen) portraitPicker.Close();
+        if (joinByCode != null && joinByCode.IsOpen) joinByCode.Close();
+        else if (portraitPicker != null && portraitPicker.IsOpen) portraitPicker.Close();
         else if (createPopup.IsOpen) createPopup.Close();
         else if (selectedId != null) Deselect();
     }
@@ -759,6 +770,7 @@ public class LobbyManager : MonoBehaviour
         {
             EndRequest();
             createPopup.Close();
+            if (joinByCode != null && joinByCode.IsOpen) joinByCode.Close();
         }
 
         if (!notify) return;
@@ -865,6 +877,21 @@ public class LobbyManager : MonoBehaviour
         if (blocked != null) { ShowToast(blocked); return; }
         RequestJoin(roomId);
     }
+
+    // 코드로 입장: 방 코드를 넣는 창을 연다
+    private void OpenJoinByCode()
+    {
+        if (joinByCode == null || !CanRequest || inRoom) return;
+        if (connection == ConnectionState.Offline)
+        {
+            ShowToast("혼자 하기에서는 방 코드로 입장할 수 없어요");
+            return;
+        }
+        joinByCode.Open();
+    }
+
+    // 창에서 올바른 코드를 넣고 입장을 눌렀을 때. 방 목록에서 고른 방에 들어가는 것과 같은 요청을 보낸다.
+    private void JoinByCode(string code) => RequestJoin(code);
 
     private void QuickStart()
     {

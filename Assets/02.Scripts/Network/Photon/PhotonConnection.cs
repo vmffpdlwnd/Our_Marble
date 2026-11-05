@@ -28,15 +28,15 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "3";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "9-1.1";
+    public const string CodeRevision = "9-2.1";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
 
     // 방 코드: 헷갈리는 글자(0, O, 1, I, L)를 뺀 31자에서 고른 무작위 8자리. (약 8천억 가지라서 겹칠 일이 사실상 없다)
     // Photon 세션 이름이 곧 방 코드다. 사람이 보는 방 이름은 방 속성(name)에 따로 둔다.
-    public const int CodeLength = 8;
-    private const string CodeAlphabet = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+    public const int CodeLength = RoomCodeRules.CodeLength;
+    private const string CodeAlphabet = RoomCodeRules.Alphabet; // 방 코드 규칙은 RoomCodeRules 한 곳에서 정한다
 
     public enum ConnectionState { Disconnected, JoiningLobby, InLobby, StartingSession, InSession }
 
@@ -182,8 +182,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     /// <summary>사람이 입력한 코드를 정리한다. (공백과 하이픈을 빼고 대문자로)</summary>
     public static string NormalizeCode(string input)
     {
-        if (string.IsNullOrEmpty(input)) return "";
-        return new string(input.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        return RoomCodeRules.Normalize(input);
     }
 
     /// <summary>화면에 보일 모양: ABCD-EFGH</summary>
