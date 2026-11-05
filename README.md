@@ -3,7 +3,7 @@
 > [Our-Marble/our-marble-client](https://github.com/Our-Marble/our-marble-client)를 포크한 프로젝트입니다.
 > 원본의 화면·연출·규칙을 바탕으로, **별도 서버 없이 방장이 게임 규칙을 돌리는 멀티플레이**(Photon Fusion Shared 모드)로 개조했습니다. 계정과 전적은 PlayFab을 씁니다.
 
-**[지금 플레이하기 (itch.io)](https://vmffpdlwnd35.itch.io/our-marble)** · 브라우저에서 바로 실행됩니다.
+**[지금 플레이하기 (itch.io)](https://vmffpdlwnd35.itch.io/our-marble)** · 브라우저에서 바로 실행되고, Windows(.exe)용도 내려받을 수 있습니다.
 
 ## 소개
 
@@ -38,12 +38,12 @@
 - [x] Photon Fusion 연결 (Shared 모드: 로비, 방, 방장 판정, 방장 승계, 재접속)
 - [x] PlayFab 계정 (익명 로그인, Photon 인증, 닉네임, 전적)
 - [x] 이메일 계정 (회원가입, 로그인, 비밀번호 찾기)
-- [ ] 웹(WebGL) 빌드에서 Photon과 PlayFab 확인
-- [ ] v1.1 배포
+- [x] 웹(WebGL) 빌드에서 Photon과 PlayFab 확인
+- [x] v1.1 배포 (웹, Windows)
 
 ## 현재 상태
 
-**itch.io에 배포된 버전(v1.0.1)은 혼자(봇과 함께) 하는 버전입니다.** 개발 중인 `dev`에는 친구와 함께 하는 멀티플레이(방 만들기와 입장, 방장 판정, 방장 승계, 끊겼을 때 자동 재연결과 이어하기)와 PlayFab 계정, 전적이 들어 있고, 웹 빌드 확인 뒤 v1.1로 배포할 예정입니다. Photon이나 PlayFab에 연결하지 못하면 자동으로 혼자 하기(오프라인)로 전환됩니다.
+**itch.io에는 v1.1이 배포돼 있습니다 (웹 브라우저, Windows .exe).** 친구와 함께 하는 멀티플레이(방 만들기와 입장, 방장 판정, 방장 승계, 끊겼을 때 자동 재연결과 이어하기)와 PlayFab 계정, 전적을 쓸 수 있습니다. 웹과 Windows 사용자가 같은 방에서 함께 할 수 있습니다. Photon이나 PlayFab에 연결하지 못하면 자동으로 혼자 하기(오프라인)로 전환됩니다.
 
 ## 기술 스택
 
@@ -75,7 +75,7 @@ Unity 6 (6000.3), C#, URP 2D, uGUI, TextMesh Pro, DOTween, Newtonsoft.Json
 
 ### 알려진 한계
 
-- 웹(WebGL)에서는 브라우저가 뒤로 간 탭의 실행을 멈추고 Photon이 약 10초 넘게 신호가 없으면 연결을 끊습니다. 탭이 돌아오면 대기방과 게임 중 모두 같은 방에 자동으로 다시 들어가지만, 방장이 혼자 있는 방은 사라져 돌아올 수 없습니다. 방장은 게임 탭을 앞에 두세요.
+- 웹(WebGL)에서는 브라우저가 뒤로 간 탭의 실행을 멈추고 Photon이 약 10초 넘게 신호가 없으면 연결을 끊습니다. 탭이 돌아오면 대기방과 게임 중 모두 같은 방에 자동으로 다시 들어가지만, 방장이 혼자 있는 방은 사라져 돌아올 수 없습니다. 방장은 게임 탭을 앞에 두거나, 창이 뒤로 가도 계속 실행되는 Windows(.exe)를 쓰세요.
 - 사람이 혼자(봇만) 있는 방은 그 사람이 끊기면 방이 사라져 돌아올 수 없습니다. (사람이 없는 방을 살려 둘 이유가 없어서 의도한 동작입니다)
 - 진행 중인 게임을 다른 기기에서 이어서 할 수는 없습니다. (이어하기는 그 기기에 저장된 방 코드를 씁니다)
 - 전적은 클라이언트가 올리는 방식이라 조작할 수 있습니다.
@@ -107,6 +107,7 @@ Unity 6 (6000.3), C#, URP 2D, uGUI, TextMesh Pro, DOTween, Newtonsoft.Json
 - Web 빌드 설정에서 Compression Format을 **Disabled**로 둡니다. (itch.io 업로드용)
 - **Development Build는 끄고** 빌드합니다. (개발용 패널과 상태 비교 로그는 에디터와 개발 빌드에서만 나옵니다)
 - 버전은 `Edit > Project Settings > Player > Other Settings`의 Version에서 올립니다. (현재 1.1)
-- 웹 빌드에서 Photon과 PlayFab 요청이 막히지 않는지는 **v1.1 배포 전에 확인**합니다. (에디터와 윈도우 빌드에서는 확인했습니다)
+- 웹 빌드에서도 Photon과 PlayFab 요청이 막히지 않는 것을 v1.1에서 확인했습니다. 배포 환경이나 브라우저가 바뀌면 다시 확인합니다.
 - 결과는 `Builds/` 폴더 안에 만듭니다. (`.gitignore`에 포함)
 - itch.io에는 결과 폴더의 **내용물**(`index.html` 등)을 zip으로 묶어 올립니다.
+- Windows 빌드는 Development Build를 끄고, 빌드 폴더 **전체**(`.exe`, `_Data` 폴더 등)를 zip으로 묶어 올립니다. 서명하지 않은 exe는 처음 실행할 때 Windows 보호(SmartScreen) 경고가 뜨며, "추가 정보 → 실행"으로 넘어갑니다.
