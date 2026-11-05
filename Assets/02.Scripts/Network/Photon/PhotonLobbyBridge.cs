@@ -416,10 +416,14 @@ public class PhotonLobbyBridge : IHostRequestReceiver
                 return;
             }
 
-            // 방 이름은 화면이 정하지 않으므로 만든 사람의 이름으로 정한다.
+            // 방 이름은 방장이 정한 이름이고, 비우면 만든 사람의 이름으로 정한다. (호스트도 같은 요청으로 같은 이름을 저장한다)
             // 방 목록에 보일 속성(방장, 인원, 호스트 표시 등)은 방을 만들 때 함께 정해야 다른 PC의 방 목록에 보인다.
             // 화면이 고른 인원과 맵을 처음부터 반영한다. (Photon 방의 최대 인원은 만든 뒤에 못 바꿔서 4로 두고, 실제 자리는 게임 규칙이 막는다)
-            if (!await connection.CreateRoom(RoomNames.Default(LocalPlayer.Nickname), PhotonConnection.MaxHumansLimit, InitialRoomProperties(PeekRoomConfig())))
+            string roomName = null;
+            try { roomName = RoomNames.Sanitize(JsonConvert.DeserializeObject<CreateRoomRequest>(json)?.roomName); }
+            catch (Exception e) { Log("방 만들기 요청의 이름을 읽지 못해 기본 이름을 씁니다: " + e.Message); }
+
+            if (!await connection.CreateRoom(roomName ?? RoomNames.Default(LocalPlayer.Nickname), PhotonConnection.MaxHumansLimit, InitialRoomProperties(PeekRoomConfig())))
             {
                 DeliverError("CREATE_FAILED", "방을 만들지 못했어요");
                 return;

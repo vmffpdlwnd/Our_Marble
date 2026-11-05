@@ -188,6 +188,7 @@ public class LobbyManager : MonoBehaviour
 
     // 방 만들기 팝업
     private PopupView createPopup;
+    private TMP_InputField createNameInput;   // 방 이름 입력칸 (Canvas_CreateRoom/.../NameSection/NameInput). 씬에 없으면 이름 칸을 숨긴다
     private TMP_Text mapNameText;
     private Image mapPreviewImage;
     private Button prevMapButton, nextMapButton, createCancel, createConfirm, createClose;
@@ -412,7 +413,7 @@ public class LobbyManager : MonoBehaviour
             };
         }
 
-        // 방 만들기 팝업: 서버로 보낼 수 있는 값은 맵과 최대 인원뿐이라 이름/비밀번호 칸은 숨긴다
+        // 방 만들기 팝업: 맵, 최대 인원, 방 이름을 받는다. 서버가 비밀번호를 지원하지 않아서 비밀번호 칸은 숨긴다
         // 코드로 입장: 씬에 있는 비밀번호 입력 창을 방 코드 입력 창으로 쓴다. 글자와 입력칸 설정은 코드가 바꾼다.
         Transform codeCanvas = uiRoot.Find("Canvas_Password");
         PopupView codePopup = codeCanvas != null ? codeCanvas.GetComponent<PopupView>() : null;
@@ -420,7 +421,15 @@ public class LobbyManager : MonoBehaviour
 
         createPopup = uiRoot.Find("Canvas_CreateRoom").GetComponent<PopupView>();
         var cw = createPopup.Window;
-        Hide(cw, "NameSection");
+        Transform nameInputTransform = cw.Find("NameSection/NameInput");
+        createNameInput = nameInputTransform != null ? nameInputTransform.GetComponent<TMP_InputField>() : null;
+        if (createNameInput != null)
+        {
+            createNameInput.contentType = TMP_InputField.ContentType.Standard;
+            createNameInput.lineType = TMP_InputField.LineType.SingleLine;
+            createNameInput.characterLimit = RoomNames.MaxLength;
+        }
+        else Hide(cw, "NameSection"); // 입력칸이 없으면 이름 칸 전체를 숨긴다
         Hide(cw, "PasswordSection");
         mapNameText = Get<TMP_Text>(cw, "MapSection/MapNameText");
         mapPreviewImage = Get<Image>(cw, "MapSection/MapPreview/MapImage");
@@ -539,14 +548,14 @@ public class LobbyManager : MonoBehaviour
         Net.SendEnterRoomRequest(roomId);
     }
 
-    private void RequestCreate(int mapId, int maxPlayers)
+    private void RequestCreate(int mapId, int maxPlayers, string roomName = null)
     {
         if (!CanRequest) return;
         Debug.Log($"[Lobby] 방 생성 요청: 맵 {mapId}, {maxPlayers}명");
         Debug.Log("[Lobby] A");
         BeginRequest(Pending.Enter);
         Debug.Log("[Lobby] B");
-        Net.SendCreateRoomRequest();
+        Net.SendCreateRoomRequest(roomName);
 
         GameConfig config = new GameConfig();
         config.mapId = mapId;
@@ -1273,6 +1282,11 @@ public class LobbyManager : MonoBehaviour
         mapIndex = FirstAvailableMap();
         ShowMap();
         for (int i = 0; i < maxToggles.Length; i++) maxToggles[i].SetIsOnWithoutNotify(i == maxToggles.Length - 1);
+        if (createNameInput != null)
+        {
+            createNameInput.SetTextWithoutNotify("");
+            if (createNameInput.placeholder is TMP_Text namePlaceholder) namePlaceholder.text = RoomNames.Default(LocalPlayer.Nickname); // 비우면 이 이름이 된다
+        }
         createPopup.Open();
     }
 
@@ -1295,7 +1309,8 @@ public class LobbyManager : MonoBehaviour
     private void ConfirmCreate()
     {
         int max = 2 + Mathf.Max(0, Array.FindIndex(maxToggles, t => t.isOn)); // 최대 인원 토글은 2명부터
-        RequestCreate(mapIndex, max);
+        string roomName = RoomNames.Sanitize(createNameInput != null ? createNameInput.text : null); // 비우면 null이고, 만든 사람의 이름이 된다
+        RequestCreate(mapIndex, max, roomName);
         createPopup.Close();
     }
     #endregion

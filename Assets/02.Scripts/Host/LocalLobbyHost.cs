@@ -103,7 +103,7 @@ public class LocalLobbyHost : IHostRequestReceiver
         switch (type)
         {
             case "ROOM_LIST_REQUEST": HandleRoomList(senderId); break;
-            case "CREATE_ROOM": HandleCreateRoom(senderId); break;
+            case "CREATE_ROOM": HandleCreateRoom(senderId, JsonConvert.DeserializeObject<CreateRoomRequest>(json)); break;
             case "ENTER_ROOM": HandleEnterRoom(senderId, JsonConvert.DeserializeObject<EnterRoomRequest>(json)); break;
             case "LEAVE_ROOM": HandleLeaveRoom(senderId); break;
             case "SET_READY": HandleSetReady(senderId, JsonConvert.DeserializeObject<SetReadyRequest>(json)); break;
@@ -131,14 +131,14 @@ public class LocalLobbyHost : IHostRequestReceiver
         Send(senderId, LobbyMessageType.ROOM_LIST, new RoomListResponse { type = "ROOM_LIST", rooms = list });
     }
 
-    private void HandleCreateRoom(long senderId)
+    private void HandleCreateRoom(long senderId, CreateRoomRequest request)
     {
         if (roomOfPlayer.ContainsKey(senderId)) { SendError(senderId, "ALREADY_IN_ROOM", "이미 방에 들어가 있어요"); return; }
 
         Room room = new Room
         {
             Id = RoomIdFactory != null ? RoomIdFactory() : "room-" + nextRoomNumber++,
-            Name = RoomNames.Default(NicknameOf(senderId)), // 만든 사람의 닉네임으로 정한다. 방장이 바뀌어도 바뀌지 않는다
+            Name = RoomNames.Sanitize(request?.roomName) ?? RoomNames.Default(NicknameOf(senderId)), // 방장이 정한 이름, 비우면 만든 사람의 닉네임으로 정한다. 방장이 바뀌어도 바뀌지 않는다
             HostId = senderId,
             Status = RoomStatus.WAITING,
             Config = new GameConfig(),

@@ -190,12 +190,14 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
     public event Action<string, string> OnLobbyError;
     public event Action<long, string> OnChatBroadcast; // 보낸 사람 playerId, 내용
    
-    public void SendCreateRoomRequest()
+    /// <param name="roomName">방 이름. 비우면 만든 사람의 이름으로 정해진다.</param>
+    public void SendCreateRoomRequest(string roomName = null)
     {
         Debug.Log("[Net] C");
         CreateRoomRequest message = new CreateRoomRequest
         {
-            type = "CREATE_ROOM"
+            type = "CREATE_ROOM",
+            roomName = roomName,
         };
 
         string json = JsonConvert.SerializeObject(message);
