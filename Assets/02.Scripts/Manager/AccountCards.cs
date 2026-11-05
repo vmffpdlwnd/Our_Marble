@@ -19,6 +19,8 @@ public class AccountCards : MonoBehaviour
     private const string SavedEmailKey = "Login.SavedEmail";
     private const string SaveEmailKey = "Login.SaveEmail";
     private const string SavedNicknameKey = "Title.SavedNickname"; // TitleManager와 같은 키
+    private const float EntryButtonWidth = 480f; // 타이틀 카드의 링크 버튼 폭. 입력칸과 같게 한다
+    private const int EmailMaxChars = 26;        // 로그아웃 버튼에 보여 줄 이메일의 최대 글자 수
 
     private Transform titleCard;
     private Transform loginCard;
@@ -53,7 +55,7 @@ public class AccountCards : MonoBehaviour
         }
 
         emailLoginButton = entry.GetComponent<Button>();
-        emailLoginLabel = entry.Find("Label") != null ? entry.Find("Label").GetComponent<TMP_Text>() : entry.GetComponentInChildren<TMP_Text>();
+        emailLoginLabel = CenterLinkButton(entry, EntryButtonWidth); // 입력칸과 같은 폭으로 넓히고 가운데에 둔다 (로그아웃 때 붙는 이메일이 잘리지 않게)
 
         emailInput = GetComponentAt<TMP_InputField>(loginCard, "EmailInput");
         passwordInput = GetComponentAt<TMP_InputField>(loginCard, "PasswordInput");
@@ -69,6 +71,7 @@ public class AccountCards : MonoBehaviour
         }
 
         loginCard.gameObject.SetActive(false);
+        if (backButton != null) CenterLinkButton(backButton.transform, 0f); // 가운데에 둔다 (폭은 그대로)
 
         emailLoginButton.onClick.AddListener(OnEmailLoginButton);
         loginButton.onClick.AddListener(() => _ = LoginAsync());
@@ -97,6 +100,31 @@ public class AccountCards : MonoBehaviour
     private void Update()
     {
         if (loginCard != null && loginCard.gameObject.activeSelf && Input.GetKeyDown(KeyCode.Escape)) CloseLoginCard();
+    }
+
+    /// <summary>
+    /// 가운데에 놓는 링크 버튼을 정리한다. 이 버튼들은 로그인 카드의 "비밀번호 찾기"(카드 오른쪽 구석용)를 복사해 만든 것이라
+    /// 기준점(pivot)이 오른쪽 위이고 글자가 오른쪽 정렬이라서, 가운데에 놓으면 왼쪽으로 쏠려 보인다.
+    /// 기준점을 위쪽 가운데로 옮기고 글자를 가운데 정렬한다. width가 0보다 크면 폭도 그 값으로 바꾼다.
+    /// 글자 칸의 TMP_Text를 돌려준다. (없으면 null)
+    /// </summary>
+    private static TMP_Text CenterLinkButton(Transform button, float width)
+    {
+        if (button is RectTransform rect)
+        {
+            rect.pivot = new Vector2(0.5f, 1f);
+            if (width > 0f) rect.sizeDelta = new Vector2(width, rect.sizeDelta.y);
+        }
+
+        Transform labelTransform = button.Find("Label");
+        TMP_Text label = labelTransform != null ? labelTransform.GetComponent<TMP_Text>() : button.GetComponentInChildren<TMP_Text>();
+        if (label == null) return null;
+
+        label.alignment = TextAlignmentOptions.Center;
+        label.fontSizeMax = label.fontSize;   // 글자가 폭보다 길면 이 크기에서 줄어든다
+        label.fontSizeMin = 14f;
+        label.enableAutoSizing = true;
+        return label;
     }
 
     private static T GetComponentAt<T>(Transform root, string path) where T : Component
@@ -147,7 +175,7 @@ public class AccountCards : MonoBehaviour
     {
         if (emailLoginLabel == null) return;
 
-        emailLoginLabel.text = identity.HasEmail ? $"로그아웃 ({identity.Email})" : "이메일로 로그인";
+        emailLoginLabel.text = identity.HasEmail ? $"로그아웃 ({AccountRules.ShortenEmail(identity.Email, EmailMaxChars)})" : "이메일로 로그인";
     }
 
     // 로그아웃하면 이 기기는 새 익명 계정으로 시작한다. (이메일 계정은 이메일로 로그인해서 다시 쓸 수 있다)

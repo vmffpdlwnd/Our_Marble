@@ -45,3 +45,47 @@ public static class PhotonRejoinLoop
         return keepGoing() ? RejoinResult.TimedOut : RejoinResult.Cancelled;
     }
 }
+
+/// <summary>
+/// 다시 연결하는 흐름의 판단 규칙. 화면과 Photon 없이 값만으로 정하므로 Unity 없이 시험할 수 있다.
+/// </summary>
+public static class RejoinRules
+{
+    /// <summary>
+    /// 방에서 연결이 끊겼을 때 대기방에 다시 들어가 볼지.
+    /// 게임 화면이면 게임 쪽 자동 재연결이 맡고, 돌아갈 방 코드를 모르거나 이미 게임이 시작된 방이면 로비로 간다.
+    /// </summary>
+    public static bool ShouldRejoinWaitingRoom(bool inGameScene, bool hasRoomCode, bool roomWasPlaying)
+    {
+        return !inGameScene && hasRoomCode && !roomWasPlaying;
+    }
+
+    /// <summary>
+    /// 로비에 연결하기를 포기하고 혼자 하기로 넘어가기까지 다시 시도하는 전체 시간(초).
+    /// 연결된 적이 있다가 끊긴 경우는 길게 기다린다. (웹에서 탭이 뒤로 갔다 돌아온 직후처럼 잠깐 느린 것을 연결 실패로 보지 않으려고)
+    /// 처음 연결하는 경우는 인터넷이 없을 때 오래 기다리지 않게 짧게 한다.
+    /// </summary>
+    public static float LobbyGiveUpSeconds(bool everOnline, float firstConnectSeconds, float afterDropSeconds)
+    {
+        return everOnline ? afterDropSeconds : firstConnectSeconds;
+    }
+
+    /// <summary>
+    /// 대기방에 다시 들어가려는데 방장이 오류로 답했을 때, 해 봐야 소용없는지(RoomGone) 잠시 뒤 다시 해 볼 만한지(Retry).
+    /// 방이 사라졌거나, 게임이 시작됐거나, 가득 찬 경우는 포기한다. 그 밖에는 다시 해 본다.
+    /// (같은 사람의 예전 연결이 방장에게 아직 남아 있는 ALREADY_IN_ROOM은 곧 정리되므로 다시 해 본다)
+    /// </summary>
+    public static RejoinAttempt ClassifyEnterError(string errorCode)
+    {
+        switch (errorCode)
+        {
+            case "ROOM_NOT_FOUND":
+            case "ROOM_PLAYING":
+            case "ROOM_FULL":
+            case "NOT_REJOINABLE":
+                return RejoinAttempt.RoomGone;
+            default:
+                return RejoinAttempt.Retry;
+        }
+    }
+}
