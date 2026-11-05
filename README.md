@@ -98,7 +98,9 @@ Unity 6 (6000.3), C#, URP 2D, uGUI, TextMesh Pro, DOTween, Newtonsoft.Json
 - 처음 연 뒤 `.meta` 생성과 컴파일 에러를 확인하고 커밋합니다.
 - 아래 파일은 Unity가 자동으로 바꾸므로 커밋에서 제외합니다.
   - `Packages/packages-lock.json`
-- TextMeshPro 폰트는 **Static**이라 `Assets/Editor/FontChars.txt`에 없는 글자는 네모로 보입니다. 새 글자를 쓰면 이 파일에 추가하고 Font Asset Creator에서 같은 폰트를 다시 만듭니다. (Atlas Population Mode: Static, Character Set: Characters from File) 화면에 새 한국어 문구를 넣을 때는 글자가 이미 있는지 먼저 확인합니다. (예: `넷`은 없어서 "인터넷" 대신 "연결 상태"를 씁니다)
+- TextMeshPro 폰트(`Maplestory Bold`, `Maplestory Light`, `Pretendard`)는 **Static**이라 `Assets/Editor/FontChars.txt`에 있는 글자만 들어 있습니다. 그 밖의 글자(닉네임이나 채팅에 입력한 드문 한글 등)는 **동적 대체 글꼴**(`Maplestory Bold Dynamic SDF`, TMP Settings의 Fallback Font Assets에 등록)이 실행 중에 원본 글꼴에서 그려 줍니다. 처음 한 번 `Tools > Font > Create Dynamic Fallback Font`로 만들고 등록합니다.
+  - 에디터에서 실행하면 대체 글꼴이 그린 글자가 에셋에 저장되어 파일이 바뀐 것으로 잡힙니다. 커밋하기 전에 `Tools > Font > Reset Dynamic Fallback Font Data`를 누르거나 그 파일을 되돌립니다.
+  - 자주 쓰는 글자는 정적 글꼴에 있어야 빠릅니다. 새 한국어 문구를 많이 넣었다면 `Tools > Font > Extract Used Chars`로 `FontChars.txt`를 갱신하고 Font Asset Creator에서 정적 글꼴을 다시 만듭니다. (Atlas Population Mode: Static, Character Set: Characters from File)
 - 같은 파일이 계속 잡히면 `git update-index --skip-worktree <경로>`로 숨깁니다.
 
 ## 빌드 (WebGL)
