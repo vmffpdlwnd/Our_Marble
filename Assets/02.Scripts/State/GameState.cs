@@ -31,4 +31,5 @@ public class GameState
     // 서버가 주지 않으면 없음(상단바는 플레이어 수로 대신 표시한다)
     public long? HostId { get; set; }
     public int? MaxPlayers { get; set; }
+    public string RoomName { get; set; } // 방 이름. 재접속하거나 방장이 바뀌어도 상단바가 같은 이름을 보여 주려고 담는다 (없으면 방장 닉네임으로 대신 만든다)
 }

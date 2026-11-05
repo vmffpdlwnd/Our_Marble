@@ -820,6 +820,9 @@ public class LobbyManager : MonoBehaviour
     public static string RoomTitle(string hostNickname) =>
         string.IsNullOrEmpty(hostNickname) ? "이름 없는 방" : $"{hostNickname}의 방";
 
+    // 방에 저장된 이름이 있으면 그것을 쓴다. 방장이 바뀌어도 이름은 그대로다. 이름이 없는 옛 방만 방장 닉네임으로 대신 만든다.
+    public static string RoomTitle(string roomName, string hostNickname) => RoomNames.Resolve(roomName, hostNickname);
+
     private static bool IsHost(RoomSnapshot room) => room.hostId == MyPlayerId;
 
     /// <summary>못 들어가는 이유. 들어갈 수 있으면 null.</summary>
@@ -917,7 +920,7 @@ public class LobbyManager : MonoBehaviour
         applyingSnapshot = true;
         try
         {
-            roomSetup.SetRoomInfo(RoomTitle(host?.nickname));
+            roomSetup.SetRoomInfo(RoomTitle(room.roomName, host?.nickname));
             roomSetup.SetMapChoices(Maps, mapSprites, MapAvailable);
             roomSetup.SetLocalPlayer(Mathf.Max(0, local));
             roomSetup.SetHost(isHost);
@@ -1133,7 +1136,7 @@ public class LobbyManager : MonoBehaviour
         row.ThumbStroke.color = RowStroke;
         row.Lock.SetActive(false);                 // RoomSummary에 비밀번호 정보가 없다
         row.Number.text = (index + 1).ToString("00");
-        row.Name.text = RoomTitle(room.hostNickname);
+        row.Name.text = RoomTitle(room.roomName, room.hostNickname);
         row.Info.text = $"{MapName(room.mapId)} · 방장 {room.hostNickname}";
 
         row.Count.text = $"{room.playerCount} / {room.maxPlayers}";
@@ -1181,14 +1184,14 @@ public class LobbyManager : MonoBehaviour
         var room = Selected;
         if (room == null) return;
 
-        detailTitle.text = RoomTitle(room.hostNickname);
+        detailTitle.text = RoomTitle(room.roomName, room.hostNickname);
         detailLockChip.SetActive(false);
         bool full = IsFull(room);
         ApplyStatus(full, detailStatusChip, detailStatusText);
         detailMap.text = MapName(room.mapId);
         detailCount.text = $"{room.playerCount} / {room.maxPlayers}";
 
-        // RoomSummary에는 참가자 명단이 없어서 방장 이름과 인원 수만 보여 준다
+        // 참가자 명단이 있으면 자리마다 닉네임을 보여 준다. 명단이 없는 옛 방은 방장 이름과 인원 수만 보여 준다
         for (int i = 0; i < slots.Length; i++)
         {
             var s = slots[i];
@@ -1202,7 +1205,7 @@ public class LobbyManager : MonoBehaviour
             s.Ring.color = color;
             s.Portrait.color = color;
             s.Host.SetActive(i == 0);
-            s.Nick.text = i == 0 ? room.hostNickname : "참가자";
+            s.Nick.text = MemberLabel(room, i);
             s.Nick.color = UIPalette.Ink;
         }
 
@@ -1213,6 +1216,15 @@ public class LobbyManager : MonoBehaviour
         detailJoinImage.color = canJoin ? Mint : Neutral;
         detailJoinLabel.text = canJoin ? "참가하기" : "입장 불가";
         detailJoinLabel.color = canJoin ? Color.white : UIPalette.InkSub;
+    }
+
+    // 방 상세의 자리에 보여 줄 이름. 명단이 있으면 그 자리의 닉네임(봇도 이름 그대로), 없으면 예전처럼 방장 이름과 "참가자"
+    private static string MemberLabel(RoomSummary room, int index)
+    {
+        if (room.memberNicknames != null && index < room.memberNicknames.Count && !string.IsNullOrEmpty(room.memberNicknames[index]))
+            return room.memberNicknames[index];
+
+        return index == 0 ? room.hostNickname : "참가자";
     }
 
     private static void SetEmptySlot(SlotView s)

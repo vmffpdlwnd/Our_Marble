@@ -29,6 +29,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private const string KeyMap = "map";
     private const string KeyCount = "count";
     private const string KeyMax = "max";
+    private const string KeyMembers = "members"; // 참가자 닉네임 명단 (RoomMemberCodec). 방 목록에서 방을 눌렀을 때 이름을 보여 준다
     private const string KeyHosted = "hosted";   // 1이면 방장 PC가 로비 호스트(서버 역할)를 돌리고 있는 방. 게임 로비에서 만든 방이다
 
     private const string StateWaiting = "waiting";
@@ -364,11 +365,21 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private static RoomSummary ToSummary(SessionInfo info) => new RoomSummary
     {
         roomId = info.Name,
+        roomName = (StringProp(info, KeyState, StateWaiting) == StatePlaying ? "[이어하기] " : "") + StringProp(info, KeyName, ""),
         hostNickname = (StringProp(info, KeyState, StateWaiting) == StatePlaying ? "[이어하기] " : "") + StringProp(info, KeyHost, ""),
+        memberNicknames = DecodeMembers(info, out List<bool> memberBots),
+        memberBots = memberBots,
         mapId = IntProp(info, KeyMap, 0),
         playerCount = IntProp(info, KeyCount, info.PlayerCount),
         maxPlayers = IntProp(info, KeyMax, PhotonConnection.MaxHumansLimit),
     };
+
+    // 방 속성의 참가자 명단을 꺼낸다. 명단이 없는 방(이름 표시가 없던 옛 빌드가 만든 방)은 빈 목록이고, 화면이 예전 방식으로 보여 준다.
+    private static List<string> DecodeMembers(SessionInfo info, out List<bool> bots)
+    {
+        RoomMemberCodec.Decode(StringProp(info, KeyMembers, ""), out List<string> names, out bots);
+        return names;
+    }
 
     private static string StringProp(SessionInfo info, string key, string fallback)
     {
@@ -408,7 +419,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             // 방 이름은 화면이 정하지 않으므로 만든 사람의 이름으로 정한다.
             // 방 목록에 보일 속성(방장, 인원, 호스트 표시 등)은 방을 만들 때 함께 정해야 다른 PC의 방 목록에 보인다.
             // 화면이 고른 인원과 맵을 처음부터 반영한다. (Photon 방의 최대 인원은 만든 뒤에 못 바꿔서 4로 두고, 실제 자리는 게임 규칙이 막는다)
-            if (!await connection.CreateRoom($"{LocalPlayer.Nickname}의 방", PhotonConnection.MaxHumansLimit, InitialRoomProperties(PeekRoomConfig())))
+            if (!await connection.CreateRoom(RoomNames.Default(LocalPlayer.Nickname), PhotonConnection.MaxHumansLimit, InitialRoomProperties(PeekRoomConfig())))
             {
                 DeliverError("CREATE_FAILED", "방을 만들지 못했어요");
                 return;
@@ -772,6 +783,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         return new Dictionary<string, SessionProperty>
         {
             [KeyHost] = LocalPlayer.Nickname,
+            [KeyMembers] = RoomMemberCodec.Encode(new[] { LocalPlayer.Nickname }), // 나중에 갱신할 속성은 만들 때 이름을 정해 두어야 목록에 보인다
             [KeyMap] = map,
             [KeyCount] = 1 + bots,
             [KeyMax] = max,
@@ -792,9 +804,17 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         lastStatusPlaying = !waiting;
         PlayerSnapshot hostPlayer = room.Players.FirstOrDefault(p => p.playerId == room.hostId);
 
+        // 방장이 바뀌어도 방 이름은 그대로다. (방 이름은 방을 만들 때 방 정보에 저장돼 있다)
+        // 참가자 명단은 방장이 맨 앞, 그다음 다른 사람, 봇은 맨 뒤다.
+        List<PlayerSnapshot> ordered = room.Players.Where(p => p.playerId == room.hostId)
+            .Concat(room.Players.Where(p => p.playerId != room.hostId && !p.bot))
+            .Concat(room.Players.Where(p => p.playerId != room.hostId && p.bot))
+            .ToList();
+
         var properties = new Dictionary<string, SessionProperty>
         {
-            [KeyName] = hostPlayer != null ? hostPlayer.nickname + "의 방" : room.roomId,
+            [KeyName] = RoomNames.Resolve(room.roomName, hostPlayer?.nickname),
+            [KeyMembers] = RoomMemberCodec.Encode(ordered.Select(p => p.nickname).ToList(), ordered.Select(p => p.bot).ToList()),
             [KeyState] = waiting ? StateWaiting : StatePlaying,
             [KeyHost] = hostPlayer != null ? hostPlayer.nickname : "",
             [KeyMap] = room.mapId,
