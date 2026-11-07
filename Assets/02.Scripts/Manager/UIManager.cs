@@ -124,7 +124,7 @@ public class UIManager : MonoBehaviour
         if (room != null)
         {
             var host = room.Players?.Find(p => p.playerId == room.hostId);
-            topBar.SetRoom(LobbyManager.RoomTitle(host?.nickname));
+            topBar.SetRoom(LobbyManager.RoomTitle(room.roomName, host?.nickname));
             topBar.SetPlayerCount(room.Players != null ? room.Players.Count : 0, room.maxPlayers);
             return;
         }
@@ -133,7 +133,7 @@ public class UIManager : MonoBehaviour
         if (state.HostId.HasValue)
         {
             PlayerState host = GetPlayer(state.HostId.Value);
-            topBar.SetRoom(LobbyManager.RoomTitle(host?.Nickname));
+            topBar.SetRoom(LobbyManager.RoomTitle(state.RoomName, host?.Nickname));
         }
         int count = state.PlayerStates.Count;
         topBar.SetPlayerCount(count, state.MaxPlayers ?? count);

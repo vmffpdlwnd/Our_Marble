@@ -5,6 +5,7 @@ using System.Collections.Generic;
 public class RoomSnapshot
 {
     public string roomId;
+    public string roomName; // 방 이름. 방을 만들 때 정해서 방장이 바뀌어도 그대로다. 없으면(옛 방) 방장 닉네임으로 대신 만든다
     public long hostId;
     public int mapId;
     public RoomStatus status;

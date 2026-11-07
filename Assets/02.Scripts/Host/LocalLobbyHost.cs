@@ -29,6 +29,7 @@ public class LocalLobbyHost : IHostRequestReceiver
     private class Room
     {
         public string Id;
+        public string Name; // 방 이름. 방을 만들 때 정하고 방장이 바뀌어도 그대로 둔다
         public long HostId;
         public RoomStatus Status;
         public GameConfig Config;
@@ -102,7 +103,7 @@ public class LocalLobbyHost : IHostRequestReceiver
         switch (type)
         {
             case "ROOM_LIST_REQUEST": HandleRoomList(senderId); break;
-            case "CREATE_ROOM": HandleCreateRoom(senderId); break;
+            case "CREATE_ROOM": HandleCreateRoom(senderId, JsonConvert.DeserializeObject<CreateRoomRequest>(json)); break;
             case "ENTER_ROOM": HandleEnterRoom(senderId, JsonConvert.DeserializeObject<EnterRoomRequest>(json)); break;
             case "LEAVE_ROOM": HandleLeaveRoom(senderId); break;
             case "SET_READY": HandleSetReady(senderId, JsonConvert.DeserializeObject<SetReadyRequest>(json)); break;
@@ -130,13 +131,14 @@ public class LocalLobbyHost : IHostRequestReceiver
         Send(senderId, LobbyMessageType.ROOM_LIST, new RoomListResponse { type = "ROOM_LIST", rooms = list });
     }
 
-    private void HandleCreateRoom(long senderId)
+    private void HandleCreateRoom(long senderId, CreateRoomRequest request)
     {
         if (roomOfPlayer.ContainsKey(senderId)) { SendError(senderId, "ALREADY_IN_ROOM", "이미 방에 들어가 있어요"); return; }
 
         Room room = new Room
         {
             Id = RoomIdFactory != null ? RoomIdFactory() : "room-" + nextRoomNumber++,
+            Name = RoomNames.Sanitize(request?.roomName) ?? RoomNames.Default(NicknameOf(senderId)), // 방장이 정한 이름, 비우면 만든 사람의 닉네임으로 정한다. 방장이 바뀌어도 바뀌지 않는다
             HostId = senderId,
             Status = RoomStatus.WAITING,
             Config = new GameConfig(),
@@ -350,6 +352,10 @@ public class LocalLobbyHost : IHostRequestReceiver
         Room room = new Room
         {
             Id = snapshot.roomId,
+            // 이름 없이 저장된 방(옛 빌드가 만든 방)은 지금 방장의 닉네임으로 이름을 만들고, 그다음부터는 그 이름을 유지한다
+            Name = !string.IsNullOrWhiteSpace(snapshot.roomName)
+                ? snapshot.roomName
+                : RoomNames.Default(snapshot.Players?.FirstOrDefault(p => p.playerId == snapshot.hostId)?.nickname),
             HostId = snapshot.hostId,
             Status = snapshot.status,
             Config = snapshot.config == null ? new GameConfig() : JsonConvert.DeserializeObject<GameConfig>(JsonConvert.SerializeObject(snapshot.config)),
@@ -436,10 +442,20 @@ public class LocalLobbyHost : IHostRequestReceiver
     private static RoomSummary ToSummary(Room room)
     {
         Member host = room.Members.FirstOrDefault(m => m.Id == room.HostId);
+
+        // 참가자 명단: 방장이 맨 앞, 그다음 다른 사람, 봇은 맨 뒤
+        List<Member> ordered = room.Members.Where(m => m.Id == room.HostId)
+            .Concat(room.Members.Where(m => m.Id != room.HostId && !m.Bot))
+            .Concat(room.Members.Where(m => m.Id != room.HostId && m.Bot))
+            .ToList();
+
         return new RoomSummary
         {
             roomId = room.Id,
+            roomName = RoomNames.Resolve(room.Name, host?.Nickname),
             hostNickname = host != null ? host.Nickname : "",
+            memberNicknames = ordered.Select(m => m.Nickname).ToList(),
+            memberBots = ordered.Select(m => m.Bot).ToList(),
             mapId = room.Config.mapId,
             playerCount = room.Members.Count,
             maxPlayers = room.MaxPlayers,
@@ -451,6 +467,7 @@ public class LocalLobbyHost : IHostRequestReceiver
         return new RoomSnapshot
         {
             roomId = room.Id,
+            roomName = RoomNames.Resolve(room.Name, room.Members.FirstOrDefault(m => m.Id == room.HostId)?.Nickname),
             hostId = room.HostId,
             mapId = room.Config.mapId,
             status = room.Status,

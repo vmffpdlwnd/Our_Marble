@@ -90,6 +90,12 @@ public class RoomSetupView : UIView
     [SerializeField] private Button closeButton;
     [SerializeField] private Button applyButton;
     [SerializeField] private Button cancelButton;
+
+    // 오른쪽 위 방 코드 칩. 씬에 없고 SetRoomCode가 처음 불릴 때 "취소" 버튼을 복제해서 만든다
+    private Button codeChip;
+    private TMP_Text codeChipLabel;
+    private string shownCode;
+    private Action<string> onCodeClick;
     [SerializeField] private TMP_Text unappliedHintText;    // 적용하지 않은 변경이 있을 때 취소/적용 버튼 위에 뜨는 안내
     [SerializeField] private TMP_Text subtitleText;
     [SerializeField] private Button moneyPrevButton;
@@ -235,6 +241,58 @@ public class RoomSetupView : UIView
     }
 
     /// <summary>제목 옆 줄에 방 이름과 (있으면) 비밀번호를 보여 준다.</summary>
+    /// <summary>
+    /// 오른쪽 위에 "방 코드 ABCD-EFGH" 칩을 보여 준다. 누르면 onClick(코드)이 불린다.
+    /// code가 비어 있으면(방 코드가 없는 혼자 하기) 칩을 숨긴다. 칩은 씬을 고치지 않고 "취소" 버튼을 복제해서 만든다.
+    /// </summary>
+    public void SetRoomCode(string code, Action<string> onClick)
+    {
+        if (string.IsNullOrEmpty(code))
+        {
+            if (codeChip != null) codeChip.gameObject.SetActive(false);
+            return;
+        }
+
+        if (!EnsureCodeChip()) return;
+        shownCode = code;
+        onCodeClick = onClick;
+        codeChipLabel.text = $"방 코드  {code}  (눌러서 복사)";
+        codeChip.gameObject.SetActive(true);
+    }
+
+    private bool EnsureCodeChip()
+    {
+        if (codeChip != null) return true;
+        if (cancelButton == null) return false;
+
+        Transform window = transform.Find("RoomSetupPopup/Window");
+        if (window == null) return false;
+
+        GameObject copy = Instantiate(cancelButton.gameObject, window);
+        copy.name = "RoomCodeChip";
+        copy.SetActive(true);
+        copy.transform.SetAsLastSibling();
+
+        var rect = (RectTransform)copy.transform;
+        rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
+        rect.pivot = new Vector2(1f, 1f);
+        rect.anchoredPosition = new Vector2(-60f, -24f); // 제목 줄의 오른쪽 끝 (구분선과 같은 여백)
+        rect.sizeDelta = new Vector2(480f, 56f);
+
+        codeChip = copy.GetComponent<Button>();
+        if (codeChip == null) return false;
+        codeChip.onClick.RemoveAllListeners();
+        codeChip.onClick.AddListener(() => onCodeClick?.Invoke(shownCode));
+        codeChip.interactable = true; // 복제한 "취소" 버튼이 눌러지지 않는 상태였어도 칩은 항상 눌린다
+
+        codeChipLabel = copy.GetComponentInChildren<TMP_Text>(true);
+        if (codeChipLabel == null) return false;
+        codeChipLabel.enableAutoSizing = true;
+        codeChipLabel.fontSizeMax = 22f;
+        codeChipLabel.fontSizeMin = 16f;
+        return true;
+    }
+
     public void SetRoomInfo(string roomName, string password = null)
     {
         if (subtitleText == null) subtitleText = Find<TMP_Text>("RoomSetupPopup/Window/SubtitleText"); // 이미 만들어진 프리팹에는 연결돼 있지 않을 수 있다

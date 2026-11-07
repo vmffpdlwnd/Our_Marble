@@ -187,6 +187,7 @@ public class HostGameService : IHostRequestReceiver
             Config = config,
             HostId = room.hostId,
             MaxPlayers = room.maxPlayers,
+            RoomName = room.roomName,
         };
 
         Debug.Log($"[HostGameService] 게임 생성: 방 {roomId}, {players.Count}명, 땅 {properties.Count}개, 시작 자금 {config.startMoney}");

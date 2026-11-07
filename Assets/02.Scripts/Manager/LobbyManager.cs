@@ -175,6 +175,8 @@ public class LobbyManager : MonoBehaviour
     private Image profilePortraitImage;
     private PortraitPickerView portraitPicker;
     private Button quickStartButton, createRoomButton;
+    private Button joinByCodeButton;      // 코드로 입장 (SidePanel/JoinByCodeButton). 씬에 없으면 건너뛴다
+    private JoinByCodePopup joinByCode;   // 방 코드를 넣는 창 (Canvas_Password를 방 코드 입력 창으로 쓴다)
     private GameObject detailLockChip;
     private TMP_Text detailTitle, detailStatusText, detailMap, detailCount;
     private Image detailStatusChip;
@@ -186,6 +188,7 @@ public class LobbyManager : MonoBehaviour
 
     // 방 만들기 팝업
     private PopupView createPopup;
+    private TMP_InputField createNameInput;   // 방 이름 입력칸 (Canvas_CreateRoom/.../NameSection/NameInput). 씬에 없으면 이름 칸을 숨긴다
     private TMP_Text mapNameText;
     private Image mapPreviewImage;
     private Button prevMapButton, nextMapButton, createCancel, createConfirm, createClose;
@@ -378,6 +381,8 @@ public class LobbyManager : MonoBehaviour
         playerListCard = side.Find("PlayerListCard").gameObject;
         quickStartButton = Get<Button>(side, "QuickStartButton");
         createRoomButton = Get<Button>(side, "CreateRoomButton");
+        Transform joinByCodeTransform = side.Find("JoinByCodeButton");
+        joinByCodeButton = joinByCodeTransform != null ? joinByCodeTransform.GetComponent<Button>() : null;
 
         // 방 상세 카드
         detailCard = side.Find("RoomDetailCard").gameObject;
@@ -408,10 +413,23 @@ public class LobbyManager : MonoBehaviour
             };
         }
 
-        // 방 만들기 팝업: 서버로 보낼 수 있는 값은 맵과 최대 인원뿐이라 이름/비밀번호 칸은 숨긴다
+        // 방 만들기 팝업: 맵, 최대 인원, 방 이름을 받는다. 서버가 비밀번호를 지원하지 않아서 비밀번호 칸은 숨긴다
+        // 코드로 입장: 씬에 있는 비밀번호 입력 창을 방 코드 입력 창으로 쓴다. 글자와 입력칸 설정은 코드가 바꾼다.
+        Transform codeCanvas = uiRoot.Find("Canvas_Password");
+        PopupView codePopup = codeCanvas != null ? codeCanvas.GetComponent<PopupView>() : null;
+        if (codePopup != null && joinByCodeButton != null) joinByCode = new JoinByCodePopup(codePopup, JoinByCode, ShowToast);
+
         createPopup = uiRoot.Find("Canvas_CreateRoom").GetComponent<PopupView>();
         var cw = createPopup.Window;
-        Hide(cw, "NameSection");
+        Transform nameInputTransform = cw.Find("NameSection/NameInput");
+        createNameInput = nameInputTransform != null ? nameInputTransform.GetComponent<TMP_InputField>() : null;
+        if (createNameInput != null)
+        {
+            createNameInput.contentType = TMP_InputField.ContentType.Standard;
+            createNameInput.lineType = TMP_InputField.LineType.SingleLine;
+            createNameInput.characterLimit = RoomNames.MaxLength;
+        }
+        else Hide(cw, "NameSection"); // 입력칸이 없으면 이름 칸 전체를 숨긴다
         Hide(cw, "PasswordSection");
         mapNameText = Get<TMP_Text>(cw, "MapSection/MapNameText");
         mapPreviewImage = Get<Image>(cw, "MapSection/MapPreview/MapImage");
@@ -450,6 +468,7 @@ public class LobbyManager : MonoBehaviour
         // 오른쪽 열
         quickStartButton.onClick.AddListener(QuickStart);
         createRoomButton.onClick.AddListener(OpenCreatePopup);
+        if (joinByCodeButton != null) joinByCodeButton.onClick.AddListener(OpenJoinByCode);
         if (profilePortraitButton != null) profilePortraitButton.onClick.AddListener(OpenPortraitPicker);
         detailClose.onClick.AddListener(Deselect);
         detailJoin.onClick.AddListener(() => { if (selectedId != null) TryJoin(selectedId); });
@@ -474,7 +493,8 @@ public class LobbyManager : MonoBehaviour
         if (!Input.GetKeyDown(KeyCode.Escape) || Busy) return;
         if (settingsView.IsOpen) return; // 설정 창은 닫기 버튼으로만 닫는다
         if (roomSetup != null && roomSetup.IsOpen) return; // 방 안에서는 X 버튼으로만 나간다
-        if (portraitPicker != null && portraitPicker.IsOpen) portraitPicker.Close();
+        if (joinByCode != null && joinByCode.IsOpen) joinByCode.Close();
+        else if (portraitPicker != null && portraitPicker.IsOpen) portraitPicker.Close();
         else if (createPopup.IsOpen) createPopup.Close();
         else if (selectedId != null) Deselect();
     }
@@ -528,14 +548,14 @@ public class LobbyManager : MonoBehaviour
         Net.SendEnterRoomRequest(roomId);
     }
 
-    private void RequestCreate(int mapId, int maxPlayers)
+    private void RequestCreate(int mapId, int maxPlayers, string roomName = null)
     {
         if (!CanRequest) return;
         Debug.Log($"[Lobby] 방 생성 요청: 맵 {mapId}, {maxPlayers}명");
         Debug.Log("[Lobby] A");
         BeginRequest(Pending.Enter);
         Debug.Log("[Lobby] B");
-        Net.SendCreateRoomRequest();
+        Net.SendCreateRoomRequest(roomName);
 
         GameConfig config = new GameConfig();
         config.mapId = mapId;
@@ -759,6 +779,7 @@ public class LobbyManager : MonoBehaviour
         {
             EndRequest();
             createPopup.Close();
+            if (joinByCode != null && joinByCode.IsOpen) joinByCode.Close();
         }
 
         if (!notify) return;
@@ -820,6 +841,9 @@ public class LobbyManager : MonoBehaviour
     public static string RoomTitle(string hostNickname) =>
         string.IsNullOrEmpty(hostNickname) ? "이름 없는 방" : $"{hostNickname}의 방";
 
+    // 방에 저장된 이름이 있으면 그것을 쓴다. 방장이 바뀌어도 이름은 그대로다. 이름이 없는 옛 방만 방장 닉네임으로 대신 만든다.
+    public static string RoomTitle(string roomName, string hostNickname) => RoomNames.Resolve(roomName, hostNickname);
+
     private static bool IsHost(RoomSnapshot room) => room.hostId == MyPlayerId;
 
     /// <summary>못 들어가는 이유. 들어갈 수 있으면 null.</summary>
@@ -862,6 +886,28 @@ public class LobbyManager : MonoBehaviour
         if (blocked != null) { ShowToast(blocked); return; }
         RequestJoin(roomId);
     }
+
+    // 대기방의 방 코드 칩을 눌렀을 때: 코드를 복사하고 알려 준다. 웹 빌드는 복사하지 못해서 코드를 보여 주기만 한다.
+    private void CopyRoomCode(string code)
+    {
+        if (ClipboardCopy.Copy(code)) ShowToast("방 코드를 복사했어요");
+        else ShowToast($"방 코드 {code} (이 환경에서는 복사가 안 될 수 있어요)");
+    }
+
+    // 코드로 입장: 방 코드를 넣는 창을 연다
+    private void OpenJoinByCode()
+    {
+        if (joinByCode == null || !CanRequest || inRoom) return;
+        if (connection == ConnectionState.Offline)
+        {
+            ShowToast("혼자 하기에서는 방 코드로 입장할 수 없어요");
+            return;
+        }
+        joinByCode.Open();
+    }
+
+    // 창에서 올바른 코드를 넣고 입장을 눌렀을 때. 방 목록에서 고른 방에 들어가는 것과 같은 요청을 보낸다.
+    private void JoinByCode(string code) => RequestJoin(code);
 
     private void QuickStart()
     {
@@ -917,7 +963,8 @@ public class LobbyManager : MonoBehaviour
         applyingSnapshot = true;
         try
         {
-            roomSetup.SetRoomInfo(RoomTitle(host?.nickname));
+            roomSetup.SetRoomInfo(RoomTitle(room.roomName, host?.nickname));
+            roomSetup.SetRoomCode(RoomCodeRules.IsCode(room.roomId) ? RoomCodeRules.Format(room.roomId) : null, CopyRoomCode); // 혼자 하기의 방은 코드가 없어 칩을 숨긴다
             roomSetup.SetMapChoices(Maps, mapSprites, MapAvailable);
             roomSetup.SetLocalPlayer(Mathf.Max(0, local));
             roomSetup.SetHost(isHost);
@@ -1133,7 +1180,7 @@ public class LobbyManager : MonoBehaviour
         row.ThumbStroke.color = RowStroke;
         row.Lock.SetActive(false);                 // RoomSummary에 비밀번호 정보가 없다
         row.Number.text = (index + 1).ToString("00");
-        row.Name.text = RoomTitle(room.hostNickname);
+        row.Name.text = RoomTitle(room.roomName, room.hostNickname);
         row.Info.text = $"{MapName(room.mapId)} · 방장 {room.hostNickname}";
 
         row.Count.text = $"{room.playerCount} / {room.maxPlayers}";
@@ -1181,14 +1228,14 @@ public class LobbyManager : MonoBehaviour
         var room = Selected;
         if (room == null) return;
 
-        detailTitle.text = RoomTitle(room.hostNickname);
+        detailTitle.text = RoomTitle(room.roomName, room.hostNickname);
         detailLockChip.SetActive(false);
         bool full = IsFull(room);
         ApplyStatus(full, detailStatusChip, detailStatusText);
         detailMap.text = MapName(room.mapId);
         detailCount.text = $"{room.playerCount} / {room.maxPlayers}";
 
-        // RoomSummary에는 참가자 명단이 없어서 방장 이름과 인원 수만 보여 준다
+        // 참가자 명단이 있으면 자리마다 닉네임을 보여 준다. 명단이 없는 옛 방은 방장 이름과 인원 수만 보여 준다
         for (int i = 0; i < slots.Length; i++)
         {
             var s = slots[i];
@@ -1202,7 +1249,7 @@ public class LobbyManager : MonoBehaviour
             s.Ring.color = color;
             s.Portrait.color = color;
             s.Host.SetActive(i == 0);
-            s.Nick.text = i == 0 ? room.hostNickname : "참가자";
+            s.Nick.text = MemberLabel(room, i);
             s.Nick.color = UIPalette.Ink;
         }
 
@@ -1213,6 +1260,15 @@ public class LobbyManager : MonoBehaviour
         detailJoinImage.color = canJoin ? Mint : Neutral;
         detailJoinLabel.text = canJoin ? "참가하기" : "입장 불가";
         detailJoinLabel.color = canJoin ? Color.white : UIPalette.InkSub;
+    }
+
+    // 방 상세의 자리에 보여 줄 이름. 명단이 있으면 그 자리의 닉네임(봇도 이름 그대로), 없으면 예전처럼 방장 이름과 "참가자"
+    private static string MemberLabel(RoomSummary room, int index)
+    {
+        if (room.memberNicknames != null && index < room.memberNicknames.Count && !string.IsNullOrEmpty(room.memberNicknames[index]))
+            return room.memberNicknames[index];
+
+        return index == 0 ? room.hostNickname : "참가자";
     }
 
     private static void SetEmptySlot(SlotView s)
@@ -1234,6 +1290,11 @@ public class LobbyManager : MonoBehaviour
         mapIndex = FirstAvailableMap();
         ShowMap();
         for (int i = 0; i < maxToggles.Length; i++) maxToggles[i].SetIsOnWithoutNotify(i == maxToggles.Length - 1);
+        if (createNameInput != null)
+        {
+            createNameInput.SetTextWithoutNotify("");
+            if (createNameInput.placeholder is TMP_Text namePlaceholder) namePlaceholder.text = RoomNames.Default(LocalPlayer.Nickname); // 비우면 이 이름이 된다
+        }
         createPopup.Open();
     }
 
@@ -1256,7 +1317,8 @@ public class LobbyManager : MonoBehaviour
     private void ConfirmCreate()
     {
         int max = 2 + Mathf.Max(0, Array.FindIndex(maxToggles, t => t.isOn)); // 최대 인원 토글은 2명부터
-        RequestCreate(mapIndex, max);
+        string roomName = RoomNames.Sanitize(createNameInput != null ? createNameInput.text : null); // 비우면 null이고, 만든 사람의 이름이 된다
+        RequestCreate(mapIndex, max, roomName);
         createPopup.Close();
     }
     #endregion
