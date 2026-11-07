@@ -55,6 +55,12 @@ public static class SignupRules
     public const string LoginTitle = "이메일 로그인";
     public const string PendingTitle = "가입 이어서 하기";
 
+    // 이미 쓰는 이메일로 1단계를 눌렀을 때 (다른 기기에서 시작한 가입을 이어 갈 때, 새 계정으로 시작한 뒤, 이미 가입을 끝낸 이메일)
+    public const string ExistingTitle = "이미 있는 이메일";
+    public const string ExistingHint = "이미 있는 이메일이라 비밀번호를 정하는 메일을 보냈어요. 정한 비밀번호(이미 있다면 그 비밀번호)로 로그인해 주세요. 메일은 영어로 오고 안 보이면 스팸함을 확인해 주세요.";
+    public const string ExistingMailSentMessage = "이미 있는 이메일이에요. 비밀번호를 정하는 메일을 보냈어요";
+    public const string ExistingMailFailedMessage = "이미 있는 이메일이에요. 메일을 보내지 못했으니 메일 다시 보내기를 눌러 주세요";
+
     public const string LoginHint = "처음이면 이메일만 넣고 '이메일 인증'을 눌러 주세요. 연결한 이메일은 바꿀 수 없으니 주소를 정확히 확인해 주세요. 이미 가입했다면 비밀번호도 넣고 로그인해요.";
     public const string PendingHint = "메일의 링크에서 비밀번호를 정한 뒤 여기에 입력해 주세요. 메일은 영어로 오고 제목은 Our Marble account recovery예요. 안 보이면 스팸함을 확인해 주세요.";
 

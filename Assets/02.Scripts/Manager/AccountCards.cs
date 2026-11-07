@@ -15,6 +15,8 @@ using UnityEngine.UI;
 /// 가입은 두 단계다. (규칙은 SignupRules)
 ///   1단계  "이메일 인증"  이메일만 넣고 누르면 이메일이 계정에 붙고, 비밀번호를 정하는 메일이 간다.
 ///   2단계  "가입 완료"    메일의 링크에서 정한 비밀번호를 넣고 누르면 맞는지 확인하고 가입이 끝난다. 그다음 닉네임을 넣고 시작한다.
+/// 1단계에서 이미 쓰는 이메일이라고 나오면(다른 기기에서 시작한 가입, 새 계정으로 시작하기 전에 붙인 이메일 등) 막지 않고
+/// 비밀번호를 정하는 메일을 보낸 뒤 로그인으로 이어 준다.
 /// 1단계와 2단계 사이에 앱을 닫아도 타이틀 링크가 "가입 이어서 하기"로 보여서 이어 갈 수 있다.
 /// "로그인"은 이미 가입한 계정으로 바꾸는 것이다.
 ///
@@ -55,6 +57,7 @@ public class AccountCards : MonoBehaviour
     private PlayFabIdentity identity;
 
     private CardMode mode = CardMode.Login;
+    private bool existingEmail;       // 로그인 모드 중에서, 이미 쓰는 이메일로 1단계를 눌러서 로그인으로 이어 주는 모양인지
     private bool busy;
     private bool loginConfirmed;      // 익명 계정에서 로그인하면 사라진다는 안내를 한 번 보여 줬는지
     private bool newAccountConfirmed; // 가입 중인 계정을 버리고 새 계정으로 시작한다는 안내를 한 번 보여 줬는지
@@ -251,21 +254,25 @@ public class AccountCards : MonoBehaviour
         RefreshEntryButton();
     }
 
-    /// <summary>카드의 글자, 입력칸, 버튼 이름을 모드에 맞게 바꾼다. (카드가 이미 열려 있어도 쓸 수 있다)</summary>
-    private void ShowMode(CardMode newMode)
+    /// <summary>
+    /// 카드의 글자, 입력칸, 버튼 이름을 모드에 맞게 바꾼다. (카드가 이미 열려 있어도 쓸 수 있다)
+    /// existing은 로그인 모드에서 "이미 있는 이메일" 모양으로 보여 줄 때 true다.
+    /// </summary>
+    private void ShowMode(CardMode newMode, bool existing = false)
     {
         mode = newMode;
+        existingEmail = existing && newMode == CardMode.Login;
         loginConfirmed = false;
         newAccountConfirmed = false;
         passwordInput.SetTextWithoutNotify("");
 
         bool pending = newMode == CardMode.SignupPending;
 
-        SetText(titleText, pending ? SignupRules.PendingTitle : SignupRules.LoginTitle);
-        SetText(hintText, pending ? SignupRules.PendingHint : SignupRules.LoginHint);
+        SetText(titleText, pending ? SignupRules.PendingTitle : existingEmail ? SignupRules.ExistingTitle : SignupRules.LoginTitle);
+        SetText(hintText, pending ? SignupRules.PendingHint : existingEmail ? SignupRules.ExistingHint : SignupRules.LoginHint);
         SetText(loginLabel, pending ? SignupRules.CompleteLabel : SignupRules.LoginLabel);
         SetText(signupLabel, pending ? SignupRules.NewAccountLabel : SignupRules.SignupLabel);
-        SetText(forgotLabel, pending ? SignupRules.ResendLabel : SignupRules.ForgotLabel);
+        SetText(forgotLabel, pending || existingEmail ? SignupRules.ResendLabel : SignupRules.ForgotLabel);
         if (passwordPlaceholder != null && passwordPlaceholderDefault != null)
             passwordPlaceholder.text = pending ? SignupRules.PendingPasswordHint : passwordPlaceholderDefault;
 
@@ -396,7 +403,14 @@ public class AccountCards : MonoBehaviour
         {
             string email = emailInput.text.Trim();
             AccountResult result = await identity.StartEmailSignupAsync(email);
-            if (!result.Ok) { Fail(result.Message); return; }
+            if (!result.Ok)
+            {
+                // 이미 쓰는 이메일이면 막지 않고 로그인으로 이어 준다
+                if (result.ErrorCode == "EmailAddressNotAvailable") { await ContinueWithExistingEmailAsync(email); return; }
+
+                Fail(result.Message);
+                return;
+            }
 
             // 이메일이 붙었으니 이제 비밀번호 입력을 기다리는 상태다. 앱을 닫아도 이어 가려고 저장해 둔다.
             SavePending(email);
@@ -407,6 +421,19 @@ public class AccountCards : MonoBehaviour
             showToast(string.IsNullOrEmpty(result.Message) ? SignupRules.MailSentMessage : result.Message);
         }
         finally { SetBusy(false); }
+    }
+
+    // 이미 쓰는 이메일이다. (다른 기기에서 1단계를 한 가입을 이어 갈 때, "새 계정으로 시작"하기 전에 붙인 이메일일 때, 이미 가입을 끝낸 이메일일 때)
+    // 막다른 길로 두지 않고 비밀번호를 정하는 메일을 보낸 뒤, 정한 비밀번호(이미 있다면 그 비밀번호)로 로그인해서 그 계정으로 이어 가게 한다.
+    // 로그인은 기존 로그인과 같다. (이 기기의 익명 계정이 사라진다는 안내를 한 번 보여 주고, 그 계정의 닉네임을 닉네임 칸에 채운다)
+    private async Task ContinueWithExistingEmailAsync(string email)
+    {
+        AccountResult mail = await identity.RequestPasswordResetAsync(email);
+
+        ShowMode(CardMode.Login, true);
+        emailInput.SetTextWithoutNotify(email);
+        FocusFirstInput();
+        showToast(mail.Ok ? SignupRules.ExistingMailSentMessage : SignupRules.ExistingMailFailedMessage);
     }
 
     // 가입 2단계: 메일에서 정한 비밀번호가 맞는지 확인하고 가입을 끝낸다
