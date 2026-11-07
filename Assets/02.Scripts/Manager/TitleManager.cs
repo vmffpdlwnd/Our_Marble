@@ -75,6 +75,9 @@ public class TitleManager : MonoBehaviour
         SetText(signupCard, "BrandText", "닉네임 입력");
         SetText(signupCard, "CompleteSignupButton/Label", "시작");
 
+        // 타이틀 아래의 버전 글자는 씬에 v0.1.0으로 적혀 있어서, 실제 버전(Player Settings의 Version)으로 바꾼다
+        SetText(canvas, "VersionText", VersionLabel());
+
         var toastTransform = uiRoot.Find("Canvas_Toast");
         if (toastTransform != null) toast = toastTransform.GetComponent<ToastView>();
 
@@ -88,6 +91,16 @@ public class TitleManager : MonoBehaviour
         var t = root.Find(path);
         var label = t != null ? t.GetComponent<TMP_Text>() : null;
         if (label != null) label.text = text;
+    }
+
+    // 에디터와 개발 빌드에서는 코드 버전도 같이 보여 준다. (옛 빌드와 섞였을 때 구분하려고)
+    private static string VersionLabel()
+    {
+        string label = $"v{Application.version}";
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        label += $" ({PhotonConnection.CodeRevision})";
+#endif
+        return label;
     }
 
     private void WireEvents()
