@@ -55,6 +55,9 @@ public class PlayFabIdentity
     /// <summary>이 계정에 연결된 이메일 (연결돼 있지 않으면 null)</summary>
     public string Email { get; private set; }
 
+    /// <summary>서버에서 이 계정의 이메일을 확인했는지(또는 이메일을 붙이거나 로그인해서 알게 됐는지). 확인하기 전에는 HasEmail이 false여도 이메일이 없다는 뜻이 아니다.</summary>
+    public bool AccountInfoLoaded { get; private set; }
+
     /// <summary>서버에 저장된 이 계정의 표시 이름 (닉네임#끝글자). RefreshAccountInfoAsync가 읽어 온다. 없으면 null</summary>
     public string ServerDisplayName { get; private set; }
 
@@ -117,6 +120,7 @@ public class PlayFabIdentity
         LastError = null;
         HasEmail = false;
         Email = null;
+        AccountInfoLoaded = false;
         ServerDisplayName = null;
         log("다른 사용자로 시작합니다. 다음 접속부터 새 PlayFab 계정을 씁니다");
         Changed?.Invoke();
@@ -316,7 +320,9 @@ public class PlayFabIdentity
             string email = (string)result.Data["AccountInfo"]?["PrivateInfo"]?["Email"];
             string displayName = (string)result.Data["AccountInfo"]?["TitleInfo"]?["DisplayName"];
             bool has = !string.IsNullOrEmpty(email);
-            if (has != HasEmail || email != Email || displayName != ServerDisplayName)
+            bool firstTime = !AccountInfoLoaded;
+            AccountInfoLoaded = true;
+            if (firstTime || has != HasEmail || email != Email || displayName != ServerDisplayName)
             {
                 HasEmail = has;
                 Email = has ? email : null;
@@ -355,6 +361,7 @@ public class PlayFabIdentity
 
             HasEmail = true;
             Email = trimmed;
+            AccountInfoLoaded = true;
             log("이메일 계정으로 가입했습니다");
             Changed?.Invoke();
             return AccountResult.Success();
@@ -362,6 +369,88 @@ public class PlayFabIdentity
         catch (Exception e)
         {
             log("이메일 가입 중 오류: " + e.Message);
+            return AccountResult.Fail("ERROR", "처리하지 못했어요");
+        }
+    }
+
+    /// <summary>
+    /// 가입 1단계. 지금 계정에 이메일을 붙이고(아무도 모르는 임시 비밀번호로), 비밀번호를 정하는 메일을 보낸다.
+    /// 사용자는 메일의 링크에서 비밀번호를 정하고, CheckEmailPasswordAsync로 확인하면 가입이 끝난다.
+    /// 이메일을 붙이는 데 성공하면 Ok다. 메일 발송만 실패해도 이메일은 이미 붙었으므로 Ok이고 Message에 안내가 담긴다.
+    /// (이때는 RequestPasswordResetAsync로 메일을 다시 보내면 된다)
+    /// </summary>
+    public async Task<AccountResult> StartEmailSignupAsync(string email)
+    {
+        string problem = AccountRules.CheckEmail(email);
+        if (problem != null) return AccountResult.Invalid(problem);
+
+        try
+        {
+            if (!await EnsureLoggedIn()) return AccountResult.Fail("NOT_LOGGED_IN", AccountRules.MessageFor("NOT_LOGGED_IN"));
+
+            string trimmed = email.Trim();
+            PlayFabRest.Result result = await CallAsync("/Client/AddUsernamePassword",
+                new { Username = PlayFabId, Email = trimmed, Password = SignupRules.NewTemporaryPassword() });
+            if (!result.Ok)
+            {
+                log($"가입 1단계(이메일 연결) 실패: {result.ErrorCode}");
+                return AccountResult.Fail(result.ErrorCode, AccountRules.MessageFor(result.ErrorCode));
+            }
+
+            HasEmail = true;
+            Email = trimmed;
+            AccountInfoLoaded = true;
+            log("가입 1단계: 이메일을 연결했습니다. 비밀번호를 정하는 메일을 보냅니다");
+            Changed?.Invoke();
+
+            AccountResult mail = await RequestPasswordResetAsync(trimmed);
+            if (!mail.Ok)
+            {
+                log($"가입 1단계: 이메일은 연결했지만 메일을 보내지 못했습니다: {mail.ErrorCode}");
+                return AccountResult.Success(SignupRules.MailFailedMessage);
+            }
+
+            return AccountResult.Success();
+        }
+        catch (Exception e)
+        {
+            log("가입 1단계 중 오류: " + e.Message);
+            return AccountResult.Fail("ERROR", "처리하지 못했어요");
+        }
+    }
+
+    /// <summary>
+    /// 가입 2단계. 이메일과 비밀번호가 맞는지만 확인한다. (로그인해서 계정을 바꾸지 않는다. 이 이메일은 이미 지금 계정에 붙어 있다)
+    /// 이메일이 다른 계정에 연결돼 있으면 실패한다.
+    /// </summary>
+    public async Task<AccountResult> CheckEmailPasswordAsync(string email, string password)
+    {
+        string problem = AccountRules.CheckEmail(email) ?? AccountRules.CheckPassword(password);
+        if (problem != null) return AccountResult.Invalid(problem);
+
+        try
+        {
+            PlayFabRest.Result result = await PlayFabRest.PostAsync("/Client/LoginWithEmailAddress",
+                new { TitleId = PlayFabConfig.TitleId, Email = email.Trim(), Password = password }, null, RequestTimeoutSeconds);
+            if (!result.Ok)
+            {
+                log($"가입 2단계(비밀번호 확인) 실패: {result.ErrorCode}");
+                return AccountResult.Fail(result.ErrorCode, AccountRules.MessageFor(result.ErrorCode));
+            }
+
+            string id = (string)result.Data?["PlayFabId"];
+            if (!string.IsNullOrEmpty(PlayFabId) && !string.IsNullOrEmpty(id) && id != PlayFabId)
+            {
+                log($"가입 2단계: 이 이메일은 다른 계정({id})에 연결돼 있습니다");
+                return AccountResult.Fail("OTHER_ACCOUNT", AccountRules.MessageFor("OTHER_ACCOUNT"));
+            }
+
+            log("가입 2단계: 이메일과 비밀번호를 확인했습니다");
+            return AccountResult.Success();
+        }
+        catch (Exception e)
+        {
+            log("가입 2단계 중 오류: " + e.Message);
             return AccountResult.Fail("ERROR", "처리하지 못했어요");
         }
     }
@@ -399,6 +488,7 @@ public class PlayFabIdentity
 
             HasEmail = true;
             Email = trimmed;
+            AccountInfoLoaded = true;
             log($"이메일로 로그인했습니다: {PlayFabId}");
 
             // 이 기기의 사용자 값을 이 계정에 연결한다. (이미 다른 계정에 연결돼 있으면 ForceLink로 옮긴다)

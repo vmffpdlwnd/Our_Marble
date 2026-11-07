@@ -64,6 +64,7 @@ public static class AccountRules
             case "AccountNotFound": return "가입되지 않은 이메일이에요";
             case "AccountBanned": return "이용이 제한된 계정이에요";
             case "AccountAlreadyLinked": return "이미 이메일이 연결된 계정이에요";
+            case "OTHER_ACCOUNT": return "이 이메일은 다른 계정에 연결돼 있어요";
             case "NoContactEmailAddressFound": return "이 이메일로 가입된 계정이 없어요";
             case "EmailRecipientBlacklisted": return "이 이메일로는 메일을 보낼 수 없어요";
             case "SmtpAddonNotEnabled": return "메일 발송 설정이 아직 준비되지 않았어요";
