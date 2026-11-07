@@ -202,6 +202,7 @@ public class AccountCards : MonoBehaviour
         hintRect.sizeDelta = new Vector2(EntryButtonWidth, HintHeight);
 
         hintText.alignment = TextAlignmentOptions.Top;
+        hintText.textWrappingMode = TextWrappingModes.Normal; // 제목은 한 줄이라 줄바꿈이 꺼져 있다. 제목을 복제한 안내 글은 여러 줄로 감싸야 한다
         hintText.enableAutoSizing = true;
         hintText.fontSizeMax = 20f;
         hintText.fontSizeMin = 14f;
@@ -247,6 +248,7 @@ public class AccountCards : MonoBehaviour
         loginCard.gameObject.SetActive(false);
         titleCard.gameObject.SetActive(true);
         titleNicknameInput.ActivateInputField();
+        RefreshEntryButton();
     }
 
     /// <summary>카드의 글자, 입력칸, 버튼 이름을 모드에 맞게 바꾼다. (카드가 이미 열려 있어도 쓸 수 있다)</summary>
@@ -399,6 +401,7 @@ public class AccountCards : MonoBehaviour
             // 이메일이 붙었으니 이제 비밀번호 입력을 기다리는 상태다. 앱을 닫아도 이어 가려고 저장해 둔다.
             SavePending(email);
             SaveEmailIfWanted(email);
+            RefreshEntryButton(); // 이메일이 붙을 때 이미 한 번 불렸지만 그때는 기다림을 저장하기 전이라, 타이틀 링크를 "가입 이어서 하기"로 다시 바꾼다
             ShowMode(CardMode.SignupPending);
             FocusFirstInput();
             showToast(string.IsNullOrEmpty(result.Message) ? SignupRules.MailSentMessage : result.Message);
