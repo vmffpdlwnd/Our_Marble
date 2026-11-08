@@ -17,9 +17,12 @@ using UnityEngine.TextCore.LowLevel;
 ///
 /// 처음 한 번 Tools > Font > Create Dynamic Fallback Font 를 누른다. 이미 있으면 등록만 확인한다.
 ///
-/// 에디터에서 게임을 실행하면 대체 글꼴이 그린 글자(방 목록의 ·, 게임 중의 ● 같은 기호)가 에셋 파일에 저장되어
-/// Git에 변경된 파일로 계속 보인다. 그래서 에디터에서 플레이를 멈출 때마다 글자판을 자동으로 비운다.
-/// (빌드에는 영향이 없다. 빌드할 때도 비워진다. 실행 중에 필요한 글자는 다시 그려진다)
+/// 에디터에서 게임을 실행하거나 빌드하거나 글자가 보이는 씬을 열면, 대체 글꼴이 그린 글자(방 목록의 ·, 게임 중의 ● 같은 기호)가
+/// 에셋 파일에 저장되어 Git에 변경된 파일로 계속 보인다. 그래서 글자판을 자동으로 비운다.
+///   - 에디터에서 플레이를 멈출 때
+///   - Unity에서 다른 프로그램(Fork 등)으로 넘어갈 때 (커밋하러 가는 순간에 파일이 깨끗하도록)
+///   - 에디터를 종료할 때
+/// (빌드에는 영향이 없다. 실행 중에 필요한 글자는 다시 그려진다)
 /// </summary>
 [InitializeOnLoad]
 public static class FallbackFontTools
@@ -116,6 +119,10 @@ public static class FallbackFontTools
     {
         EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
         EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+        EditorApplication.focusChanged -= OnFocusChanged;
+        EditorApplication.focusChanged += OnFocusChanged;
+        EditorApplication.quitting -= OnQuitting;
+        EditorApplication.quitting += OnQuitting;
     }
 
     private static void OnPlayModeStateChanged(PlayModeStateChange state)
@@ -130,6 +137,29 @@ public static class FallbackFontTools
 
     private static void ClearAfterPlay()
     {
+        ClearIfDrawn("플레이를 멈춰서");
+    }
+
+    // Unity에서 다른 프로그램(Fork 등)으로 넘어갈 때: 커밋하러 가는 순간에 파일이 깨끗하도록 비운다.
+    // 플레이, 컴파일, 임포트, 빌드 중에는 건드리지 않는다.
+    private static void OnFocusChanged(bool hasFocus)
+    {
+        if (hasFocus) return;
+        if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+        if (BuildPipeline.isBuildingPlayer) return;
+
+        ClearIfDrawn("Unity를 벗어나서");
+    }
+
+    // 에디터를 종료할 때: 다음에 열었을 때 파일이 바뀐 채로 시작하지 않도록 비운다
+    private static void OnQuitting()
+    {
+        ClearIfDrawn("에디터를 종료해서");
+    }
+
+    // 대체 글꼴에 그려진 글자가 있으면 비운다. 이미 비어 있으면 파일을 건드리지 않는다
+    private static void ClearIfDrawn(string reason)
+    {
         TMP_FontAsset fallback = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FallbackAssetPath);
         if (fallback == null) return; // 아직 만들지 않았다
 
@@ -137,7 +167,7 @@ public static class FallbackFontTools
         if (drawn == 0) return; // 이미 비어 있다. 파일을 건드리지 않는다.
 
         ClearData(fallback);
-        Debug.Log($"[FallbackFont] 플레이를 멈춰서 대체 글꼴이 그린 글자 {drawn}개를 비웠습니다. (Git에 변경으로 남지 않게)");
+        Debug.Log($"[FallbackFont] {reason} 대체 글꼴이 그린 글자 {drawn}개를 비웠습니다. (Git에 변경으로 남지 않게)");
     }
 
     // 글자판을 비우고 저장한다
@@ -145,7 +175,7 @@ public static class FallbackFontTools
     {
         fallback.ClearFontAssetData(true);
         EditorUtility.SetDirty(fallback);
-        AssetDatabase.SaveAssets();
+        AssetDatabase.SaveAssetIfDirty(fallback); // 다른 에셋의 저장 안 한 변경까지 건드리지 않도록 이 에셋만 저장한다
     }
 
     // 예전에 만든 Maplestory Bold 동적 대체 글꼴을 목록에서 빼고 지운다. 있었으면 true

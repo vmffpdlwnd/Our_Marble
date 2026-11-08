@@ -104,7 +104,7 @@ Unity 6 (6000.3), C#, URP 2D, uGUI, TextMesh Pro, DOTween, Newtonsoft.Json
 - TextMeshPro 폰트(`Maplestory Bold`, `Maplestory Light`, `Pretendard`)는 **Static**이라 `Assets/Editor/FontChars.txt`에 있는 글자만 들어 있습니다. 이 목록은 `Tools > Font > Extract Used Chars`가 만들며, 기본 ASCII, `Assets/Editor/FontCharsBase.txt`(Maplestory가 실제로 그려 주는 한글 음절 2,479자와 자모 93자 전부), 프로젝트에 쓰인 한글을 합칩니다. 씬, 프리팹, 에셋 파일은 한글을 `\uD1B5`처럼 이스케이프로 저장하므로 도구가 풀어서 읽습니다.
   - `Maplestory`는 한글 11,172자 중 2,479자만 그려져 있고 나머지 8,693자(아주 드문 글자 대부분)는 **빈 그림이라 보이지 않습니다.** 그 글자는 **동적 대체 글꼴**(`Pretendard Dynamic SDF`, TMP Settings의 Fallback Font Assets에 등록)이 실행 중에 그려 줍니다. 처음 한 번 `Tools > Font > Create Dynamic Fallback Font`로 만들고 등록합니다. (`Pretendard`는 11,172자를 모두 그립니다.)
   - 정적 글꼴을 다시 만들 때는 Font Asset Creator에서 같은 원본 글꼴로 Atlas Population Mode: Static, Render Mode: SDFAA, Character Set: Characters from File(`FontChars.txt`)로 만듭니다. 권장 값은 `Maplestory Bold`가 샘플링 64, 여백 6, 4096×4096이고 `Maplestory Light`가 샘플링 56, 여백 5, 4096×4096입니다. 생성이 끝나면 **Characters Packed가 전체 글자 수와 같은지** 확인하고, 모자라면 샘플링을 낮춥니다.
-  - 대체 글꼴은 에디터에서 실행하면 그린 글자(방 목록의 `·`, 게임 중의 `●` 같은 기호)가 에셋에 저장되어 파일이 바뀐 것으로 잡힙니다. 그래서 **에디터에서 플레이를 멈출 때마다 글자판을 자동으로 비웁니다.** (`FallbackFontTools`) 빌드에는 영향이 없습니다. 에디터가 비정상으로 종료됐거나 이 기능을 넣기 전에 쌓인 글자는 `Tools > Font > Reset Dynamic Fallback Font Data`로 비웁니다.
+  - 대체 글꼴은 에디터에서 실행하거나 빌드하면 그린 글자(방 목록의 `·`, 게임 중의 `●` 같은 기호)가 에셋에 저장되어 파일이 바뀐 것으로 잡힙니다. 그래서 **에디터에서 플레이를 멈출 때, Unity에서 다른 프로그램(Fork 등)으로 넘어갈 때, 에디터를 종료할 때 글자판을 자동으로 비웁니다.** (`FallbackFontTools`) 빌드에는 영향이 없습니다. 에디터가 비정상으로 종료됐거나 이 기능을 넣기 전에 쌓인 글자는 `Tools > Font > Reset Dynamic Fallback Font Data`로 비웁니다.
 - 같은 파일이 계속 잡히면 `git update-index --skip-worktree <경로>`로 숨깁니다.
 
 ## 빌드 (WebGL)
