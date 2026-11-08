@@ -44,13 +44,12 @@
 - [x] 웹(WebGL) 빌드에서 Photon과 PlayFab 확인
 - [x] v1.1 배포 (웹, Windows)
 - [x] v1.1.1 배포 (방 코드 입장, 방 이름과 참가자 이름 표시, 이메일 가입 2단계, 글꼴 확대)
-- [x] 웹(WebGL)에서 한글 직접 입력과 방 코드 복사 (v1.1.2에 포함 예정)
-- [ ] v1.1.2 배포 (알려진 버그 수정)
+- [x] v1.1.2 배포 (웹에서 한글 직접 입력과 방 코드 복사, 대체 글꼴 자동 비우기)
 - [ ] v1.2 (파산 신청과 포기, 황금열쇠 종류 추가, 새 스테이지)
 
 ## 현재 상태
 
-**itch.io에는 v1.1.1이 배포돼 있습니다 (웹 브라우저, Windows .exe).** 친구와 함께 하는 멀티플레이(방 만들기와 입장, 방 코드로 입장, 방 이름, 방장 판정, 방장 승계, 끊겼을 때 자동 재연결과 이어하기)와 PlayFab 계정(이메일 가입은 메일에서 비밀번호를 정하는 2단계), 전적을 쓸 수 있습니다. 웹과 Windows 사용자가 같은 방에서 함께 할 수 있습니다. Photon이나 PlayFab에 연결하지 못하면 자동으로 혼자 하기(오프라인)로 전환됩니다.
+**itch.io에는 v1.1.2가 배포돼 있습니다 (웹 브라우저, Windows .exe).** 친구와 함께 하는 멀티플레이(방 만들기와 입장, 방 코드로 입장, 방 이름, 방장 판정, 방장 승계, 끊겼을 때 자동 재연결과 이어하기)와 PlayFab 계정(이메일 가입은 메일에서 비밀번호를 정하는 2단계), 전적을 쓸 수 있습니다. 웹과 Windows 사용자가 같은 방에서 함께 할 수 있고, 웹에서도 한글을 직접 칠 수 있으며 방 코드를 복사할 수 있습니다. Photon이나 PlayFab에 연결하지 못하면 자동으로 혼자 하기(오프라인)로 전환됩니다.
 
 ## 기술 스택
 
@@ -119,7 +118,7 @@ Unity 6 (6000.3), C#, URP 2D, uGUI, TextMesh Pro, DOTween, Newtonsoft.Json
 - Build Settings에 씬을 `LoginScene`, `LobbyScene`, `GameScene` 순서로 등록해 둡니다. (`SceneFlow`가 등록된 씬만 불러오고, 씬 이름이 아니라 **경로**로 구분합니다. 씬 파일을 옮기거나 이름을 바꾸면 `SceneFlow`의 경로도 같이 고칩니다)
 - Web 빌드 설정에서 Compression Format을 **Disabled**로 둡니다. (itch.io 업로드용)
 - **Development Build는 끄고** 빌드합니다. (개발용 패널과 상태 비교 로그는 에디터와 개발 빌드에서만 나옵니다)
-- 버전은 `Edit > Project Settings > Player > Other Settings`의 Version에서 올립니다. (현재 1.1.1)
+- 버전은 `Edit > Project Settings > Player > Other Settings`의 Version에서 올립니다. (현재 1.1.2)
 - 웹 빌드에서도 Photon과 PlayFab 요청이 막히지 않는 것을 v1.1에서 확인했습니다. 배포 환경이나 브라우저가 바뀌면 다시 확인합니다.
 - 결과는 `Builds/` 폴더 안에 만듭니다. (`.gitignore`에 포함)
 - itch.io에는 결과 폴더의 **내용물**(`index.html` 등)을 zip으로 묶어 올립니다.
