@@ -428,6 +428,7 @@ public class LobbyManager : MonoBehaviour
             createNameInput.contentType = TMP_InputField.ContentType.Standard;
             createNameInput.lineType = TMP_InputField.LineType.SingleLine;
             createNameInput.characterLimit = RoomNames.MaxLength;
+            WebIMEInput.Attach(createNameInput);
         }
         else Hide(cw, "NameSection"); // 입력칸이 없으면 이름 칸 전체를 숨긴다
         Hide(cw, "PasswordSection");

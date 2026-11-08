@@ -733,6 +733,7 @@ public class RoomSetupView : UIView
         {
             chatInput.characterLimit = ChatService.MaxLength;
             chatInput.onSubmit.AddListener(_ => SubmitChat());
+            WebIMEInput.Attach(chatInput, keepOpenOnSubmit: true); // 엔터로 보낸 뒤에도 계속 입력
         }
 
         // 말풍선은 이웃 자리 위에도 보여야 하므로 따로 정렬하는 캔버스를 단다
