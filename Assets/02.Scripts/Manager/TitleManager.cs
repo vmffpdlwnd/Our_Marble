@@ -70,6 +70,7 @@ public class TitleManager : MonoBehaviour
         nicknameInput = Find(signupCard, "NicknameInput")?.GetComponent<TMP_InputField>();
         startButton = Find(signupCard, "CompleteSignupButton")?.GetComponent<Button>();
         if (nicknameInput == null || startButton == null) return false;
+        WebIMEInput.Attach(nicknameInput); // 웹에서 한글을 칠 수 있게 한다 (웹이 아니면 아무 일도 안 함)
 
         // 가입 카드의 글자를 시작 화면에 맞게 바꾼다
         SetText(signupCard, "BrandText", "닉네임 입력");
