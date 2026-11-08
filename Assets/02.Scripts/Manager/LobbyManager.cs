@@ -888,7 +888,7 @@ public class LobbyManager : MonoBehaviour
         RequestJoin(roomId);
     }
 
-    // 대기방의 방 코드 칩을 눌렀을 때: 코드를 복사하고 알려 준다. 웹 빌드는 복사하지 못해서 코드를 보여 주기만 한다.
+    // 대기방의 방 코드 칩을 눌렀을 때: 코드를 복사하고 알려 준다. 복사하지 못하면 코드를 보여 주기만 한다. (웹은 브라우저가 막으면 복사가 안 될 수 있다)
     private void CopyRoomCode(string code)
     {
         if (ClipboardCopy.Copy(code)) ShowToast("방 코드를 복사했어요");
