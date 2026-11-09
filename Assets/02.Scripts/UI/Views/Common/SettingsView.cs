@@ -21,6 +21,9 @@ public class SettingsView : UIView
     private static readonly Color SwitchOn = UIPalette.Mint;
     private static readonly Color SwitchOff = new Color32(205, 210, 224, 255);
 
+    private const float RowStep = 112f;            // 설정 한 줄(96)과 줄 사이 간격(16). 배경음과 효과음 줄 사이 간격과 같다.
+    private const float LanguageButtonWidth = 180f;
+
     /// <summary>스위치와 슬라이더 한 줄(배경음 또는 효과음).</summary>
     [System.Serializable]
     private class Channel
@@ -67,6 +70,7 @@ public class SettingsView : UIView
         SetupChannel(bgm, BgmKey, BgmOnKey);
         SetupChannel(sfx, SfxKey, SfxOnKey);
         SetOnClick(confirmButton, Close);
+        BuildLanguageSection();
     }
 
     private void SetupChannel(Channel c, string volumeKey, string onKey)
@@ -116,5 +120,79 @@ public class SettingsView : UIView
             group.interactable = on;
             group.alpha = on ? 1f : 0.45f;
         }
+    }
+
+    // ───────────── 언어 선택 줄 ─────────────
+    // 프리팹을 고치지 않고 코드로 만든다. 효과음 줄을 복사해 같은 배경 모양을 쓰고, 그 아래에 한 줄을 더한다.
+
+    private Button koreanButton, englishButton;
+
+    private void BuildLanguageSection()
+    {
+        var window = transform.Find("SettingsPopup/Window") as RectTransform;
+        var sfxSection = window != null ? window.Find("SfxSection") as RectTransform : null;
+        if (window == null || sfxSection == null || confirmButton == null) return;
+        if (window.Find("LanguageSection") != null) return; // 이미 만들었다
+
+        // 효과음 줄을 복사하고 슬라이더, 스위치, 값 칸은 뺀다
+        var section = Instantiate(sfxSection, window);
+        section.name = "LanguageSection";
+        section.anchoredPosition = sfxSection.anchoredPosition + new Vector2(0f, -RowStep);
+        foreach (string child in new[] { "SfxSlider", "SfxToggle", "ValueChip" })
+        {
+            var t = section.Find(child);
+            if (t == null) continue;
+            t.gameObject.SetActive(false);
+            Destroy(t.gameObject);
+        }
+
+        // 줄이 하나 늘어난 만큼 창을 키운다. (닫기 버튼은 창 아래에 붙어 있어서 같이 내려간다)
+        window.sizeDelta += new Vector2(0f, RowStep);
+
+        var labelTransform = section.Find("Label");
+        if (labelTransform != null) Loc.Bind(labelTransform.GetComponent<TMP_Text>(), "언어");
+
+        englishButton = MakeLanguageButton(section, "EnglishButton", "English", -24f);
+        koreanButton = MakeLanguageButton(section, "KoreanButton", "한국어", -24f - LanguageButtonWidth - 12f);
+        koreanButton.onClick.AddListener(() => ChooseLanguage(GameLanguage.Korean));
+        englishButton.onClick.AddListener(() => ChooseLanguage(GameLanguage.English));
+        RefreshLanguageButtons();
+    }
+
+    // 닫기 버튼을 복사해서 같은 모양의 작은 버튼을 만든다
+    private Button MakeLanguageButton(RectTransform parent, string objectName, string caption, float x)
+    {
+        var button = Instantiate(confirmButton, parent);
+        button.name = objectName;
+        button.onClick.RemoveAllListeners();
+
+        var rect = (RectTransform)button.transform;
+        rect.anchorMin = rect.anchorMax = new Vector2(1f, 0.5f);
+        rect.pivot = new Vector2(1f, 0.5f);
+        rect.sizeDelta = new Vector2(LanguageButtonWidth, 56f);
+        rect.anchoredPosition = new Vector2(x, 0f);
+
+        var label = button.GetComponentInChildren<TMP_Text>(true);
+        if (label != null) label.text = caption; // 언어 이름은 번역하지 않는다
+        return button;
+    }
+
+    private void ChooseLanguage(GameLanguage language)
+    {
+        Loc.SetLanguage(language);
+        RefreshLanguageButtons();
+    }
+
+    // 지금 쓰는 언어의 버튼을 강조한다
+    private void RefreshLanguageButtons()
+    {
+        bool korean = Loc.Language == GameLanguage.Korean;
+        Paint(koreanButton, korean);
+        Paint(englishButton, !korean);
+    }
+
+    private static void Paint(Button button, bool selected)
+    {
+        if (button != null && button.targetGraphic != null) button.targetGraphic.color = selected ? SwitchOn : SwitchOff;
     }
 }

@@ -274,7 +274,7 @@ public class AccountCards : MonoBehaviour
         SetText(signupLabel, pending ? SignupRules.NewAccountLabel : SignupRules.SignupLabel);
         SetText(forgotLabel, pending || existingEmail ? SignupRules.ResendLabel : SignupRules.ForgotLabel);
         if (passwordPlaceholder != null && passwordPlaceholderDefault != null)
-            passwordPlaceholder.text = pending ? SignupRules.PendingPasswordHint : passwordPlaceholderDefault;
+            Loc.Bind(passwordPlaceholder, pending ? SignupRules.PendingPasswordHint : passwordPlaceholderDefault);
 
         if (pending)
         {
@@ -297,7 +297,7 @@ public class AccountCards : MonoBehaviour
 
     private static void SetText(TMP_Text label, string text)
     {
-        if (label != null) label.text = text;
+        if (label != null) Loc.Bind(label, text); // 언어가 바뀌면 자동으로 다시 번역한다
     }
 
     // ───────────── 가입을 기다리는 상태 ─────────────
@@ -334,8 +334,9 @@ public class AccountCards : MonoBehaviour
         // 계정이 바뀌었거나 이메일이 연결돼 있지 않아서 더는 맞지 않는 가입 기다림은 버린다
         if (PendingStateNow() == SignupRules.PendingState.Stale) ClearPending();
 
-        if (IsPending()) emailLoginLabel.text = SignupRules.EntryPendingLabel;
-        else emailLoginLabel.text = identity.HasEmail ? $"로그아웃 ({AccountRules.ShortenEmail(identity.Email, EmailMaxChars)})" : SignupRules.EntryLoginLabel;
+        if (IsPending()) Loc.Bind(emailLoginLabel, SignupRules.EntryPendingLabel);
+        else if (identity.HasEmail) Loc.Bind(emailLoginLabel, "로그아웃 ({0})", AccountRules.ShortenEmail(identity.Email, EmailMaxChars));
+        else Loc.Bind(emailLoginLabel, SignupRules.EntryLoginLabel);
     }
 
     // 로그아웃하면 이 기기는 새 익명 계정으로 시작한다. (이메일 계정은 이메일로 로그인해서 다시 쓸 수 있다)

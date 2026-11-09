@@ -1,0 +1,84 @@
+# 영어 번역표. 한 줄에 "한국어 문장<탭>영어 문장". 한국어 문장이 키라서, 코드와 씬에 적힌 글과 한 글자도 다르면 안 된다.
+# 줄바꿈은 \n, 탭은 \t로 적는다. #으로 시작하는 줄은 설명이다. 영어가 비어 있으면 한국어로 보인다.
+# 자리표({0})가 있는 문장은 코드의 Loc.T("... {0} ...", 값)과 같은 모양이어야 한다.
+
+# ── 언어 이름 (언어가 바뀌어도 그대로 보인다) ──
+한국어	한국어
+
+# ── 설정창 ──
+설정	Settings
+배경음	Music
+효과음	Sound effects
+언어	Language
+닫기	Close
+
+# ── 타이틀(로그인 씬) ──
+우리의마블	Our Marble
+닉네임	Nickname
+닉네임 입력	Enter your nickname
+시작	Start
+닉네임을 입력해 주세요	Please enter a nickname
+로비 화면을 불러오지 못했어요	Couldn't load the lobby
+
+# ── 이메일 가입과 로그인 카드 (씬에 적힌 글) ──
+이메일로 로그인	Log in with email
+로그인	Log in
+회원가입	Sign up
+회원가입 완료	Complete sign-up
+이메일	Email
+비밀번호	Password
+비밀번호 찾기	Forgot password
+아이디 저장	Remember email
+돌아가기	Back
+
+# ── 이메일 가입과 로그인 카드 (SignupRules) ──
+이메일 로그인	Email login
+가입 이어서 하기	Resume sign-up
+이미 있는 이메일	Email already in use
+이미 있는 이메일이라 비밀번호를 정하는 메일을 보냈어요. 정한 비밀번호(이미 있다면 그 비밀번호)로 로그인해 주세요. 메일은 영어로 오고 안 보이면 스팸함을 확인해 주세요.	This email already exists, so we sent a password email. Log in with the password you set (or the one you already have). The email is in English; check your spam folder if you don't see it.
+이미 있는 이메일이에요. 비밀번호를 정하는 메일을 보냈어요	This email already exists. We sent a password email
+이미 있는 이메일이에요. 메일을 보내지 못했으니 메일 다시 보내기를 눌러 주세요	This email already exists. We couldn't send the email, so press Resend email
+처음이면 이메일만 넣고 '이메일 인증'을 눌러 주세요. 연결한 이메일은 바꿀 수 없으니 주소를 정확히 확인해 주세요. 이미 가입했다면 비밀번호도 넣고 로그인해요.	If you're new, enter only your email and press 'Email verify'. A linked email can't be changed, so check the address carefully. If you've already signed up, also enter your password and log in.
+메일의 링크에서 비밀번호를 정한 뒤 여기에 입력해 주세요. 메일은 영어로 오고 제목은 Our Marble account recovery예요. 안 보이면 스팸함을 확인해 주세요.	Set your password from the link in the email, then enter it here. The email subject is 'Our Marble account recovery'. Check your spam folder if you don't see it.
+이메일 인증	Email verify
+가입 완료	Complete sign-up
+메일 다시 보내기	Resend email
+새 계정으로 시작	Start with a new account
+이메일 로그인 / 가입	Email login / sign-up
+메일에서 정한 비밀번호	Password you set from the email
+메일을 보냈어요. 비밀번호를 정한 뒤 돌아와 주세요	Email sent. Set your password, then come back
+이메일은 연결했지만 메일을 보내지 못했어요. 메일 다시 보내기를 눌러 주세요	Your email is linked, but we couldn't send the email. Press Resend email
+가입을 마쳤어요. 닉네임을 입력하고 시작하세요	Sign-up complete. Enter a nickname and start
+비밀번호가 맞지 않아요. 메일의 링크에서 정한 비밀번호를 입력해 주세요	That password doesn't match. Enter the password you set from the link in the email
+지금 계정의 기록은 이 기기에서 사라져요. 계속하려면 한 번 더 눌러 주세요	The record of your current account will be lost on this device. Press once more to continue
+새 계정으로 시작했어요	Started with a new account
+이미 이메일이 연결된 계정이에요. 로그아웃한 뒤 다시 해 주세요	This account already has an email linked. Log out and try again
+
+# ── 이메일 계정 카드 (AccountCards) ──
+로그아웃 ({0})	Log out ({0})
+로그아웃했어요	You're logged out
+로그인했어요	You're logged in
+이 기기에서 쓰던 계정의 기록은 사라지고 이메일 계정으로 바뀌어요. 계속하려면 로그인을 한 번 더 눌러 주세요	The record of the account used on this device will be lost and replaced by your email account. Press Log in once more to continue
+
+# ── 계정 오류 (AccountRules, PlayFabIdentity) ──
+이메일을 입력해 주세요	Please enter your email
+이메일 형식이 올바르지 않아요	That email address isn't valid
+비밀번호를 입력해 주세요	Please enter your password
+비밀번호는 6자 이상이어야 해요	Your password must be at least 6 characters
+비밀번호는 100자 이하여야 해요	Your password must be 100 characters or fewer
+비밀번호는 6자 이상 100자 이하여야 해요	Your password must be 6 to 100 characters
+이미 가입된 이메일이에요	This email is already registered
+이메일 또는 비밀번호가 맞지 않아요	The email or password doesn't match
+가입되지 않은 이메일이에요	This email isn't registered
+이용이 제한된 계정이에요	This account has been restricted
+이미 이메일이 연결된 계정이에요	This account already has an email linked
+이 이메일은 다른 계정에 연결돼 있어요	This email is linked to another account
+이 이메일로 가입된 계정이 없어요	No account is registered with this email
+이 이메일로는 메일을 보낼 수 없어요	We can't send email to this address
+메일 발송 설정이 아직 준비되지 않았어요	Email sending isn't set up yet
+서버에 연결하지 못했어요. 연결 상태를 확인해 주세요	Couldn't connect to the server. Please check your connection
+서버에 로그인하지 못했어요	Couldn't log in to the server
+처리하지 못했어요	Couldn't complete that
+로그인 응답을 읽지 못했어요	Couldn't read the login response
+이 기기에서 자동 로그인을 연결하지 못했어요. 다음에 실행하면 다시 로그인해야 할 수 있어요	Couldn't set up automatic login on this device. You may need to log in again next time
+비밀번호를 다시 정하는 메일을 보냈어요. 메일함을 확인해 주세요	We sent an email to reset your password. Please check your inbox

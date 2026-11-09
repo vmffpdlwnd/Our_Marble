@@ -28,7 +28,7 @@ public class ToastView : MonoBehaviour
     public void Show(string message)
     {
         EnsureBound();
-        text.text = message;
+        text.text = Loc.T(message); // 영어면 번역해서 보여 준다 (번역이 없으면 그대로)
         gameObject.SetActive(true);
         LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)group.transform);
 
