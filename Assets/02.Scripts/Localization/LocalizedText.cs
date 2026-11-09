@@ -17,6 +17,9 @@ public class LocalizedText : MonoBehaviour
 
     public bool HasSource => !string.IsNullOrEmpty(source);
 
+    /// <summary>번역하기 전의 한국어 원문. (코드가 기본 문구를 기억해 둘 때 쓴다)</summary>
+    public string Source => source;
+
     public static LocalizedText Attach(TMP_Text label)
     {
         var component = label.GetComponent<LocalizedText>();
