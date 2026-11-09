@@ -93,6 +93,10 @@ public class TitleManager : MonoBehaviour
             settingsButton = settingsButtonTransform.GetComponent<Button>();
             if (settingsView != null) settingsView.CloseImmediate(); // 씬에 켜진 채 놓았더라도 처음에는 닫아 둔다
         }
+        else
+        {
+            Debug.LogWarning("[Title] 설정 버튼을 건너뜁니다. 씬에 UI/Canvas_Settings와 UI/Canvas_Login/SettingsButton이 둘 다 있어야 합니다.");
+        }
 
         // 이메일 계정 카드(로그인, 회원가입, 비밀번호 찾기). 씬에 카드가 없으면 건너뛰고 닉네임 시작만 쓴다.
         gameObject.AddComponent<AccountCards>().Init(canvas, signupCard, nicknameInput, ShowToast);

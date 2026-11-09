@@ -8,7 +8,7 @@
 # ── 설정창 ──
 설정	Settings
 배경음	Music
-효과음	Sound effects
+효과음	Sound
 언어	Language
 닫기	Close
 
