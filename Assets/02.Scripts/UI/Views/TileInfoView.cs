@@ -105,7 +105,7 @@ public class TileInfoView : UIView
         bool owned = !string.IsNullOrEmpty(ownerName);
         SetActive(ownerChip, owned);
         if (owned && ownerText != null)
-            ownerText.text = $"<color={UIPalette.Hex(UIPalette.PlayerColor(ownerColorIndex))}>●</color> {ownerName} 님의 땅";
+            ownerText.text = Loc.T("<color={0}>●</color> {1} 님의 땅", UIPalette.Hex(UIPalette.PlayerColor(ownerColorIndex)), ownerName);
         if (!special) stageTrack.Set(owned ? level : BuildingLevel.Land);
 
         int current = owned ? (int)level : -1;

@@ -852,6 +852,9 @@ public class LobbyManager : MonoBehaviour
 
     private static bool IsFull(RoomSummary room) => room.playerCount >= room.maxPlayers;
 
+    // 맵을 가리키는 값(한국어 이름). 대기방과 방 설정 요청이 이 값으로 맵을 찾으므로 번역하지 않는다. 화면에 보여 줄 때는 MapName을 쓴다
+    private static string MapKey(int mapId) => mapId >= 0 && mapId < Maps.Length ? Maps[mapId] : $"맵 {mapId}";
+
     private static string MapName(int mapId) => mapId >= 0 && mapId < Maps.Length ? Loc.T(Maps[mapId]) : Loc.T("맵 {0}", mapId);
 
     private Sprite MapSprite(int mapId) =>
@@ -1038,7 +1041,7 @@ public class LobbyManager : MonoBehaviour
             var config = room.config;
             roomSetup.SetSettings(new RoomSetupView.Settings
             {
-                Map = MapName(room.mapId),
+                Map = MapKey(room.mapId),
                 MaxPlayers = room.maxPlayers,
                 StartMoney = config != null && config.startMoney > 0 ? config.startMoney : 500000,
                 MaxRound = config != null && config.maxRound > 0 ? config.maxRound : 30,
@@ -1351,7 +1354,7 @@ public class LobbyManager : MonoBehaviour
 
     private void ShowMap()
     {
-        mapNameText.text = Maps[mapIndex];
+        mapNameText.text = MapName(mapIndex);
         if (mapPreviewImage != null) mapPreviewImage.sprite = MapSprite(mapIndex);
         // 고를 수 있는 맵이 하나뿐이면 화살표를 눌러도 바뀌는 게 없으므로 잠가 둔다
         bool canChange = AvailableMapCount() > 1;

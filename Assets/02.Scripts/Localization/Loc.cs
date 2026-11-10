@@ -91,6 +91,28 @@ public static class Loc
         return English.TryGetValue(name, out string en) ? en : name;
     }
 
+    /// <summary>
+    /// 등수 표시. 한국어는 "1위", 영어는 "1st"처럼 숫자 뒤에 작은 글자로 붙인다. (숫자마다 영어 글자가 달라서 번역표 대신 여기서 만든다)
+    /// </summary>
+    public static string Rank(int rank, int sizePercent)
+    {
+        string suffix = Language == GameLanguage.Korean ? "위" : OrdinalSuffix(rank);
+        return $"{rank}<size={sizePercent}%>{suffix}</size>";
+    }
+
+    private static string OrdinalSuffix(int n)
+    {
+        int lastTwo = n % 100;
+        if (lastTwo >= 11 && lastTwo <= 13) return "th";
+        switch (n % 10)
+        {
+            case 1: return "st";
+            case 2: return "nd";
+            case 3: return "rd";
+            default: return "th";
+        }
+    }
+
     /// <summary>글자를 넣고, 언어가 바뀌면 자동으로 다시 번역하게 묶는다.</summary>
     public static void Bind(TMP_Text label, string ko, params object[] args)
     {

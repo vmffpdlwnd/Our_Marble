@@ -61,6 +61,6 @@ public class TurnTimerView : MonoBehaviour
         int seconds = Mathf.CeilToInt(remaining);
         if (seconds == shownSeconds) return;
         shownSeconds = seconds;
-        if (secondsText != null) secondsText.text = $"{seconds}초";
+        if (secondsText != null) secondsText.text = Loc.T("{0}초", seconds);
     }
 }

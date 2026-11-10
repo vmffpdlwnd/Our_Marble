@@ -267,3 +267,168 @@
 클래식 월드 · 방장 여행가	Classic World · Host: Traveler
 클래식 월드 · 방장 마블왕	Classic World · Host: Marble King
 클래식 월드 · 방장 건물부자	Classic World · Host: Building Tycoon
+
+# ── 게임 화면: 땅(도시) 이름 ──
+방콕	Bangkok
+베이징	Beijing
+독도	Dokdo
+타이베이	Taipei
+두바이	Dubai
+카이로	Cairo
+발리	Bali
+도쿄	Tokyo
+시드니	Sydney
+하와이	Hawaii
+퀘벡	Quebec
+상파울로	São Paulo
+프라하	Prague
+푸켓	Phuket
+베를린	Berlin
+모스크바	Moscow
+제네바	Geneva
+로마	Rome
+타히티	Tahiti
+런던	London
+파리	Paris
+뉴욕	New York
+서울	Seoul
+
+# ── 게임 화면: 칸 이름과 카드 ──
+출발	Start
+무인도	Island
+황금열쇠	Golden Key
+행운카드	Lucky Card
+기부금 납부	Donate
+기부금 수령	Collect donations
+세계여행	World Tour
+칸 이동	Move tiles
+본사 이동	Go to HQ
+패널티	Penalty
+돈 받기	Collect money
+무인도로 가라	Go to the island
+3칸 뒤로 가라	Move back 3 tiles
+3칸 앞으로 가라	Move forward 3 tiles
+본사로 이동	Go to HQ
+돈 뺏기기	Lose money
+돈을 받아라	Receive money
+황금열쇠 {0}	Golden Key {0}
+땅 {0}	Property {0}
+플레이어 {0}	Player {0}
+
+# ── 게임 화면: 카드 뽑기, 주사위, 무인도 ──
+보관 가능	Keepable
+즉시 발동	Instant
+보관하기	Keep
+확인	OK
+무인도에 갇혔을 때 사용하면\n바로 탈출할 수 있어요	Use it when you're stuck on the island\nto escape right away
+무인도 탈출권	Island escape card
+더블!	Double!
+한 번 더 굴릴 수 있어요	You can roll once more
+남은 턴	Turns left
+주사위 굴리기	Roll dice
+카드 사용	Use card
+더블이 나오면 탈출	Escape on a double
+주사위 더블	Roll a double
+무인도 탈출	Island escape
+비용 지불	Pay
+무인도 탈출권 <b>1장</b>	Island escape card <b>x1</b>
+무인도 탈출권 <b>{0}장</b>	Island escape card <b>x{0}</b>
+보유한 카드 없음	No card
+<color=#FF5A6E><b>500,000</b></color> 내고 탈출	Pay <color=#FF5A6E><b>500,000</b></color> to escape
+<color={0}><b>{1}</b></color> 내고 탈출	Pay <color={0}><b>{1}</b></color> to escape
+무인도 탈출!	Escaped the island!
+15초	15s
+{0}초	{0}s
+
+# ── 게임 화면: 상단 바, 차례, 여행지 ──
+님의 차례	's turn
+4 / 4명	4 / 4
+{0} / {1}명	{0} / {1}
+비밀번호  1234	Password  1234
+비밀번호  {0}	Password  {0}
+라운드	Round
+여행지 선택 완료	Confirm destination
+보드에서 이동할 칸을 선택하세요	Choose a tile on the board to move to
+
+# ── 게임 화면: 플레이어 카드와 결과 ──
+총 자산	Total assets
+기부금	Donations
+통행료	Toll
+파산	Bankrupt
+최종 자산	Final assets
+승리	Victory
+패배	Defeat
+게임 결과	Game result
+1<size=65%>위</size>	1<size=65%>st</size>
+1<size=60%>위</size>	1<size=60%>st</size>
+2<size=65%>위</size>	2<size=65%>nd</size>
+2<size=60%>위</size>	2<size=60%>nd</size>
+3<size=65%>위</size>	3<size=65%>rd</size>
+3<size=60%>위</size>	3<size=60%>rd</size>
+4<size=65%>위</size>	4<size=65%>th</size>
+4<size=60%>위</size>	4<size=60%>th</size>
+플레이어 1	Player 1
+플레이어 2	Player 2
+플레이어 3	Player 3
+플레이어 4	Player 4
+
+# ── 게임 화면: 구매, 건설, 인수, 매각 창 ──
+구매하기	Buy
+보유 현금	Cash
+특수 칸	Special tile
+땅 효과	Tile effect
+건물	Buildings
+구매 비용	Cost
+별 1개	1 star
+별 2개	2 stars
+별 3개	3 stars
+2바퀴부터	From lap 2
+현재	Current
+단계별 통행료	Toll by stage
+인수	Acquire
+인수 금액	Acquisition price
+<color=#FF5A6E>금액</color>을 지불하면 이 땅을 인수할 수 있어요	Pay the <color=#FF5A6E>amount</color> to acquire this property
+땅 매각	Sell property
+현금	Cash
+자동 선택	Auto select
+부족한 금액	Shortfall
+매각 완료	Confirm sale
+통행료가 부족해요. 보드에서 매각할 땅을 선택하거나\n자동 선택을 눌러 주세요. 시간이 끝나면 자동으로 매각돼요.	You can't cover the toll. Pick properties to sell on the board,\nor press Auto select. They'll be sold automatically when time runs out.
+금액 부족	Not enough cash
+다음 단계	Next stage
+보유 중	Owned
+선택 불가	Unavailable
+특수 칸이에요. 별 건설 없이 건물만 구매할 수 있어요.	This is a special tile. You can buy buildings without building stars.
+빈 땅	Unowned
+<color={0}>●</color> {1} 님의 땅	<color={0}>●</color> {1}'s property
+<color=#6FA8F5>●</color> 주사위요정 님의 땅	<color=#6FA8F5>●</color> Dice Fairy's property
+내내치킨	Nae-nae Chicken
+
+# ── 게임 화면: 돈이 바뀐 이유 ──
+땅 구매	Purchase
+건설	Build
+인수 대금	Acquisition payment
+통행료 수입	Toll income
+입금	Deposit
+출금	Withdrawal
+
+# ── 게임 중 요청이 거절됐을 때 (HostGameService) ──
+이미 끝난 게임이에요	The game has already ended
+존재하지 않는 땅이에요	That property doesn't exist
+이 게임의 참가자가 아니에요	You're not a participant in this game
+내 차례가 아니에요	It's not your turn
+파산해서 요청할 수 없어요	You're bankrupt and can't make requests
+지금은 보낼 수 없는 요청이에요	You can't send that request right now
+그 땅 위에 있지 않아요	You're not on that property
+갈 수 없는 칸이에요	You can't go to that tile
+세계여행 칸은 목적지로 고를 수 없어요	You can't pick the World Tour tile as a destination
+이미 주인이 있는 땅이에요	That property already has an owner
+현금이 부족해요	You don't have enough cash
+내 땅이 아니에요	That's not your property
+건설할 수 없는 땅이에요	You can't build on that property
+이미 최고 단계예요	It's already at the highest stage
+다른 사람의 땅이 아니에요	That's not another player's property
+통행료를 낼 땅 위에 있지 않아요	You're not on a property where you owe a toll
+같은 땅이 두 번 들어 있어요	The same property appears twice
+내 땅이 아닌 땅이 들어 있어요	The list includes a property that isn't yours
+판 돈을 합쳐도 통행료가 모자라요	Even with the sale money, you can't cover the toll

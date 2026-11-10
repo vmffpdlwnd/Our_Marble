@@ -265,7 +265,7 @@ public class DiceRollView : UIView
             .AppendCallback(() =>
             {
                 foreach (var part in islandTurnParts) SetActive(part, false);
-                if (islandStatusText != null) { islandStatusText.text = "무인도 탈출!"; islandStatusText.color = EscapeText; }
+                if (islandStatusText != null) { islandStatusText.text = Loc.T("무인도 탈출!"); islandStatusText.color = EscapeText; }
                 if (islandBg != null) islandBg.color = EscapeBg;
                 if (islandStroke != null) islandStroke.color = EscapeStroke;
                 if (islandIcon != null) islandIcon.color = EscapeText;

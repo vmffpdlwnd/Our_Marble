@@ -105,15 +105,15 @@ public class GameResultView : UIView
                 refs.resultBadge.color = e.IsWinner ? WinBadgeBg : e.IsBankrupt ? BankruptBadgeBg : LoseBadgeBg;
             if (refs.resultText != null)
             {
-                refs.resultText.text = e.IsWinner ? "승리" : e.IsBankrupt ? "파산" : "패배";
+                refs.resultText.text = Loc.T(e.IsWinner ? "승리" : e.IsBankrupt ? "파산" : "패배");
                 refs.resultText.color = e.IsWinner ? WinBadgeText : e.IsBankrupt ? BankruptBadgeText : UIPalette.InkSub;
             }
             foreach (var star in refs.badgeStars) SetActive(star, e.IsWinner);
 
             SetPortrait(refs.portraitImage, e.Portrait, Color.white);
             SetActive(refs.bankruptDim, e.IsBankrupt);
-            if (refs.rankText != null) refs.rankText.text = $"{i + 1}<size=65%>위</size>";
-            if (refs.nicknameText != null) refs.nicknameText.text = e.Name;
+            if (refs.rankText != null) refs.rankText.text = Loc.Rank(i + 1, 65);
+            if (refs.nicknameText != null) refs.nicknameText.text = Loc.TName(e.Name);
             if (refs.assetText != null)
             {
                 // 0에서 최종 자산까지, 카드마다 조금씩 늦게 굴린다

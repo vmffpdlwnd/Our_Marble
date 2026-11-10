@@ -66,10 +66,10 @@ public class CardDrawView : UIView
         if (typeTag != null) typeTag.color = keepable ? KeepTagBg : InstantTagBg;
         if (typeTagText != null)
         {
-            typeTagText.text = keepable ? "보관 가능" : "즉시 발동";
+            typeTagText.text = Loc.T(keepable ? "보관 가능" : "즉시 발동");
             typeTagText.color = keepable ? KeepTagText : InstantTagText;
         }
-        if (confirmLabel != null) confirmLabel.text = keepable ? "보관하기" : "확인";
+        if (confirmLabel != null) confirmLabel.text = Loc.T(keepable ? "보관하기" : "확인");
         if (confirmButton != null) confirmButton.gameObject.SetActive(!autoClose); // 자동으로 닫히는 카드는 확인 버튼을 숨긴다
         SetOnClick(confirmButton, () => { Close(); onConfirm?.Invoke(); });
 

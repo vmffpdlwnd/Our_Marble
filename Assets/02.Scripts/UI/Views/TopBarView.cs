@@ -37,7 +37,7 @@ public class TopBarView : UIView
     /// <summary>"현재 인원 / 최대 인원명"을 보여 준다.</summary>
     public void SetPlayerCount(int current, int max)
     {
-        if (playerCountText != null) playerCountText.text = $"{current} / {max}명";
+        if (playerCountText != null) playerCountText.text = Loc.T("{0} / {1}명", current, max);
     }
 
     /// <summary>비밀번호 방이면 인원수 옆에 비밀번호를 보여준다. 비어 있으면 칩을 숨긴다.</summary>
@@ -45,7 +45,7 @@ public class TopBarView : UIView
     {
         bool has = !string.IsNullOrEmpty(password);
         SetActive(passwordChip, has);
-        if (has && passwordText != null) passwordText.text = $"비밀번호  {password}";
+        if (has && passwordText != null) passwordText.text = Loc.T("비밀번호  {0}", password);
     }
 
     /// <summary>라운드 표시를 보일지. 게임이 시작되기 전에는 숨긴다.</summary>

@@ -427,15 +427,15 @@ public class UIManager : MonoBehaviour
     private string SpecialDescription(int propertyId)
     {
         string description = PropertyEffectDescription != null ? PropertyEffectDescription(propertyId) : null;
-        return string.IsNullOrEmpty(description) ? "특수 칸이에요. 별 건설 없이 건물만 구매할 수 있어요." : description;
+        return string.IsNullOrEmpty(description) ? Loc.T("특수 칸이에요. 별 건설 없이 건물만 구매할 수 있어요.") : description;
     }
 
     // 구매·건설 창의 타일 사진에 붙는 소유자 표시. 주인이 없으면 "빈 땅", 있으면 인수창처럼 "● 이름 님의 땅"
     private string OwnerLabel(PropertyState property)
     {
-        if (property == null || !property.OwnerId.HasValue) return "빈 땅";
+        if (property == null || !property.OwnerId.HasValue) return Loc.T("빈 땅");
         long ownerId = property.OwnerId.Value;
-        return $"<color={UIPalette.Hex(UIPalette.PlayerColor(ColorIndexOf(ownerId)))}>●</color> {NameOf(ownerId)} 님의 땅";
+        return Loc.T("<color={0}>●</color> {1} 님의 땅", UIPalette.Hex(UIPalette.PlayerColor(ColorIndexOf(ownerId))), NameOf(ownerId));
     }
 
     // 인수하기 & 인수하지않기 버튼이 있는 창을 띄워주는 함수입니다.
@@ -947,7 +947,7 @@ public class UIManager : MonoBehaviour
 
         bool owned = state != null && state.OwnerId.HasValue;
         long ownerId = owned ? state.OwnerId.Value : 0;
-        tileInfo.Show(data.CityName, TileImageOf(propertyId), owned ? NameOf(ownerId) : null, ColorIndexOf(ownerId),
+        tileInfo.Show(Loc.T(data.CityName), TileImageOf(propertyId), owned ? NameOf(ownerId) : null, ColorIndexOf(ownerId),
             state != null ? state.BuildingLevel : BuildingLevel.Land, tolls,
             data.CanBuild ? null : SpecialDescription(propertyId));
     }
@@ -965,8 +965,8 @@ public class UIManager : MonoBehaviour
         }
 
         CardData card = cardDeck != null ? cardDeck.FindById(cardId) : null;
-        string cardName = card != null ? card.cardName : $"황금열쇠 {cardId}";
-        string description = card != null ? card.description : "";
+        string cardName = card != null ? Loc.T(card.cardName) : Loc.T("황금열쇠 {0}", cardId);
+        string description = card != null ? Loc.T(card.description) : "";
         Sprite icon = card != null ? card.icon : null;
 
         bool autoClose = forceAutoClose || playerId != LocalPlayerId; // 내 카드가 아니면 자동으로 닫힌다
@@ -1371,11 +1371,11 @@ public class UIManager : MonoBehaviour
 
     private string NameOf(long playerId)
     {
-        if (profiles.TryGetValue(playerId, out Profile profile) && !string.IsNullOrEmpty(profile.Name)) return profile.Name;
+        if (profiles.TryGetValue(playerId, out Profile profile) && !string.IsNullOrEmpty(profile.Name)) return Loc.TName(profile.Name);
         PlayerState player = GetPlayer(playerId); // 지정하지 않았으면 게임 상태(서버에서 받은 닉네임)를 쓴다
-        if (player != null && !string.IsNullOrEmpty(player.Nickname)) return player.Nickname;
+        if (player != null && !string.IsNullOrEmpty(player.Nickname)) return Loc.TName(player.Nickname); // 봇 이름("봇 1")만 번역표에 있다
         int index = IndexOf(playerId);
-        return index >= 0 ? $"플레이어 {index + 1}" : $"플레이어 {playerId}";
+        return index >= 0 ? Loc.T("플레이어 {0}", index + 1) : Loc.T("플레이어 {0}", playerId);
     }
 
     // 지정한 초상화가 없으면: 서버가 준 번호(게임 상태, 없으면 대기방 정보), 그것도 없으면 내 것은 내가 고른 그림, 다른 사람은 자리 색의 기본 그림
@@ -1414,7 +1414,7 @@ public class UIManager : MonoBehaviour
     private static string TileName(int propertyId)
     {
         PropertyData data = PropertyManager.Instance.GetData(propertyId);
-        return data != null ? data.CityName : $"땅 {propertyId}";
+        return data != null ? Loc.T(data.CityName) : Loc.T("땅 {0}", propertyId);
     }
 
     #endregion

@@ -66,7 +66,7 @@ public class CurrentTurnView : UIView
     private void Apply(string playerName, Sprite portrait, int playerColorIndex)
     {
         Color color = UIPalette.PlayerColor(playerColorIndex);
-        if (playerNameText != null) playerNameText.text = playerName;
+        if (playerNameText != null) playerNameText.text = Loc.TName(playerName);
         if (playerStroke != null) playerStroke.color = color;
         if (portraitRing != null) portraitRing.color = color;
         SetPortrait(portraitImage, portrait, UIPalette.PlayerLightColor(playerColorIndex));
