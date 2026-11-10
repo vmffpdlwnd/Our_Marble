@@ -222,7 +222,7 @@
 28승 20패 <size=80%><color=#8C90A8>(58%)</color></size>	28W 20L <size=80%><color=#8C90A8>(58%)</color></size>
 
 # ── 대기방: 씬에 적힌 글 ──
-대기방	Waiting room
+대기방	Room
 게임 설정	Game settings
 게임 모드	Game mode
 개인전	Free-for-all
@@ -254,3 +254,16 @@
 # ── 대기방의 견본 글 (복제용 틀) ──
 0명	0
 100,000원	₩100,000
+
+# ── 보강: 빠져 있던 글 ──
+마음에 드는 그림을 눌러 바꿔 보세요	Click a picture you like to change it
+아직 메시지가 없어요\n첫 인사를 남겨 보세요	No messages yet\nSay hello!
+게임을 시작하기 전에 설정을 확인해 주세요	Check the settings before you start
+모든 플레이어가 준비를 마치면 게임을 시작할 수 있어요	You can start once all players are ready
+[이어하기]	[Resume]
+클래식 월드 · 방장 황금열쇠	Classic World · Host: Golden Key
+클래식 월드 · 방장 주사위요정	Classic World · Host: Dice Fairy
+클래식 월드 · 방장 땅부자	Classic World · Host: Land Tycoon
+클래식 월드 · 방장 여행가	Classic World · Host: Traveler
+클래식 월드 · 방장 마블왕	Classic World · Host: Marble King
+클래식 월드 · 방장 건물부자	Classic World · Host: Building Tycoon

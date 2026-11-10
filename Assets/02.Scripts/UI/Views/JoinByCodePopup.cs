@@ -90,7 +90,7 @@ public class JoinByCodePopup
     private static void SetText(Transform root, string path, string text)
     {
         TMP_Text label = Find<TMP_Text>(root, path);
-        if (label != null) label.text = text;
+        if (label != null) Loc.Bind(label, text); // 코드로 만든 글자라 직접 묶어야 언어를 따라간다
     }
 
     private void Confirm()

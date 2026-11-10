@@ -864,11 +864,29 @@ public class LobbyManager : MonoBehaviour
     // 방에 저장된 이름이 있으면 그것을 쓴다. 방장이 바뀌어도 이름은 그대로다. 이름이 없는 옛 방만 방장 닉네임으로 대신 만든다.
     public static string RoomTitle(string roomName, string hostNickname)
     {
-        string name = RoomNames.Resolve(roomName, hostNickname);
+        string room = StripResumeTag(roomName, out bool resume);
+        string host = StripResumeTag(hostNickname, out _);
+        string name = RoomNames.Resolve(room, host);
 
         // 기본 이름("철수의 방")은 방 정보에 한국어로 저장돼 있어서, 지금 언어에 맞게 다시 만들어 보여 준다. 사람이 정한 이름은 그대로 둔다.
-        if (name == RoomNames.Default(hostNickname)) return RoomTitle(hostNickname);
-        return name;
+        if (name == RoomNames.Default(host)) name = RoomTitle(host);
+        return resume ? Loc.T("[이어하기]") + " " + name : name;
+    }
+
+    // PhotonLobbyBridge가 내가 하던 게임(이어할 수 있는 방)의 방 이름과 방장 이름 앞에 붙이는 꼬리표
+    private const string ResumeTag = "[이어하기] ";
+
+    private static string StripResumeTag(string text, out bool resume)
+    {
+        resume = text != null && text.StartsWith(ResumeTag);
+        return resume ? text.Substring(ResumeTag.Length) : text;
+    }
+
+    // 방장 이름. 이어할 수 있는 방이면 앞에 지금 언어의 꼬리표를 붙인다
+    private static string HostLabel(string hostNickname)
+    {
+        string name = StripResumeTag(hostNickname, out bool resume);
+        return resume ? Loc.T("[이어하기]") + " " + name : name;
     }
 
     private static bool IsHost(RoomSnapshot room) => room.hostId == MyPlayerId;
@@ -1208,7 +1226,7 @@ public class LobbyManager : MonoBehaviour
         row.Lock.SetActive(false);                 // RoomSummary에 비밀번호 정보가 없다
         row.Number.text = (index + 1).ToString("00");
         row.Name.text = RoomTitle(room.roomName, room.hostNickname);
-        row.Info.text = Loc.T("{0} · 방장 {1}", MapName(room.mapId), room.hostNickname);
+        row.Info.text = Loc.T("{0} · 방장 {1}", MapName(room.mapId), HostLabel(room.hostNickname));
 
         row.Count.text = $"{room.playerCount} / {room.maxPlayers}";
         for (int i = 0; i < row.Dots.Length; i++)
@@ -1295,7 +1313,7 @@ public class LobbyManager : MonoBehaviour
         if (room.memberNicknames != null && index < room.memberNicknames.Count && !string.IsNullOrEmpty(room.memberNicknames[index]))
             return Loc.TName(room.memberNicknames[index]); // 봇 이름("봇 1")만 번역표에 있고, 사람의 닉네임은 그대로 나온다
 
-        return index == 0 ? room.hostNickname : Loc.T("참가자");
+        return index == 0 ? HostLabel(room.hostNickname) : Loc.T("참가자");
     }
 
     private static void SetEmptySlot(SlotView s)
