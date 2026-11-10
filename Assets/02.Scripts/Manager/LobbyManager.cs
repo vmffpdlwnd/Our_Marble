@@ -1293,7 +1293,7 @@ public class LobbyManager : MonoBehaviour
     private static string MemberLabel(RoomSummary room, int index)
     {
         if (room.memberNicknames != null && index < room.memberNicknames.Count && !string.IsNullOrEmpty(room.memberNicknames[index]))
-            return Loc.T(room.memberNicknames[index]); // 봇 이름("봇 1")은 번역표에 있다. 사람의 닉네임은 번역표에 없어서 그대로 나온다
+            return Loc.TName(room.memberNicknames[index]); // 봇 이름("봇 1")만 번역표에 있고, 사람의 닉네임은 그대로 나온다
 
         return index == 0 ? room.hostNickname : Loc.T("참가자");
     }

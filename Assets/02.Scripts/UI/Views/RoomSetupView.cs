@@ -256,7 +256,7 @@ public class RoomSetupView : UIView
         if (!EnsureCodeChip()) return;
         shownCode = code;
         onCodeClick = onClick;
-        codeChipLabel.text = $"방 코드  {code}  (눌러서 복사)";
+        codeChipLabel.text = Loc.T("방 코드  {0}  (눌러서 복사)", code);
         codeChip.gameObject.SetActive(true);
     }
 
@@ -298,7 +298,7 @@ public class RoomSetupView : UIView
         if (subtitleText == null) subtitleText = Find<TMP_Text>("RoomSetupPopup/Window/SubtitleText"); // 이미 만들어진 프리팹에는 연결돼 있지 않을 수 있다
         if (subtitleText == null) return;
         string text = roomName;
-        if (!string.IsNullOrEmpty(password)) text += $"  ·  비밀번호 {password}";
+        if (!string.IsNullOrEmpty(password)) text += Loc.T("  ·  비밀번호 {0}", password);
         subtitleText.text = text;
     }
 
@@ -555,7 +555,7 @@ public class RoomSetupView : UIView
 
         // 초안: 맵
         int mapIndex = Array.IndexOf(mapNames, draft.Map);
-        if (mapNameText != null) mapNameText.text = draft.Map;
+        if (mapNameText != null) mapNameText.text = Loc.T(draft.Map);
         if (mapImage != null && mapIndex >= 0 && mapPreviews[mapIndex] != null)
         {
             mapImage.sprite = mapPreviews[mapIndex];
@@ -579,10 +579,10 @@ public class RoomSetupView : UIView
         }
 
         // 초안: 시작 자금, 최대 라운드, 월급, 봇
-        if (moneyValueText != null) moneyValueText.text = $"{UIPalette.Money(draft.StartMoney)}원";
-        if (roundValueText != null) roundValueText.text = $"{draft.MaxRound}라운드";
-        if (salaryValueText != null) salaryValueText.text = $"{UIPalette.Money(draft.Salary)}원";
-        if (botValueText != null) botValueText.text = $"{draft.BotCount}명";
+        if (moneyValueText != null) moneyValueText.text = Loc.T("{0}원", UIPalette.Money(draft.StartMoney));
+        if (roundValueText != null) roundValueText.text = Loc.T("{0}라운드", draft.MaxRound);
+        if (salaryValueText != null) salaryValueText.text = Loc.T("{0}원", UIPalette.Money(draft.Salary));
+        if (botValueText != null) botValueText.text = Loc.T("{0}명", draft.BotCount);
         SetStepper(moneyPrevButton, moneyNextButton, ClosestIndex(StartMoneyChoices, draft.StartMoney), StartMoneyChoices.Length);
         SetStepper(roundPrevButton, roundNextButton, ClosestIndex(MaxRoundChoices, draft.MaxRound), MaxRoundChoices.Length);
         SetStepper(salaryPrevButton, salaryNextButton, ClosestIndex(SalaryChoices, draft.Salary), SalaryChoices.Length);
@@ -613,7 +613,7 @@ public class RoomSetupView : UIView
     private void RefreshHint(bool dirty)
     {
         if (unappliedHintText == null) return;
-        unappliedHintText.text = UnappliedHint;
+        unappliedHintText.text = Loc.T(UnappliedHint);
         unappliedHintText.gameObject.SetActive(isHost && dirty && !chatTabOpen);
     }
 
@@ -659,7 +659,7 @@ public class RoomSetupView : UIView
         SetPortrait(r.portraitImage, slot.IsEmpty ? null : slot.Portrait, Color.white);
         if (r.nicknameText != null)
         {
-            r.nicknameText.text = slot.IsEmpty ? (locked ? "닫힘" : "빈 자리") : slot.Name;
+            r.nicknameText.text = slot.IsEmpty ? Loc.T(locked ? "닫힘" : "빈 자리") : Loc.TName(slot.Name);
             var textColor = slot.IsEmpty ? UIPalette.InkSub : UIPalette.Ink;
             if (locked) textColor.a = LockedSlotAlpha;
             r.nicknameText.color = textColor;
@@ -676,7 +676,7 @@ public class RoomSetupView : UIView
         }
         if (r.readyText != null)
         {
-            r.readyText.text = slot.IsBot ? "봇" : slot.IsReady ? "준비 완료" : "대기 중";
+            r.readyText.text = Loc.T(slot.IsBot ? "봇" : slot.IsReady ? "준비 완료" : "대기 중");
             r.readyText.color = slot.IsBot ? BotBadgeText : slot.IsReady ? UIPalette.ReadyText : UIPalette.InkSub;
         }
 
@@ -690,7 +690,7 @@ public class RoomSetupView : UIView
     {
         localReady = ready;
         // 회색은 비활성처럼 보이므로 두 상태 모두 또렷한 색을 쓴다: 준비하기는 파랑, 준비 취소는 노랑
-        if (readyLabel != null) readyLabel.text = ready ? "준비 취소" : "준비하기";
+        if (readyLabel != null) readyLabel.text = Loc.T(ready ? "준비 취소" : "준비하기");
         if (readyButton != null && readyButton.targetGraphic is Image image)
             image.color = ready ? new Color32(255, 208, 130, 255) : new Color32(91, 155, 235, 255);
         if (readyLabel != null) readyLabel.color = ready ? new Color32(150, 100, 30, 255) : Color.white;
@@ -791,7 +791,7 @@ public class RoomSetupView : UIView
         if (string.IsNullOrWhiteSpace(text)) return;
 
         var me = slotData[localSlot];
-        ChatService.Send(me.IsEmpty || string.IsNullOrEmpty(me.Name) ? "나" : me.Name, me.ColorIndex, text);
+        ChatService.Send(me.IsEmpty || string.IsNullOrEmpty(me.Name) ? Loc.T("나") : me.Name, me.ColorIndex, text);
     }
 
     private void OnChatMessage(ChatMessage message)
@@ -830,7 +830,8 @@ public class RoomSetupView : UIView
         bubble.GetComponent<Image>().color = message.IsLocal ? UIPalette.ReadyBg : ChatOtherBg;
         var nameText = bubble.Find("Name").GetComponent<TMP_Text>();
         var bodyText = bubble.Find("Body").GetComponent<TMP_Text>();
-        nameText.text = $"<color={UIPalette.Hex(UIPalette.PlayerColor(message.ColorIndex))}>●</color> {Escape(message.Sender)}  <size=80%>{message.Time:HH}시{message.Time:mm}분</size>";
+        string time = Loc.T("{0}시{1}분", message.Time.ToString("HH"), message.Time.ToString("mm"));
+        nameText.text = $"<color={UIPalette.Hex(UIPalette.PlayerColor(message.ColorIndex))}>●</color> {Escape(message.Sender)}  <size=80%>{time}</size>";
         bodyText.text = message.Text;
         bodyText.richText = false;
 

@@ -81,6 +81,16 @@ public static class Loc
         catch (FormatException) { return text; }
     }
 
+    /// <summary>
+    /// 사람이 정한 글(닉네임, 방 이름)을 보여 줄 때 쓴다. 번역표에 있을 때만 번역한다. (봇 이름처럼 게임이 만든 이름만 번역표에 둔다)
+    /// 번역표에 없어도 경고하지 않는다. 닉네임은 번역표에 없는 게 정상이기 때문이다.
+    /// </summary>
+    public static string TName(string name)
+    {
+        if (string.IsNullOrEmpty(name) || Language == GameLanguage.Korean) return name;
+        return English.TryGetValue(name, out string en) ? en : name;
+    }
+
     /// <summary>글자를 넣고, 언어가 바뀌면 자동으로 다시 번역하게 묶는다.</summary>
     public static void Bind(TMP_Text label, string ko, params object[] args)
     {

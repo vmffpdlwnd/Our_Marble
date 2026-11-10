@@ -220,3 +220,37 @@
 12명	12
 12 <size=75%><color=#C9A770>/ 30 턴</color></size>	12 <size=75%><color=#C9A770>/ 30 turns</color></size>
 28승 20패 <size=80%><color=#8C90A8>(58%)</color></size>	28W 20L <size=80%><color=#8C90A8>(58%)</color></size>
+
+# ── 대기방: 씬에 적힌 글 ──
+대기방	Waiting room
+게임 설정	Game settings
+게임 모드	Game mode
+개인전	Free-for-all
+시작 자금	Starting money
+최대 라운드	Max rounds
+월급	Salary
+봇	Bot
+적용	Apply
+게임 시작	Start game
+준비하기	Ready up
+준비 완료	Ready
+준비 취소	Cancel ready
+채팅	Chat
+보내기	Send
+메시지를 입력하세요	Type a message
+메시지	Message
+변경한 설정을 적용할까요?	Apply your changes?
+
+# ── 대기방: 코드가 만드는 글 ──
+닫힘	Closed
+나	Me
+방 코드  {0}  (눌러서 복사)	Room code  {0}  (click to copy)
+  ·  비밀번호 {0}	  ·  Password {0}
+{0}원	₩{0}
+{0}라운드	{0} rounds
+{0}명	{0}
+{0}시{1}분	{0}:{1}
+
+# ── 대기방의 견본 글 (복제용 틀) ──
+0명	0
+100,000원	₩100,000
