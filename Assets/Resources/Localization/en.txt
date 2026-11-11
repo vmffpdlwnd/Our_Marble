@@ -94,8 +94,8 @@
 코드로 입장	Join by code
 나가기	Exit
 취소	Cancel
-변경	Change
-초상화 선택	Choose portrait
+변경	Edit
+초상화 선택	Portrait
 선택됨	Selected
 방 이름	Room name
 방 이름을 입력해 주세요	Enter a room name
@@ -256,7 +256,7 @@
 100,000원	₩100,000
 
 # ── 보강: 빠져 있던 글 ──
-마음에 드는 그림을 눌러 바꿔 보세요	Click a picture you like to change it
+마음에 드는 그림을 눌러 바꿔 보세요	Click a picture to change it
 아직 메시지가 없어요\n첫 인사를 남겨 보세요	No messages yet\nSay hello!
 게임을 시작하기 전에 설정을 확인해 주세요	Check the settings before you start
 모든 플레이어가 준비를 마치면 게임을 시작할 수 있어요	You can start once all players are ready
