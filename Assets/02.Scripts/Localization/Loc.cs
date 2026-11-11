@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -65,6 +66,7 @@ public static class Loc
     {
         if (string.IsNullOrEmpty(ko) || Language == GameLanguage.Korean) return ko;
         if (English.TryGetValue(ko, out string en)) return en;
+        if (TryPattern(ko, out string patterned)) return patterned;
 
 #if UNITY_EDITOR
         if (HasHangul(ko) && reported.Add(ko)) Debug.LogWarning($"[Loc] 영어 번역이 없습니다: {ko}");
@@ -88,7 +90,34 @@ public static class Loc
     public static string TName(string name)
     {
         if (string.IsNullOrEmpty(name) || Language == GameLanguage.Korean) return name;
-        return English.TryGetValue(name, out string en) ? en : name;
+        if (English.TryGetValue(name, out string en)) return en;
+        return TryPattern(name, out string patterned) ? patterned : name;
+    }
+
+    // 값이 끝에 붙은 글을 앞부분만 번역한다. 번역표에 일일이 적을 수 없는 글을 위한 규칙이다.
+    //   "봇 3", "플레이어 7"                      -> 번역표의 "봇 {0}", "플레이어 {0}"
+    //   "처리하지 못했어요 (BadRequest)"           -> 번역표의 "처리하지 못했어요" + " (BadRequest)"
+    private static readonly Regex NumberTail = new Regex(@"^(.*\S) (\d+)$", RegexOptions.Compiled);
+    private static readonly Regex ParenTail = new Regex(@"^(.*\S) \(([^()]*)\)$", RegexOptions.Compiled);
+
+    private static bool TryPattern(string ko, out string result)
+    {
+        result = null;
+
+        var number = NumberTail.Match(ko);
+        if (number.Success && English.TryGetValue(number.Groups[1].Value + " {0}", out string numbered))
+        {
+            result = string.Format(numbered, number.Groups[2].Value);
+            return true;
+        }
+
+        var paren = ParenTail.Match(ko);
+        if (paren.Success && English.TryGetValue(paren.Groups[1].Value, out string head))
+        {
+            result = head + " (" + paren.Groups[2].Value + ")";
+            return true;
+        }
+        return false;
     }
 
     /// <summary>

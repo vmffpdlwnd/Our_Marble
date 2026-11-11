@@ -21,7 +21,7 @@
 로비 화면을 불러오지 못했어요	Couldn't load the lobby
 
 # ── 이메일 가입과 로그인 카드 (씬에 적힌 글) ──
-이메일로 로그인	Log in with email
+이메일로 로그인	Email login
 로그인	Log in
 회원가입	Sign up
 회원가입 완료	Complete sign-up
@@ -85,7 +85,7 @@
 
 # ── 로비: 씬에 적힌 글 ──
 방 목록	Rooms
-입장 가능한 방만	Joinable rooms only
+입장 가능한 방만	Open rooms only
 새로고침	Refresh
 새로고침 ({0}초)	Refresh ({0}s)
 표시할 방이 없어요	No rooms to show
@@ -320,22 +320,22 @@
 즉시 발동	Instant
 보관하기	Keep
 확인	OK
-무인도에 갇혔을 때 사용하면\n바로 탈출할 수 있어요	Use it when you're stuck on the island\nto escape right away
-무인도 탈출권	Island escape card
+무인도에 갇혔을 때 사용하면\n바로 탈출할 수 있어요	Use on the island\nto escape right away
+무인도 탈출권	Escape card
 더블!	Double!
 한 번 더 굴릴 수 있어요	You can roll once more
-남은 턴	Turns left
+남은 턴	Turns
 주사위 굴리기	Roll dice
 카드 사용	Use card
 더블이 나오면 탈출	Escape on a double
 주사위 더블	Roll a double
-무인도 탈출	Island escape
+무인도 탈출	Escape
 비용 지불	Pay
-무인도 탈출권 <b>1장</b>	Island escape card <b>x1</b>
-무인도 탈출권 <b>{0}장</b>	Island escape card <b>x{0}</b>
+무인도 탈출권 <b>1장</b>	Escape card <b>x1</b>
+무인도 탈출권 <b>{0}장</b>	Escape card <b>x{0}</b>
 보유한 카드 없음	No card
-<color=#FF5A6E><b>500,000</b></color> 내고 탈출	Pay <color=#FF5A6E><b>500,000</b></color> to escape
-<color={0}><b>{1}</b></color> 내고 탈출	Pay <color={0}><b>{1}</b></color> to escape
+<color=#FF5A6E><b>500,000</b></color> 내고 탈출	Pay <color=#FF5A6E><b>500,000</b></color>
+<color={0}><b>{1}</b></color> 내고 탈출	Pay <color={0}><b>{1}</b></color>
 무인도 탈출!	Escaped the island!
 15초	15s
 {0}초	{0}s
@@ -354,7 +354,7 @@
 총 자산	Total assets
 기부금	Donations
 통행료	Toll
-파산	Bankrupt
+파산	Broke
 최종 자산	Final assets
 승리	Victory
 패배	Defeat
@@ -375,15 +375,15 @@
 # ── 게임 화면: 구매, 건설, 인수, 매각 창 ──
 구매하기	Buy
 보유 현금	Cash
-특수 칸	Special tile
+특수 칸	Special
 땅 효과	Tile effect
-건물	Buildings
+건물	Build
 구매 비용	Cost
 별 1개	1 star
 별 2개	2 stars
 별 3개	3 stars
 2바퀴부터	From lap 2
-현재	Current
+현재	Now
 단계별 통행료	Toll by stage
 인수	Acquire
 인수 금액	Acquisition price
@@ -393,15 +393,15 @@
 자동 선택	Auto select
 부족한 금액	Shortfall
 매각 완료	Confirm sale
-통행료가 부족해요. 보드에서 매각할 땅을 선택하거나\n자동 선택을 눌러 주세요. 시간이 끝나면 자동으로 매각돼요.	You can't cover the toll. Pick properties to sell on the board,\nor press Auto select. They'll be sold automatically when time runs out.
+통행료가 부족해요. 보드에서 매각할 땅을 선택하거나\n자동 선택을 눌러 주세요. 시간이 끝나면 자동으로 매각돼요.	Can't cover the toll. Select properties to sell,\nor press Auto select (auto-sells at time-up).
 금액 부족	Not enough cash
 다음 단계	Next stage
 보유 중	Owned
 선택 불가	Unavailable
 특수 칸이에요. 별 건설 없이 건물만 구매할 수 있어요.	This is a special tile. You can buy buildings without building stars.
 빈 땅	Unowned
-<color={0}>●</color> {1} 님의 땅	<color={0}>●</color> {1}'s property
-<color=#6FA8F5>●</color> 주사위요정 님의 땅	<color=#6FA8F5>●</color> Dice Fairy's property
+<color={0}>●</color> {1} 님의 땅	<color={0}>●</color> {1}'s land
+<color=#6FA8F5>●</color> 주사위요정 님의 땅	<color=#6FA8F5>●</color> Dice Fairy's land
 내내치킨	Nae-nae Chicken
 
 # ── 게임 화면: 돈이 바뀐 이유 ──
@@ -436,3 +436,6 @@
 # ── 보드 칸 이름 (자리가 좁아서 짧게. 키는 "칸:" + 한국어 문장) ──
 칸:황금열쇠	Key
 칸:기부금 수령	Charity
+
+# ── 차례 표시 (영어는 이름과 붙여 쓴다) ──
+{0}님의 차례	{0}'s turn

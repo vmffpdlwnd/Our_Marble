@@ -14,6 +14,7 @@ public class CurrentTurnView : UIView
     private const float SlideDistance = 60f;
 
     [SerializeField] private TMP_Text playerNameText;
+    [SerializeField] private TMP_Text suffixText;      // "님의 차례" (영어는 이름 칸에 문장 전체를 넣고 이 칸은 숨긴다)
     [SerializeField] private Image playerStroke;
     [SerializeField] private Image portraitRing;
     [SerializeField] private Image portraitImage;
@@ -25,6 +26,7 @@ public class CurrentTurnView : UIView
     public override void Bind()
     {
         playerNameText = Find<TMP_Text>("CurrentTurn/PlayerNameText");
+        suffixText = Find<TMP_Text>("CurrentTurn/SuffixText");
         playerStroke = Find<Image>("CurrentTurn/PlayerStroke");
         portraitRing = Find<Image>("CurrentTurn/Portrait/Ring");
         portraitImage = Find<Image>("CurrentTurn/Portrait/PortraitMask/PortraitImage");
@@ -66,7 +68,10 @@ public class CurrentTurnView : UIView
     private void Apply(string playerName, Sprite portrait, int playerColorIndex)
     {
         Color color = UIPalette.PlayerColor(playerColorIndex);
-        if (playerNameText != null) playerNameText.text = Loc.TName(playerName);
+        // 한국어는 "이름" + "님의 차례" 두 칸이다. 영어는 "Bot 1's turn"으로 붙여 써야 해서 이름 칸에 전체를 넣고 뒤 칸은 숨긴다
+        bool english = Loc.Language == GameLanguage.English;
+        if (suffixText != null) suffixText.gameObject.SetActive(!english);
+        if (playerNameText != null) playerNameText.text = english ? Loc.T("{0}님의 차례", Loc.TName(playerName)) : Loc.TName(playerName);
         if (playerStroke != null) playerStroke.color = color;
         if (portraitRing != null) portraitRing.color = color;
         SetPortrait(portraitImage, portrait, UIPalette.PlayerLightColor(playerColorIndex));
