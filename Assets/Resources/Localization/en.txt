@@ -432,3 +432,7 @@
 같은 땅이 두 번 들어 있어요	The same property appears twice
 내 땅이 아닌 땅이 들어 있어요	The list includes a property that isn't yours
 판 돈을 합쳐도 통행료가 모자라요	Even with the sale money, you can't cover the toll
+
+# ── 보드 칸 이름 (자리가 좁아서 짧게. 키는 "칸:" + 한국어 문장) ──
+칸:황금열쇠	Key
+칸:기부금 수령	Charity

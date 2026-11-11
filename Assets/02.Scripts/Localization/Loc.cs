@@ -92,6 +92,15 @@ public static class Loc
     }
 
     /// <summary>
+    /// 보드 칸 이름처럼 자리가 좁은 곳에 쓰는 짧은 글. 번역표에 "칸:한국어 문장"으로 따로 적어 두면 그 영어를 쓰고, 없으면 일반 번역을 쓴다.
+    /// </summary>
+    public static string TShort(string ko)
+    {
+        if (string.IsNullOrEmpty(ko) || Language == GameLanguage.Korean) return ko;
+        return English.TryGetValue("칸:" + ko, out string en) ? en : T(ko);
+    }
+
+    /// <summary>
     /// 등수 표시. 한국어는 "1위", 영어는 "1st"처럼 숫자 뒤에 작은 글자로 붙인다. (숫자마다 영어 글자가 달라서 번역표 대신 여기서 만든다)
     /// </summary>
     public static string Rank(int rank, int sizePercent)

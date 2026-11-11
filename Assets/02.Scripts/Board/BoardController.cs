@@ -112,13 +112,13 @@ public class BoardController : MonoBehaviour
         {
             case TileType.PROPERTY:
                 PropertyData property = PropertyManager.Instance.GetData(tileData.PropertyId);
-                return property != null ? Loc.T(property.CityName) : $"?{tileData.PropertyId}";
-            case TileType.START:        return Loc.T("출발");
-            case TileType.GOLDEN_KEY:   return Loc.T("황금열쇠");
-            case TileType.ISLAND:       return Loc.T("무인도");
-            case TileType.DONATION:     return Loc.T("기부금 납부");
-            case TileType.CHARITY:      return Loc.T("기부금 수령");
-            case TileType.WORLD_TRAVEL: return Loc.T("세계여행");
+                return property != null ? Loc.TShort(property.CityName) : $"?{tileData.PropertyId}";
+            case TileType.START:        return Loc.TShort("출발");
+            case TileType.GOLDEN_KEY:   return Loc.TShort("황금열쇠");
+            case TileType.ISLAND:       return Loc.TShort("무인도");
+            case TileType.DONATION:     return Loc.TShort("기부금 납부");
+            case TileType.CHARITY:      return Loc.TShort("기부금 수령");
+            case TileType.WORLD_TRAVEL: return Loc.TShort("세계여행");
             default:                    return tileData.Type.ToString();
         }
     }
