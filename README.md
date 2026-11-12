@@ -45,7 +45,7 @@
 - [x] v1.1 배포 (웹, Windows)
 - [x] v1.1.1 배포 (방 코드 입장, 방 이름과 참가자 이름 표시, 이메일 가입 2단계, 글꼴 확대)
 - [x] v1.1.2 배포 (웹에서 한글 직접 입력과 방 코드 복사, 대체 글꼴 자동 비우기)
-- [ ] 영문화 (한/영 전환은 설정창에서, 로그인 화면에도 설정 버튼. 번역 뼈대부터)
+- [ ] 영문화 배포 (한/영 전환은 설정창에서, 로그인 화면에도 설정 버튼. 코드와 번역표는 작성했고 에디터 확인 대기)
 - [ ] v1.2 (파산 신청과 포기, 황금열쇠 종류 추가, 새 스테이지)
 
 ## 현재 상태
@@ -107,6 +107,7 @@ Unity 6 (6000.3), C#, URP 2D, uGUI, TextMesh Pro, DOTween, Newtonsoft.Json
 
 - 처음 연 뒤 `.meta` 생성과 컴파일 에러를 확인하고 커밋합니다.
 - 웹 전용 코드(`Assets/Plugins/WebGL/*.jslib`와 C#의 `#if UNITY_WEBGL && !UNITY_EDITOR`)는 Windows(.exe)와 에디터에 영향을 주지 않도록 분리합니다. 웹은 빌드해서 확인합니다.
+- 화면에 보이는 한국어 글은 번역할 수 있게 씁니다. 코드에서는 `Loc.T("문장")`, 씬과 프리팹에 적은 글은 자동으로 묶이고, 영어는 `Assets/Resources/Localization/en.txt`에 "한국어 문장, 탭, 영어 문장"으로 추가합니다. 빠진 글은 `python3 tools/check_translations.py`(PyYAML 필요)로 찾습니다.
 - 아래 파일은 Unity가 자동으로 바꾸므로 커밋에서 제외합니다.
   - `Packages/packages-lock.json`
 - TextMeshPro 폰트(`Maplestory Bold`, `Maplestory Light`, `Pretendard`)는 **Static**이라 `Assets/Editor/FontChars.txt`에 있는 글자만 들어 있습니다. 이 목록은 `Tools > Font > Extract Used Chars`가 만들며, 기본 ASCII, `Assets/Editor/FontCharsBase.txt`(Maplestory가 실제로 그려 주는 한글 음절 2,479자와 자모 93자 전부), 프로젝트에 쓰인 한글을 합칩니다. 씬, 프리팹, 에셋 파일은 한글을 `\uD1B5`처럼 이스케이프로 저장하므로 도구가 풀어서 읽습니다.

@@ -27,7 +27,7 @@ AI(Claude)가 이 저장소에서 작업하기 전에 가장 먼저 읽는 안�
 - 주석과 설명은 한글로, 무엇을 하는지보다 **왜 그렇게 하는지**를 적는다. 기존 파일의 `/// <summary>` 스타일을 따른다.
 - 웹 전용 코드는 `#if UNITY_WEBGL && !UNITY_EDITOR`와 `Assets/Plugins/WebGL/` 폴더로 분리해, Windows와 에디터 동작을 바꾸지 않는다.
 - 수정 위치는 줄 번호가 아니라 **"~ 함수 밑에", "~ 주석 위에"**처럼 함수나 주석 이름으로 안내한다. (줄 번호는 금방 어긋난다)
-- 사용자에게 보이는 새 한국어 글은 번역할 수 있게 쓴다. 코드가 글자를 넣을 때는 `Loc.Bind(label, "문장")`이나 `Loc.T("문장")`을 쓰고, 숫자나 이름이 들어가면 `Loc.T("{0}명", n)`처럼 자리표를 쓴다. 씬과 프리팹에 적힌 글은 자동으로 묶이니 번역표에만 추가한다. 번역표는 `Assets/Resources/Localization/en.txt`이고, 키는 코드와 씬의 글과 한 글자도 다르면 안 된다. `Rules/`에서는 쓰지 않는다. 자리가 좁은 곳(보드 칸 이름 등)은 `Loc.TShort`를 쓰고 번역표에 `칸:한국어 문장`으로 짧은 영어를 따로 적는다. 사람이 정한 이름(닉네임, 방 이름)은 `Loc.TName`을 쓴다. 영어는 한국어보다 글자가 길어서, 새 글을 만들 때 칸 크기를 보고 짧게 쓴다.
+- 사용자에게 보이는 새 한국어 글은 번역할 수 있게 쓴다. 코드가 글자를 넣을 때는 `Loc.Bind(label, "문장")`이나 `Loc.T("문장")`을 쓰고, 숫자나 이름이 들어가면 `Loc.T("{0}명", n)`처럼 자리표를 쓴다. 씬과 프리팹에 적힌 글은 자동으로 묶이니 번역표에만 추가한다. 번역표는 `Assets/Resources/Localization/en.txt`이고, 키는 코드와 씬의 글과 한 글자도 다르면 안 된다. 다른 화면이나 요청에 넘기거나 값을 찾는 데 쓰는 글(맵 이름 등)은 번역하지 않고 보여 줄 때만 번역한다. `Rules/`에서는 쓰지 않는다. 자리가 좁은 곳(보드 칸 이름 등)은 `Loc.TShort`를 쓰고 번역표에 `칸:한국어 문장`으로 짧은 영어를 따로 적는다. 사람이 정한 이름(닉네임, 방 이름)은 `Loc.TName`을 쓴다. 영어는 한국어보다 글자가 길어서, 새 글을 만들 때 칸 크기를 보고 짧게 쓴다.
 - 호스트와 클라이언트가 같은 규칙 코드(`Rules/`)를 쓴다. 규칙은 화면(Unity 오브젝트)을 몰라야 한다.
 - `PlayFab Secret Key`와 Photon secret 값은 코드, 설정 파일, 저장소 어디에도 넣지 않는다.
 
@@ -36,6 +36,7 @@ AI(Claude)가 이 저장소에서 작업하기 전에 가장 먼저 읽는 안�
 - 파일을 추가, 이동, 삭제하면 이 파일의 "코드 지도"도 같이 고쳐서 완성 파일에 포함한다.
 - 작업이 끝나면 [`docs/작업현황.md`](docs/작업현황.md)도 같이 갱신한다.
 - README와 기획서를 고칠 때는 부분이 아니라 **풀버전**으로 올린다.
+- 영문화와 관련된 작업은 올리기 전에 `python3 tools/check_translations.py`(코드 글은 `--code`)로 번역표에 빠진 글이 없는지 확인한다. (PyYAML 필요)
 
 ## 코드 지도
 
@@ -52,7 +53,7 @@ AI(Claude)가 이 저장소에서 작업하기 전에 가장 먼저 읽는 안�
 | 방 코드 복사(칩을 눌렀을 때) | `LobbyManager`의 `CopyRoomCode` → `Util/ClipboardCopy` |
 | 대기방 화면(준비, 설정, 채팅) | `UI/Views/RoomSetupView`, 채팅 창구는 `Chat/ChatService` |
 | 설정창(배경음, 효과음, 언어 선택) | `UI/Views/Common/SettingsView` + `Canvas_Settings` 프리팹. 로비(`LobbyManager`), 게임(`UIManager`), 로그인(`TitleManager`, `Canvas_Login/SettingsButton`)이 같은 프리팹을 쓴다. 언어 선택 줄은 `SettingsView`가 코드로 만든다 |
-| 한/영 전환(번역) | `Localization/Loc`(언어 저장, `Loc.T`, `Loc.Bind`, 씬이 열릴 때 한국어 글자 자동 묶기), `Localization/LocalizedText`(언어가 바뀌면 글자를 다시 번역). 번역표는 `Assets/Resources/Localization/en.txt` (한국어 문장이 키) |
+| 한/영 전환(번역) | `Localization/Loc`(언어 저장, `Loc.T`, `Loc.Bind`, `Loc.TName`, `Loc.TShort`, `Loc.Rank`, 값이 끝에 붙은 글의 앞부분 번역, 씬이 열릴 때 한국어 글자 자동 묶기), `Localization/LocalizedText`(언어가 바뀌면 글자를 다시 번역). 번역표는 `Assets/Resources/Localization/en.txt` (한국어 문장이 키). 빠진 글 점검은 `tools/check_translations.py` |
 | 게임 씬 진행(알림 받아 화면 연출) | `Manager/GameManager`, 화면 표시는 `Screen/GameScreen`, UI 진입점은 `Manager/UIManager` |
 | 게임 규칙(구매, 통행료, 카드, 파산, 순위) | `Rules/` (`TradeRules`, `GameRules`, `CardRules`, `ArrivalRules`, `PropertyRules`, `RankingRules`, `TimeRules`) |
 | 호스트가 하는 일(게임 진행, 로비 관리) | `Host/HostGameService`, `Host/LocalLobbyHost`, 봇과 제한 시간은 `Host/HostAutoPlayRunner` |
@@ -78,6 +79,10 @@ AI(Claude)가 이 저장소에서 작업하기 전에 가장 먼저 읽는 안�
 | `State/` | 게임과 방의 상태 데이터 |
 | `UI/` | 뷰(`Views`), 공통 컴포넌트(`Components`), 색과 연출(`Core`), 개발용 창(`Debug`) |
 | `Board`, `Property`, `Card`, `Bot`, `Chat`, `Portrait`, `Screen`, `Util` | 이름 그대로 |
+
+### 저장소 맨 위 폴더
+
+- `tools/check_translations.py`: 번역표에 빠진 글을 찾는 점검 스크립트 (Unity 프로젝트 밖이라 `.meta`가 없다)
 
 ### 참고
 
