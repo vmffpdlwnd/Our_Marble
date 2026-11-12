@@ -1050,6 +1050,18 @@ public class UIManager : MonoBehaviour
         }, autoClose ? otherCardShowSeconds : 0f);
     }
 
+    // [개발용] UIDebugPanel에서 황금열쇠 카드 앞면을 미리 볼 때 씁니다.
+    // 카드 효과와 돈 변화 사유(SetNextMoneyReason)를 건드리지 않고, 확인을 누르면 닫히기만 합니다.
+    // 카드 뽑기 창이나 카드를 찾지 못하면 false를 돌려줍니다.
+    public bool PreviewCardDraw(int cardId)
+    {
+        CardData card = cardDeck != null ? cardDeck.FindById(cardId) : null;
+        if (cardDraw == null || card == null) return false;
+
+        cardDraw.Show(Loc.T(card.cardName), Loc.T(card.description), card.icon, false, null);
+        return true;
+    }
+
     // 게임 결과 창을 띄우는 함수입니다. 게임이 끝났을 때 GameManager가 호출합니다.
     // 등수 순(파산한 사람은 맨 뒤)으로 승리/패배/파산과 최종 자산을 보여주고, 닫기를 누르면 onClose를 호출합니다. (결과 시간이 지나 자동으로 방으로 돌아갈 때는 호출되지 않습니다)
     public void ShowGameResultPopup(Action onClose = null)
