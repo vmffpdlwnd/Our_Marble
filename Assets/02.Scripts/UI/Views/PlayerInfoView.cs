@@ -114,6 +114,12 @@ public class PlayerInfoView : UIView
             .Join(badge.DOScaleY(1.15f, 0.11f).SetLoops(2, LoopType.Yoyo));
     }
 
+    /// <summary>등수 글자만 지금 언어로 다시 쓴다. 연출은 없다. 게임 중에 언어를 바꿨을 때 UIManager가 부른다.</summary>
+    public void RefreshRankText()
+    {
+        if (currentRank > 0 && rankText != null) rankText.text = Loc.Rank(currentRank, 60);
+    }
+
     private void ApplyRank(int rank)
     {
         if (rankText != null) rankText.text = Loc.Rank(rank, 60);
