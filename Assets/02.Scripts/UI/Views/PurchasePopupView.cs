@@ -214,7 +214,7 @@ public class PurchasePopupView : UIView
         // 비용이 없는 카드(이미 보유 중인 단계)는 "-"
         if (refs.costText != null) refs.costText.text = o.Cost > 0 ? UIPalette.Money(o.Cost) : "-";
         SetActive(refs.lockOverlay, o.Locked);
-        if (refs.lockText != null) refs.lockText.text = string.IsNullOrEmpty(o.LockReason) ? "선택 불가" : o.LockReason;
+        if (refs.lockText != null) refs.lockText.text = Loc.T(string.IsNullOrEmpty(o.LockReason) ? "선택 불가" : o.LockReason);
         refs.toggle.interactable = !o.Locked;
 
         refs.toggle.onValueChanged.RemoveAllListeners(); // 선택 표시용 영구 리스너는 유지된다

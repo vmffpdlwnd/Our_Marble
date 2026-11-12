@@ -45,6 +45,7 @@
 - [x] v1.1 배포 (웹, Windows)
 - [x] v1.1.1 배포 (방 코드 입장, 방 이름과 참가자 이름 표시, 이메일 가입 2단계, 글꼴 확대)
 - [x] v1.1.2 배포 (웹에서 한글 직접 입력과 방 코드 복사, 대체 글꼴 자동 비우기)
+- [ ] 영문화 배포 (한/영 전환은 설정창에서, 로그인 화면에도 설정 버튼. 코드와 번역표는 작성했고 에디터 확인 대기)
 - [ ] v1.2 (파산 신청과 포기, 황금열쇠 종류 추가, 새 스테이지)
 
 ## 현재 상태
@@ -84,6 +85,7 @@ Unity 6 (6000.3), C#, URP 2D, uGUI, TextMesh Pro, DOTween, Newtonsoft.Json
 - 웹(WebGL)에서는 브라우저가 뒤로 간 탭의 실행을 멈추고 Photon이 약 10초 넘게 신호가 없으면 연결을 끊습니다. 탭이 돌아오면 대기방과 게임 중 모두 같은 방에 자동으로 다시 들어가지만, 방장이 혼자 있는 방은 사라져 돌아올 수 없습니다. 방장은 게임 탭을 앞에 두거나, 창이 뒤로 가도 계속 실행되는 Windows(.exe)를 쓰세요.
 - 웹(WebGL)의 한글 입력은 입력칸 위에 투명한 HTML 입력칸을 겹쳐 브라우저가 한글 조합(IME)을 처리하게 하는 방식입니다. (`WebIMEInput`) 화면의 커서는 Unity 입력칸의 것이라 글자 중간을 고칠 때 위치가 맞지 않을 수 있습니다. 모바일 브라우저는 이 방식을 쓰지 않으며 확인하지 않았습니다. Windows 빌드는 원래대로입니다.
 - 웹에서 대기방의 방 코드 복사는 브라우저에 직접 복사를 시키는 방식입니다. (`WebClipboard.jslib`) 웹 빌드에서 확인했고, Safari와 모바일 브라우저는 확인하지 않았습니다. 브라우저가 막으면 복사 대신 코드가 화면에 보입니다.
+- 설정창의 배경음과 효과음은 값만 저장하고 소리는 아직 없습니다. (오디오 파일과 사운드 시스템이 없습니다)
 - 사람이 혼자(봇만) 있는 방은 그 사람이 끊기면 방이 사라져 돌아올 수 없습니다. (사람이 없는 방을 살려 둘 이유가 없어서 의도한 동작입니다)
 - 진행 중인 게임을 다른 기기에서 이어서 할 수는 없습니다. (이어하기는 그 기기에 저장된 방 코드를 씁니다)
 - 전적은 클라이언트가 올리는 방식이라 조작할 수 있습니다.
@@ -105,6 +107,7 @@ Unity 6 (6000.3), C#, URP 2D, uGUI, TextMesh Pro, DOTween, Newtonsoft.Json
 
 - 처음 연 뒤 `.meta` 생성과 컴파일 에러를 확인하고 커밋합니다.
 - 웹 전용 코드(`Assets/Plugins/WebGL/*.jslib`와 C#의 `#if UNITY_WEBGL && !UNITY_EDITOR`)는 Windows(.exe)와 에디터에 영향을 주지 않도록 분리합니다. 웹은 빌드해서 확인합니다.
+- 화면에 보이는 한국어 글은 번역할 수 있게 씁니다. 코드에서는 `Loc.T("문장")`, 씬과 프리팹에 적은 글은 자동으로 묶이고, 영어는 `Assets/Resources/Localization/en.txt`에 "한국어 문장, 탭, 영어 문장"으로 추가합니다. 빠진 글은 `python3 tools/check_translations.py`(PyYAML 필요)로 찾습니다.
 - 아래 파일은 Unity가 자동으로 바꾸므로 커밋에서 제외합니다.
   - `Packages/packages-lock.json`
 - TextMeshPro 폰트(`Maplestory Bold`, `Maplestory Light`, `Pretendard`)는 **Static**이라 `Assets/Editor/FontChars.txt`에 있는 글자만 들어 있습니다. 이 목록은 `Tools > Font > Extract Used Chars`가 만들며, 기본 ASCII, `Assets/Editor/FontCharsBase.txt`(Maplestory가 실제로 그려 주는 한글 음절 2,479자와 자모 93자 전부), 프로젝트에 쓰인 한글을 합칩니다. 씬, 프리팹, 에셋 파일은 한글을 `\uD1B5`처럼 이스케이프로 저장하므로 도구가 풀어서 읽습니다.

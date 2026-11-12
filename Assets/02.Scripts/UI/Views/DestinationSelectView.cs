@@ -25,8 +25,8 @@ public class DestinationSelectView : UIView
     /// <summary>창을 연다. 완료 버튼은 꺼진 채로 시작하고, 칸이 하나 골라지면 SetCompleteInteractable(true)로 켠다.</summary>
     public void Show(Action onComplete, string title = "세계여행", string hint = "보드에서 이동할 칸을 선택하세요")
     {
-        if (titleText != null) titleText.text = title;
-        if (hintText != null) hintText.text = hint;
+        if (titleText != null) titleText.text = Loc.T(title);
+        if (hintText != null) hintText.text = Loc.T(hint);
         SetOnClick(completeButton, () => onComplete?.Invoke());
         SetCompleteInteractable(false);
         Open();

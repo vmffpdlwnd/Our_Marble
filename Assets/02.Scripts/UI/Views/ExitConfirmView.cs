@@ -36,17 +36,25 @@ public class ExitConfirmView : UIView
         var cancelText = cancelButton != null ? cancelButton.GetComponentInChildren<TMP_Text>(true) : null;
         if (!defaultsCached)
         {
-            defaultMessage = messageText != null ? messageText.text : null;
-            defaultConfirmLabel = confirmText != null ? confirmText.text : null;
-            defaultCancelLabel = cancelText != null ? cancelText.text : null;
+            defaultMessage = SourceOf(messageText);
+            defaultConfirmLabel = SourceOf(confirmText);
+            defaultCancelLabel = SourceOf(cancelText);
             defaultsCached = true;
         }
         // 이 창은 여러 곳에서 같이 쓰므로, 부를 때마다 문구를 새로 정한다 (이전에 바꾼 문구가 남지 않게)
-        if (messageText != null) messageText.text = message ?? defaultMessage;
-        if (confirmText != null) confirmText.text = confirmLabel ?? defaultConfirmLabel;
-        if (cancelText != null) cancelText.text = cancelLabel ?? defaultCancelLabel;
+        Loc.Bind(messageText, message ?? defaultMessage);
+        Loc.Bind(confirmText, confirmLabel ?? defaultConfirmLabel);
+        Loc.Bind(cancelText, cancelLabel ?? defaultCancelLabel);
         SetOnClick(confirmButton, () => { Close(); onConfirm?.Invoke(); });
         SetOnClick(cancelButton, Close);
         Open();
+    }
+
+    // 프리팹에 적힌 글자의 한국어 원문. 영어로 바뀐 뒤에 처음 열려도 한국어 원문을 기억해 두기 위해서다
+    private static string SourceOf(TMP_Text label)
+    {
+        if (label == null) return null;
+        var bound = label.GetComponent<LocalizedText>();
+        return bound != null && bound.HasSource ? bound.Source : label.text;
     }
 }

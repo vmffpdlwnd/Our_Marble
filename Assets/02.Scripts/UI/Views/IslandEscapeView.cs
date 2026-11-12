@@ -34,11 +34,11 @@ public class IslandEscapeView : UIView
         if (turnText != null) turnText.text = turnsRemaining.ToString();
 
         if (paySubText != null)
-            paySubText.text = $"<color={UIPalette.Hex(UIPalette.Red)}><b>{UIPalette.Money(escapeCost)}</b></color> 내고 탈출";
+            paySubText.text = Loc.T("<color={0}><b>{1}</b></color> 내고 탈출", UIPalette.Hex(UIPalette.Red), UIPalette.Money(escapeCost));
         if (payButton != null) payButton.interactable = cash >= escapeCost;
 
         bool hasCard = escapeCardCount > 0;
-        if (cardSubText != null) cardSubText.text = hasCard ? $"무인도 탈출권 <b>{escapeCardCount}장</b>" : "보유한 카드 없음";
+        if (cardSubText != null) cardSubText.text = hasCard ? Loc.T("무인도 탈출권 <b>{0}장</b>", escapeCardCount) : Loc.T("보유한 카드 없음");
         if (cardButton != null) cardButton.interactable = hasCard;
 
         SetOnClick(doubleButton, () => { Close(); onDouble?.Invoke(); });

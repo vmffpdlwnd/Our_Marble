@@ -20,12 +20,14 @@ AI(Claude)가 이 저장소에서 작업하기 전에 가장 먼저 읽는 안�
 - 씬(`.unity`)과 프리팹은 직접 고치지 않는다. 필요하면 에디터에서 할 일을 위치와 함께 안내한다.
 - 새 파일은 사용자가 Unity에서 먼저 만들어야 `.meta`가 생긴다. 그래서 추가할 파일 목록을 작업 시작 때 먼저 알려 준다.
 - `Pretendard Dynamic SDF.asset`(동적 글꼴)은 Unity가 자동으로 바꾸므로 가능하면 커밋에서 제외한다. (`FallbackFontTools`가 비워 준다)
+- `ProjectSettings/UnityConnectSettings.asset`은 빌드 대상(Web, Windows)을 바꾸면 Unity가 `m_Enabled`를 자동으로 바꾸는 파일이다. 의미 없는 변경이라 커밋에서 제외한다.
 
 ## 코딩 규칙
 
 - 주석과 설명은 한글로, 무엇을 하는지보다 **왜 그렇게 하는지**를 적는다. 기존 파일의 `/// <summary>` 스타일을 따른다.
 - 웹 전용 코드는 `#if UNITY_WEBGL && !UNITY_EDITOR`와 `Assets/Plugins/WebGL/` 폴더로 분리해, Windows와 에디터 동작을 바꾸지 않는다.
 - 수정 위치는 줄 번호가 아니라 **"~ 함수 밑에", "~ 주석 위에"**처럼 함수나 주석 이름으로 안내한다. (줄 번호는 금방 어긋난다)
+- 사용자에게 보이는 새 한국어 글은 번역할 수 있게 쓴다. 코드가 글자를 넣을 때는 `Loc.Bind(label, "문장")`이나 `Loc.T("문장")`을 쓰고, 숫자나 이름이 들어가면 `Loc.T("{0}명", n)`처럼 자리표를 쓴다. 씬과 프리팹에 적힌 글은 자동으로 묶이니 번역표에만 추가한다. 번역표는 `Assets/Resources/Localization/en.txt`이고, 키는 코드와 씬의 글과 한 글자도 다르면 안 된다. 다른 화면이나 요청에 넘기거나 값을 찾는 데 쓰는 글(맵 이름 등)은 번역하지 않고 보여 줄 때만 번역한다. `Rules/`에서는 쓰지 않는다. 자리가 좁은 곳(보드 칸 이름 등)은 `Loc.TShort`를 쓰고 번역표에 `칸:한국어 문장`으로 짧은 영어를 따로 적는다. 사람이 정한 이름(닉네임, 방 이름)은 `Loc.TName`을 쓴다. 영어는 한국어보다 글자가 길어서, 새 글을 만들 때 칸 크기를 보고 짧게 쓴다.
 - 호스트와 클라이언트가 같은 규칙 코드(`Rules/`)를 쓴다. 규칙은 화면(Unity 오브젝트)을 몰라야 한다.
 - `PlayFab Secret Key`와 Photon secret 값은 코드, 설정 파일, 저장소 어디에도 넣지 않는다.
 
@@ -34,10 +36,11 @@ AI(Claude)가 이 저장소에서 작업하기 전에 가장 먼저 읽는 안�
 - 파일을 추가, 이동, 삭제하면 이 파일의 "코드 지도"도 같이 고쳐서 완성 파일에 포함한다.
 - 작업이 끝나면 [`docs/작업현황.md`](docs/작업현황.md)도 같이 갱신한다.
 - README와 기획서를 고칠 때는 부분이 아니라 **풀버전**으로 올린다.
+- 영문화와 관련된 작업은 올리기 전에 `python3 tools/check_translations.py`(코드 글은 `--code`)로 번역표에 빠진 글이 없는지 확인한다. (PyYAML 필요)
 
 ## 코드 지도
 
-씬은 `Assets/01.Scenes`의 `LoginScene`, `LobbyScene`, `GameScene` 순서로 이어진다. (`LobbyScene_old`는 옛 파일) 씬 이동은 `SceneFlow`가 맡는다.
+씬은 `Assets/01.Scenes`의 `LoginScene`, `LobbyScene`, `GameScene` 순서로 이어진다. 씬 이동은 `SceneFlow`가 맡는다.
 
 ### 기능 → 파일
 
@@ -49,6 +52,8 @@ AI(Claude)가 이 저장소에서 작업하기 전에 가장 먼저 읽는 안�
 | 방 코드로 입장 | `UI/Views/JoinByCodePopup`, 코드 규칙은 `Network/Photon/RoomCodeRules` |
 | 방 코드 복사(칩을 눌렀을 때) | `LobbyManager`의 `CopyRoomCode` → `Util/ClipboardCopy` |
 | 대기방 화면(준비, 설정, 채팅) | `UI/Views/RoomSetupView`, 채팅 창구는 `Chat/ChatService` |
+| 설정창(배경음, 효과음, 언어 선택) | `UI/Views/Common/SettingsView` + `Canvas_Settings` 프리팹. 로비(`LobbyManager`), 게임(`UIManager`), 로그인(`TitleManager`, `Canvas_Login/SettingsButton`)이 같은 프리팹을 쓴다. 언어 선택 줄은 `SettingsView`가 코드로 만든다 |
+| 한/영 전환(번역) | `Localization/Loc`(언어 저장, `Loc.T`, `Loc.Bind`, `Loc.TName`, `Loc.TShort`, `Loc.Rank`, 값이 끝에 붙은 글의 앞부분 번역, 씬이 열릴 때 한국어 글자 자동 묶기), `Localization/LocalizedText`(언어가 바뀌면 글자를 다시 번역). 번역표는 `Assets/Resources/Localization/en.txt` (한국어 문장이 키). 빠진 글 점검은 `tools/check_translations.py` |
 | 게임 씬 진행(알림 받아 화면 연출) | `Manager/GameManager`, 화면 표시는 `Screen/GameScreen`, UI 진입점은 `Manager/UIManager` |
 | 게임 규칙(구매, 통행료, 카드, 파산, 순위) | `Rules/` (`TradeRules`, `GameRules`, `CardRules`, `ArrivalRules`, `PropertyRules`, `RankingRules`, `TimeRules`) |
 | 호스트가 하는 일(게임 진행, 로비 관리) | `Host/HostGameService`, `Host/LocalLobbyHost`, 봇과 제한 시간은 `Host/HostAutoPlayRunner` |
@@ -75,8 +80,12 @@ AI(Claude)가 이 저장소에서 작업하기 전에 가장 먼저 읽는 안�
 | `UI/` | 뷰(`Views`), 공통 컴포넌트(`Components`), 색과 연출(`Core`), 개발용 창(`Debug`) |
 | `Board`, `Property`, `Card`, `Bot`, `Chat`, `Portrait`, `Screen`, `Util` | 이름 그대로 |
 
+### 저장소 맨 위 폴더
+
+- `tools/check_translations.py`: 번역표에 빠진 글을 찾는 점검 스크립트 (Unity 프로젝트 밖이라 `.meta`가 없다)
+
 ### 참고
 
-- `Manager/LobbyManager_temp`는 가짜 방 데이터로 돌던 옛 임시 파일이고, 참조하는 코드가 없다. 현재 로비는 `LobbyManager`다.
+- 영문화(한/영 전환)는 `feature/localization` 브랜치에서 진행 중이다. 계획과 결정은 `docs/작업현황.md`와 기획서 9.3.
 - 네트워크 버전은 `PhotonConnection.NetworkVersion`(현재 3). 방을 다루는 방식이 바뀌면 올려서 옛 빌드와 섞이지 않게 한다.
 - 호스트 권위 방식과 요청 검증 순서는 [`docs/기획서.md`](docs/기획서.md) 5장.

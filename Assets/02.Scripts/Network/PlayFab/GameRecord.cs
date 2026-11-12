@@ -27,6 +27,6 @@ public static class GameRecord
 
         int losses = games - wins;
         int rate = games == 0 ? 0 : (int)System.Math.Round(wins * 100.0 / games, System.MidpointRounding.AwayFromZero);
-        return $"{wins}승 {losses}패 <size=80%><color=#8C90A8>({rate}%)</color></size>";
+        return Loc.T("{0}승 {1}패 <size=80%><color=#8C90A8>({2}%)</color></size>", wins, losses, rate);
     }
 }

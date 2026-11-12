@@ -20,6 +20,8 @@ public class TitleManager : MonoBehaviour
     private TMP_InputField nicknameInput;
     private Button startButton;
     private ToastView toast;
+    private Button settingsButton;
+    private SettingsView settingsView;
 
     private bool starting;
 
@@ -82,6 +84,20 @@ public class TitleManager : MonoBehaviour
         var toastTransform = uiRoot.Find("Canvas_Toast");
         if (toastTransform != null) toast = toastTransform.GetComponent<ToastView>();
 
+        // 설정(언어, 소리). 씬에 설정 버튼(Canvas_Login/SettingsButton)과 Canvas_Settings가 없으면 건너뛴다.
+        var settingsTransform = uiRoot.Find("Canvas_Settings");
+        var settingsButtonTransform = canvas.Find("SettingsButton");
+        if (settingsTransform != null && settingsButtonTransform != null)
+        {
+            settingsView = settingsTransform.GetComponent<SettingsView>();
+            settingsButton = settingsButtonTransform.GetComponent<Button>();
+            if (settingsView != null) settingsView.CloseImmediate(); // 씬에 켜진 채 놓았더라도 처음에는 닫아 둔다
+        }
+        else
+        {
+            Debug.LogWarning("[Title] 설정 버튼을 건너뜁니다. 씬에 UI/Canvas_Settings와 UI/Canvas_Login/SettingsButton이 둘 다 있어야 합니다.");
+        }
+
         // 이메일 계정 카드(로그인, 회원가입, 비밀번호 찾기). 씬에 카드가 없으면 건너뛰고 닉네임 시작만 쓴다.
         gameObject.AddComponent<AccountCards>().Init(canvas, signupCard, nicknameInput, ShowToast);
         return true;
@@ -91,7 +107,7 @@ public class TitleManager : MonoBehaviour
     {
         var t = root.Find(path);
         var label = t != null ? t.GetComponent<TMP_Text>() : null;
-        if (label != null) label.text = text;
+        if (label != null) Loc.Bind(label, text); // 언어가 바뀌면 자동으로 다시 번역한다
     }
 
     // 에디터와 개발 빌드에서는 코드 버전도 같이 보여 준다. (옛 빌드와 섞였을 때 구분하려고)
@@ -109,6 +125,7 @@ public class TitleManager : MonoBehaviour
         nicknameInput.onValidateInput += NicknameChar;
         nicknameInput.onSubmit.AddListener(_ => TryStart()); // 엔터
         startButton.onClick.AddListener(TryStart);
+        if (settingsButton != null && settingsView != null) settingsButton.onClick.AddListener(settingsView.Open);
     }
 
     // 닉네임에는 서식 문자(< >)를 넣을 수 없다. 화면의 글자는 서식 태그를 읽기 때문에, 닉네임에 <size=500> 같은 글이 있으면 방 목록과 자리 이름이 깨진다.

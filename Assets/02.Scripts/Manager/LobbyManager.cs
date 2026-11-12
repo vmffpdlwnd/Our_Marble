@@ -285,6 +285,7 @@ public class LobbyManager : MonoBehaviour
     private void OnEnable()
     {
         if (Net == null) { Debug.LogError("[Lobby] LobbyNetwork.Instance가 없습니다.", this); return; }
+        Loc.Changed += OnLanguageChanged;
         Net.OnRoomEntered += HandleRoomEntered;
         Net.OnRoomLeft += HandleRoomLeft;
         Net.OnRoomList += HandleRoomList;
@@ -300,6 +301,7 @@ public class LobbyManager : MonoBehaviour
 
     private void OnDisable()
     {
+        Loc.Changed -= OnLanguageChanged;
         if (Net == null) return;
         Net.OnRoomEntered -= HandleRoomEntered;
         Net.OnRoomLeft -= HandleRoomLeft;
@@ -523,7 +525,7 @@ public class LobbyManager : MonoBehaviour
 
         refreshButton.interactable = remaining == 0;
         if (refreshLabel == null) return;
-        refreshLabel.text = remaining > 0 ? $"새로고침 ({remaining}초)" : "새로고침";
+        refreshLabel.text = remaining > 0 ? Loc.T("새로고침 ({0}초)", remaining) : Loc.T("새로고침");
         var color = refreshLabel.color;
         color.a = remaining > 0 ? 0.55f : 1f;
         refreshLabel.color = color;
@@ -766,9 +768,7 @@ public class LobbyManager : MonoBehaviour
         bool online = state == ConnectionState.Connected || state == ConnectionState.Offline; // 오프라인(혼자 하기)은 이 PC 안의 호스트로 동작한다
         connectionDot.color = state == ConnectionState.Connected ? new Color32(140, 220, 184, 255)
             : state == ConnectionState.Reconnecting ? UIPalette.Gold : UIPalette.Red;
-        connectionText.text = state == ConnectionState.Connected ? "서버 연결됨"
-            : state == ConnectionState.Reconnecting ? (everConnected ? "재연결 중..." : "연결 중...")
-            : state == ConnectionState.Offline ? "오프라인 (혼자 하기)" : "연결 끊김";
+        UpdateConnectionText();
         if (state == ConnectionState.Connected) everConnected = true;
 
         // 연결이 없으면 방 목록과 오른쪽 버튼을 흐리게 하고 누를 수 없게 한다
@@ -792,6 +792,25 @@ public class LobbyManager : MonoBehaviour
         }
     }
     
+    // 연결 상태 글자. 상태가 바뀔 때와 언어가 바뀔 때 다시 그린다
+    private void UpdateConnectionText()
+    {
+        connectionText.text = Loc.T(connection == ConnectionState.Connected ? "서버 연결됨"
+            : connection == ConnectionState.Reconnecting ? (everConnected ? "재연결 중..." : "연결 중...")
+            : connection == ConnectionState.Offline ? "오프라인 (혼자 하기)" : "연결 끊김");
+    }
+
+    // 설정창에서 언어를 바꿨을 때: 코드가 직접 만든 글자를 다시 그린다. (씬에 적힌 글자는 LocalizedText가 알아서 바꾼다)
+    private void OnLanguageChanged()
+    {
+        UpdateConnectionText();
+        shownCooldown = -1;
+        UpdateRefreshButton();
+        SyncRows();
+        RefreshDetail();
+        RefreshRecord();
+    }
+
     private void SetConnectionTrue()
     {
         SetConnection(ConnectionState.Connected, true);
@@ -833,17 +852,45 @@ public class LobbyManager : MonoBehaviour
 
     private static bool IsFull(RoomSummary room) => room.playerCount >= room.maxPlayers;
 
-    private static string MapName(int mapId) => mapId >= 0 && mapId < Maps.Length ? Maps[mapId] : $"맵 {mapId}";
+    // 맵을 가리키는 값(한국어 이름). 대기방과 방 설정 요청이 이 값으로 맵을 찾으므로 번역하지 않는다. 화면에 보여 줄 때는 MapName을 쓴다
+    private static string MapKey(int mapId) => mapId >= 0 && mapId < Maps.Length ? Maps[mapId] : $"맵 {mapId}";
+
+    private static string MapName(int mapId) => mapId >= 0 && mapId < Maps.Length ? Loc.T(Maps[mapId]) : Loc.T("맵 {0}", mapId);
 
     private Sprite MapSprite(int mapId) =>
         mapSprites != null && mapId >= 0 && mapId < mapSprites.Length ? mapSprites[mapId] : null;
 
     // 서버 데이터에 방 이름이 없어서 방장 닉네임으로 만든다
     public static string RoomTitle(string hostNickname) =>
-        string.IsNullOrEmpty(hostNickname) ? "이름 없는 방" : $"{hostNickname}의 방";
+        string.IsNullOrEmpty(hostNickname) ? Loc.T("이름 없는 방") : Loc.T("{0}의 방", hostNickname);
 
     // 방에 저장된 이름이 있으면 그것을 쓴다. 방장이 바뀌어도 이름은 그대로다. 이름이 없는 옛 방만 방장 닉네임으로 대신 만든다.
-    public static string RoomTitle(string roomName, string hostNickname) => RoomNames.Resolve(roomName, hostNickname);
+    public static string RoomTitle(string roomName, string hostNickname)
+    {
+        string room = StripResumeTag(roomName, out bool resume);
+        string host = StripResumeTag(hostNickname, out _);
+        string name = RoomNames.Resolve(room, host);
+
+        // 기본 이름("철수의 방")은 방 정보에 한국어로 저장돼 있어서, 지금 언어에 맞게 다시 만들어 보여 준다. 사람이 정한 이름은 그대로 둔다.
+        if (name == RoomNames.Default(host)) name = RoomTitle(host);
+        return resume ? Loc.T("[이어하기]") + " " + name : name;
+    }
+
+    // PhotonLobbyBridge가 내가 하던 게임(이어할 수 있는 방)의 방 이름과 방장 이름 앞에 붙이는 꼬리표
+    private const string ResumeTag = "[이어하기] ";
+
+    private static string StripResumeTag(string text, out bool resume)
+    {
+        resume = text != null && text.StartsWith(ResumeTag);
+        return resume ? text.Substring(ResumeTag.Length) : text;
+    }
+
+    // 방장 이름. 이어할 수 있는 방이면 앞에 지금 언어의 꼬리표를 붙인다
+    private static string HostLabel(string hostNickname)
+    {
+        string name = StripResumeTag(hostNickname, out bool resume);
+        return resume ? Loc.T("[이어하기]") + " " + name : name;
+    }
 
     private static bool IsHost(RoomSnapshot room) => room.hostId == MyPlayerId;
 
@@ -892,7 +939,7 @@ public class LobbyManager : MonoBehaviour
     private void CopyRoomCode(string code)
     {
         if (ClipboardCopy.Copy(code)) ShowToast("방 코드를 복사했어요");
-        else ShowToast($"방 코드 {code} (이 환경에서는 복사가 안 될 수 있어요)");
+        else ShowToast(Loc.T("방 코드 {0} (이 환경에서는 복사가 안 될 수 있어요)", code));
     }
 
     // 코드로 입장: 방 코드를 넣는 창을 연다
@@ -994,7 +1041,7 @@ public class LobbyManager : MonoBehaviour
             var config = room.config;
             roomSetup.SetSettings(new RoomSetupView.Settings
             {
-                Map = MapName(room.mapId),
+                Map = MapKey(room.mapId),
                 MaxPlayers = room.maxPlayers,
                 StartMoney = config != null && config.startMoney > 0 ? config.startMoney : 500000,
                 MaxRound = config != null && config.maxRound > 0 ? config.maxRound : 30,
@@ -1182,7 +1229,7 @@ public class LobbyManager : MonoBehaviour
         row.Lock.SetActive(false);                 // RoomSummary에 비밀번호 정보가 없다
         row.Number.text = (index + 1).ToString("00");
         row.Name.text = RoomTitle(room.roomName, room.hostNickname);
-        row.Info.text = $"{MapName(room.mapId)} · 방장 {room.hostNickname}";
+        row.Info.text = Loc.T("{0} · 방장 {1}", MapName(room.mapId), HostLabel(room.hostNickname));
 
         row.Count.text = $"{room.playerCount} / {room.maxPlayers}";
         for (int i = 0; i < row.Dots.Length; i++)
@@ -1197,7 +1244,7 @@ public class LobbyManager : MonoBehaviour
         bool canJoin = !full;
         row.Join.interactable = canJoin;
         row.JoinImage.color = canJoin ? Mint : Neutral;
-        row.JoinLabel.text = canJoin ? "참가" : "입장 불가";
+        row.JoinLabel.text = Loc.T(canJoin ? "참가" : "입장 불가");
         row.JoinLabel.fontSize = canJoin ? 24 : 18;
         row.JoinLabel.color = canJoin ? Color.white : UIPalette.InkSub;
     }
@@ -1205,7 +1252,7 @@ public class LobbyManager : MonoBehaviour
     private static void ApplyStatus(bool full, Image chip, TMP_Text text)
     {
         chip.color = full ? RedBg : ReadyBg;
-        text.text = full ? "가득 참" : "대기 중";
+        text.text = Loc.T(full ? "가득 참" : "대기 중");
         text.color = full ? RedText : ReadyText;
     }
 
@@ -1259,7 +1306,7 @@ public class LobbyManager : MonoBehaviour
         bool canJoin = !full;
         detailJoin.interactable = canJoin;
         detailJoinImage.color = canJoin ? Mint : Neutral;
-        detailJoinLabel.text = canJoin ? "참가하기" : "입장 불가";
+        detailJoinLabel.text = Loc.T(canJoin ? "참가하기" : "입장 불가");
         detailJoinLabel.color = canJoin ? Color.white : UIPalette.InkSub;
     }
 
@@ -1267,9 +1314,9 @@ public class LobbyManager : MonoBehaviour
     private static string MemberLabel(RoomSummary room, int index)
     {
         if (room.memberNicknames != null && index < room.memberNicknames.Count && !string.IsNullOrEmpty(room.memberNicknames[index]))
-            return room.memberNicknames[index];
+            return Loc.TName(room.memberNicknames[index]); // 봇 이름("봇 1")만 번역표에 있고, 사람의 닉네임은 그대로 나온다
 
-        return index == 0 ? room.hostNickname : "참가자";
+        return index == 0 ? HostLabel(room.hostNickname) : Loc.T("참가자");
     }
 
     private static void SetEmptySlot(SlotView s)
@@ -1279,7 +1326,7 @@ public class LobbyManager : MonoBehaviour
         s.Ring.color = Neutral;
         s.Portrait.color = Neutral;
         s.Host.SetActive(false);
-        s.Nick.text = "빈 자리";
+        s.Nick.text = Loc.T("빈 자리");
         s.Nick.color = UIPalette.InkSub;
     }
     #endregion
@@ -1294,7 +1341,7 @@ public class LobbyManager : MonoBehaviour
         if (createNameInput != null)
         {
             createNameInput.SetTextWithoutNotify("");
-            if (createNameInput.placeholder is TMP_Text namePlaceholder) namePlaceholder.text = RoomNames.Default(LocalPlayer.Nickname); // 비우면 이 이름이 된다
+            if (createNameInput.placeholder is TMP_Text namePlaceholder) namePlaceholder.text = RoomTitle(null, LocalPlayer.Nickname); // 비우면 이 이름이 된다
         }
         createPopup.Open();
     }
@@ -1307,7 +1354,7 @@ public class LobbyManager : MonoBehaviour
 
     private void ShowMap()
     {
-        mapNameText.text = Maps[mapIndex];
+        mapNameText.text = MapName(mapIndex);
         if (mapPreviewImage != null) mapPreviewImage.sprite = MapSprite(mapIndex);
         // 고를 수 있는 맵이 하나뿐이면 화살표를 눌러도 바뀌는 게 없으므로 잠가 둔다
         bool canChange = AvailableMapCount() > 1;

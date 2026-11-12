@@ -80,7 +80,7 @@ public class TakeoverPopupView : UIView
         SetActive(imagePlaceholder, image == null);
         if (tileNameText != null) tileNameText.text = tileName;
         if (ownerText != null)
-            ownerText.text = $"<color={UIPalette.Hex(UIPalette.PlayerColor(ownerColorIndex))}>●</color> {ownerName} 님의 땅";
+            ownerText.text = Loc.T("<color={0}>●</color> {1} 님의 땅", UIPalette.Hex(UIPalette.PlayerColor(ownerColorIndex)), ownerName);
         if (!special) stageTrack.Set(level);
 
         if (priceText != null)

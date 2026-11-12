@@ -77,14 +77,14 @@ public class PlayerInfoView : UIView
     /// <summary>이름, 초상화, 플레이어 색(0~3).</summary>
     public void SetProfile(string playerName, Sprite portrait, int playerColorIndex)
     {
-        if (nameText != null) nameText.text = playerName;
+        if (nameText != null) nameText.text = Loc.TName(playerName);
         SetPortrait(portraitImage, portrait, UIPalette.PlayerLightColor(playerColorIndex));
     }
     
     // 초상화 시스템 구현 전, 이름만이라도 갱신하기 위해 임시 구현한 함수
     public void SetName(string playerName)
     {
-        if (nameText != null) nameText.text = playerName;
+        if (nameText != null) nameText.text = Loc.TName(playerName);
     }
 
     /// <summary>등수(1~4). 이전과 달라지면 배지가 뒤집히며 바뀐다(첫 설정은 바로 표시).</summary>
@@ -116,7 +116,7 @@ public class PlayerInfoView : UIView
 
     private void ApplyRank(int rank)
     {
-        if (rankText != null) rankText.text = $"{rank}<size=60%>위</size>";
+        if (rankText != null) rankText.text = Loc.Rank(rank, 60);
         if (rankBadge != null) rankBadge.color = UIPalette.Rank[Mathf.Clamp(rank - 1, 0, UIPalette.Rank.Length - 1)];
     }
 
@@ -249,7 +249,7 @@ public class PlayerInfoView : UIView
         if (moneyChangeStroke != null) moneyChangeStroke.color = gain ? UIPalette.GainStroke : UIPalette.LossStroke;
         if (moneyChangeReason != null)
         {
-            moneyChangeReason.text = reason;
+            moneyChangeReason.text = Loc.T(reason); // 사유는 한국어 문장을 키로 번역한다
             moneyChangeReason.color = gain ? UIPalette.GainText : UIPalette.LossText;
         }
         if (moneyChangeAmount != null)
