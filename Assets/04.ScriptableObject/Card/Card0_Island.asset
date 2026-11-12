@@ -10,14 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0ded43c9fb85c65468f822ecd36f3b34, type: 3}
-  m_Name: MoveTo
+  m_Name: Card0_Island
   m_EditorClassIdentifier: Assembly-CSharp::CardData
-  id: 3
-  cardName: "\uBCF8\uC0AC \uC774\uB3D9"
-  description: "\uBCF8\uC0AC\uB85C \uC774\uB3D9"
-  icon: {fileID: 21300000, guid: a9961fa135fbced4492729ba348c885f, type: 3}
-  effectType: 2
+  id: 0
+  cardName: "\uBB34\uC778\uB3C4"
+  description: "\uBB34\uC778\uB3C4\uB85C \uAC00\uB77C"
+  icon: {fileID: 21300000, guid: dca36c8791661ee4980793d2de05d85f, type: 3}
+  effectType: 4
   amount: 0
   targetTileId: 0
   steps: 0
-  penaltyToFestivalPool: 0
+  penaltyToFestivalPool: 1

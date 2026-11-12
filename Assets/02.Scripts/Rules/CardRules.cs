@@ -47,7 +47,7 @@ public static class CardRules
 
             case CardEffectType.Penalty: // 은행 또는 적립금에 돈을 낸다. 현금 한도 안에서만 낸다. (매각, 파산 없음)
                 long paid = DeductMoneyWithinBalance(player, card.amount);
-                if (card.penaltyToFestivalPool) state.WelfareFund += paid;
+                if (card.penaltyToWelfareFund) state.WelfareFund += paid;
                 return new CardOutcome { Kind = CardOutcomeKind.EndTurn, IsPenalty = true, PenaltyPaid = paid };
 
             case CardEffectType.MoveTo: // 지정한 칸으로 앞으로 이동한다. 출발 지점을 지나면 월급
@@ -57,7 +57,7 @@ public static class CardRules
             case CardEffectType.MoveBy: // N칸 이동한다. 음수면 뒤로 가고, 뒤로 갈 때는 월급이 없다
                 return MoveBy(data, player, card.steps);
 
-            case CardEffectType.GoToInspection: // 무인도로 바로 이동한다. 월급 없음, 더블이어도 추가 턴 없음
+            case CardEffectType.GoToIsland: // 무인도로 바로 이동한다. 월급 없음, 더블이어도 추가 턴 없음
                 int island = GameRules.FindIslandTileIndex(data);
                 if (island < 0) return new CardOutcome { Kind = CardOutcomeKind.EndTurn, Problem = CardProblem.NoIslandTile };
                 return new CardOutcome { Kind = CardOutcomeKind.MoveDirectly, To = island };

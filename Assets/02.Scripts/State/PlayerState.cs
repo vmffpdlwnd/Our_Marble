@@ -11,8 +11,10 @@ public class PlayerState
     // 무인도 탈출까지 남은 턴 수
     public int IslandTurnsRemaining { get; set; }
     
-    // 황금열쇠에서 얻은 사용카드
-    public List<int> CardIds { get; set; }
+    // 황금열쇠에서 얻어 들고 있는 카드 id (통행료 면제 등 나중에 쓸 자리. 아직 쓰지 않음)
+    // GameData.CardIds(덱에 있는 카드 목록)와 구분하려고 이름을 나눴다. 주고받는 JSON 키는 그대로 둔다
+    [Newtonsoft.Json.JsonProperty("CardIds")]
+    public List<int> HeldCardIds { get; set; }
 
     // 파산 여부
     public bool IsBankrupt { get; set; }
@@ -36,7 +38,7 @@ public class PlayerState
         Position = 0;
         Money = 0;
         IslandTurnsRemaining = 0;
-        CardIds = new List<int>();
+        HeldCardIds = new List<int>();
         IsBankrupt = false;
         FinalRank = 0;
     }

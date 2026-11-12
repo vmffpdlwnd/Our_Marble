@@ -10,14 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0ded43c9fb85c65468f822ecd36f3b34, type: 3}
-  m_Name: getMoney
+  m_Name: Card5_MoveForward3
   m_EditorClassIdentifier: Assembly-CSharp::CardData
-  id: 1
-  cardName: "\uB3C8 \uBC1B\uAE30"
-  description: "\uB3C8\uC744 \uBC1B\uC544\uB77C"
-  icon: {fileID: 21300000, guid: ecfd30677295e32448e58964581cf14d, type: 3}
-  effectType: 0
-  amount: 100000
+  id: 5
+  cardName: "\uCE78 \uC774\uB3D9"
+  description: "3\uCE78 \uC55E\uC73C\uB85C \uAC00\uB77C"
+  icon: {fileID: 21300000, guid: 93286fdf7ac22694aafeda87a2f9fb60, type: 3}
+  effectType: 3
+  amount: 0
   targetTileId: 0
-  steps: 0
+  steps: 3
   penaltyToFestivalPool: 0

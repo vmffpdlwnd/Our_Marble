@@ -1150,7 +1150,7 @@ public class GameManager : Singleton<GameManager>
                     Log($"[카드:이동] {P(playerId)}: {card.steps}칸 이동 ({TileName(fromPosition)} → {TileName(outcome.To)})");
                 break;
 
-            case CardEffectType.GoToInspection: // 무인도로 바로 이동한다 (월급 없음, 더블이어도 추가 턴 없음)
+            case CardEffectType.GoToIsland: // 무인도로 바로 이동한다 (월급 없음, 더블이어도 추가 턴 없음)
                 if (outcome.Problem == CardProblem.None)
                     Log($"[카드:무인도] {P(playerId)}: 무인도로 이동합니다.");
                 break;
