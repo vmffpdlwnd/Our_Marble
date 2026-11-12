@@ -301,6 +301,7 @@
 기부금 납부	Donate
 기부금 수령	Collect donations
 세계여행	World Tour
+칸 이동	Move tiles
 무인도 표류	Castaway
 시공의 폭풍에 휩쓸려 무인도에 표류했다.\n옆엔 배구공 ‘왓슨’뿐이다.	A space-time storm left you stranded on an island.\nYour only friend is a volleyball named Watson.
 고객 감사금	Customer Tip

@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 0
   cardName: "\uBB34\uC778\uB3C4"
   description: "\uC2DC\uACF5\uC758 \uD3ED\uD48D\uC5D0 \uD729\uC4F8\uB824 \uBB34\uC778\uB3C4\uC5D0
-    \uD45C\uB958\uD588\uB2E4.\\n\uC606\uC5D4 \uBC30\uAD6C\uACF5 \u2018\uC653\uC2A8\u2019\uBFD0\uC774\uB2E4."
+    \uD45C\uB958\uD588\uB2E4.\n\uC606\uC5D4 \uBC30\uAD6C\uACF5 \u2018\uC653\uC2A8\u2019\uBFD0\uC774\uB2E4."
   icon: {fileID: 21300000, guid: dca36c8791661ee4980793d2de05d85f, type: 3}
   effectType: 4
   amount: 0
