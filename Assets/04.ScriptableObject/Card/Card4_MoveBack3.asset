@@ -13,11 +13,12 @@ MonoBehaviour:
   m_Name: Card4_MoveBack3
   m_EditorClassIdentifier: Assembly-CSharp::CardData
   id: 4
-  cardName: "\uCE78 \uC774\uB3D9"
-  description: "3\uCE78 \uB4A4\uB85C \uAC00\uB77C"
+  cardName: "\uC190 \uBBF8\uB044\uB7EC\uC9D0"
+  description: "\uC5B4\uC774\uCFE0\u2014 \uC190\uC774 \uBBF8\uB044\uB7EC\uC838 \uC8FC\uC0AC\uC704\uAC00
+    \uC5C9\uB6B1\uD558\uAC8C \uAD74\uB7EC\uAC14\uB2E4.\\n3\uCE78 \uB4A4\uB85C \uAC04\uB2E4."
   icon: {fileID: 21300000, guid: 3517b8d53095f1e498762bea4ff5f30a, type: 3}
   effectType: 3
   amount: 0
   targetTileId: 0
   steps: -3
-  penaltyToFestivalPool: 0
+  penaltyToWelfareFund: 0
