@@ -240,6 +240,7 @@ public class HostGameService : IHostRequestReceiver
             case "SELL_PROPERTIES": HandleSellProperties(senderId, JsonConvert.DeserializeObject<SellPropertiesRequest>(json)); break;
             case "DRAW_CARD": HandleDrawCard(senderId); break;
             case "CHOOSE_DESTINATION": HandleChooseDestination(senderId, JsonConvert.DeserializeObject<ChooseDestinationRequest>(json)); break;
+            case "DECLARE_BANKRUPTCY": HandleDeclareBankruptcy(senderId); break;
 
             default:
                 Debug.LogWarning($"[HostGameService] 알 수 없는 요청입니다: {type}");
@@ -268,10 +269,11 @@ public class HostGameService : IHostRequestReceiver
     }
 
     // ───────────── 검증 (기획서 5장 "검증 순서") ─────────────
-
+    
     // 1. 진행 중인 게임이 있는가  2. (땅 번호가 있다면) 존재하는 땅인가  3. 요청자의 차례인가  4. 파산하지 않았는가  5. 요청이 현재 단계에 맞는가
     // (7번은 ValidateOnProperty, 8번은 각 요청 처리에서 하고, 6번 제한 시간은 자동 진행 작업에서 넣는다)
-    private bool Validate(long senderId, GameMessageType expectedPhase, out PlayerState player, int? propertyId = null, IEnumerable<int> propertyIds = null)
+    // expectedPhase가 null이면 단계는 가리지 않고, 입력을 기다리는 중이기만 하면 된다. (파산 신청)
+    private bool Validate(long senderId, GameMessageType? expectedPhase, out PlayerState player, int? propertyId = null, IEnumerable<int> propertyIds = null)
     {
         player = GetPlayer(senderId);
 
@@ -281,7 +283,8 @@ public class HostGameService : IHostRequestReceiver
         if (player == null) { SendError(senderId, "NOT_IN_GAME", "이 게임의 참가자가 아니에요"); return false; }
         if (state.CurrentPlayerId != senderId) { SendError(senderId, "NOT_YOUR_TURN", "내 차례가 아니에요"); return false; }
         if (player.IsBankrupt) { SendError(senderId, "BANKRUPT", "파산해서 요청할 수 없어요"); return false; }
-        if (state.WaitingType != expectedPhase)
+        bool phaseMatches = expectedPhase.HasValue ? state.WaitingType == expectedPhase : state.WaitingType != null;
+        if (!phaseMatches)
         {
             SendError(senderId, "INVALID_PHASE", "지금은 보낼 수 없는 요청이에요");
             return false;
@@ -792,6 +795,25 @@ public class HostGameService : IHostRequestReceiver
 
         if (result == BankruptResult.LastPlayerLeft)
             EndGame("남은 플레이어가 1명입니다.");
+    }
+
+    // GameManager.HandleBankruptcyDeclared
+    // 내 차례에 입력을 기다리는 동안(단계는 가리지 않는다) 스스로 파산한다. 재산은 은행으로 간다. (TradeRules.DeclareBankruptcy)
+    // 파산한 사람은 관전만 하고, 더블이어도 다음 플레이어로 넘어간다. (통행료 파산과 같다)
+    private void HandleDeclareBankruptcy(long senderId)
+    {
+        if (!Validate(senderId, null, out PlayerState player)) return;
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.BANKRUPTCY_DECLARED, new BankruptcyDeclaredBroadcast { playerId = senderId });
+
+        BankruptResult result = TradeRules.DeclareBankruptcy(state, gameData, player);
+        Debug.Log($"[HostGameService] 파산 신청: {player.Nickname} (최종 {player.FinalRank}위)");
+
+        if (result == BankruptResult.LastPlayerLeft)
+            EndGame("남은 플레이어가 1명입니다.");
+
+        StartTurn(GetNextPlayerId()); // 게임이 끝났으면 아무것도 하지 않는다
     }
     #endregion
 

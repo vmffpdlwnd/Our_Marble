@@ -305,6 +305,9 @@ public class UIDebugPanel : MonoBehaviour
 
         RichLabel("<b>① 강제 파산</b> (통행료를 못 낼 때와 같은 처리: 재산을 상대에게 넘기고 다음 차례로)");
         if (GUILayout.Button("강제 파산 실행 (HandleBankruptcy → 다음 차례)")) RunBankrupt();
+ 
+        RichLabel("<b>② 파산 신청</b> (실제 요청을 호스트에 보낸다. 내 차례에 입력을 기다릴 때만 처리되고, 되돌리기로 되돌릴 수 없다)");
+        if (GUILayout.Button("파산 신청 보내기 (GameManager.DeclareBankruptcy)")) DeclareBankruptcy();
 
         if (GUILayout.Button("시험 상태 되돌리기 (파산·땅·게임 종료 초기화)")) ResetBankruptTest();
     }
@@ -340,6 +343,16 @@ public class UIDebugPanel : MonoBehaviour
         Game.HandleBankruptcy(payer.PlayerId, receiver.PlayerId);
         if (!State.IsGameOver) Game.HandleTurnChanged(Players[NextPlayer(payerIndex)].PlayerId);
         Log($"{NameOf(payerIndex)} 강제 파산 → {NameOf(Players.FindIndex(p => p.PlayerId == receiver.PlayerId))}에게 재산 이전");
+    }
+
+    // 나의 파산 신청을 실제 경로(GameManager → 호스트 → 알림)로 보낸다. 내 차례에 입력을 기다리는 중이 아니면 보내지 않는다.
+    private void DeclareBankruptcy()
+    {
+        bool canDeclare = !State.IsGameOver && State.WaitingType != null && State.CurrentPlayerId == Players[LocalPlayer].PlayerId;
+        if (!canDeclare) { Log("내 차례에 입력을 기다릴 때만 보낼 수 있습니다"); return; }
+
+        Game.DeclareBankruptcy();
+        Log("파산 신청을 보냈습니다");
     }
 
     // 파산, 땅 주인, 게임 종료 상태를 처음으로 돌린다. (현금은 그대로)

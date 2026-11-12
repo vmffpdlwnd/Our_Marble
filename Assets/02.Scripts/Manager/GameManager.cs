@@ -76,6 +76,7 @@ public class GameManager : Singleton<GameManager>
         subscribedNetwork.OnPropertiesSold += HandlePropertiesSold;
         subscribedNetwork.OnPropertyAcquired += HandlePropertyAcquired;
         subscribedNetwork.OnPropertyPurchased += HandlePropertyPurchased;
+        subscribedNetwork.OnBankruptcyDeclared += HandleBankruptcyDeclared;
         subscribedNetwork.OnGameError += HandleGameError;
 
         subscribedNetwork.OnSync += SyncGameState;
@@ -93,6 +94,7 @@ public class GameManager : Singleton<GameManager>
         subscribedNetwork.OnPropertiesSold -= HandlePropertiesSold;
         subscribedNetwork.OnPropertyAcquired -= HandlePropertyAcquired;
         subscribedNetwork.OnPropertyPurchased -= HandlePropertyPurchased;
+        subscribedNetwork.OnBankruptcyDeclared -= HandleBankruptcyDeclared;
         subscribedNetwork.OnGameError -= HandleGameError;
 
         subscribedNetwork.OnSync -= SyncGameState;
@@ -1054,6 +1056,50 @@ public class GameManager : Singleton<GameManager>
 
         // 턴 넘기기는 ProcessArrival에서 처리 (HandleTurnChanged(GetNextPlayerId()) 호출)
     }
+
+    // ────────────────────────── 파산 신청 ──────────────────────────
+    /// <summary>
+    /// 화면의 '파산 신청'을 확인하면 이 함수가 호출됩니다.
+    /// 내 차례에 입력을 기다리는 동안만 보냅니다. (단계는 가리지 않습니다. 호스트가 같은 조건으로 다시 확인합니다)
+    /// </summary>
+    public void DeclareBankruptcy()
+    {
+        if (gameState == null || gameState.IsGameOver || gameState.WaitingType == null || !IsLocalPlayerTurn()) return;
+
+        sendAndWaiting = true;
+        GameNetwork.Instance.SendDeclareBankruptcyRequest();
+    }
+
+    /// <summary>
+    /// 차례인 사람이 스스로 파산했다는 알림. 재산을 은행에 돌려주고(땅은 주인 없음, 현금 0) 파산 처리한 뒤 다음 차례로 넘깁니다.
+    /// 더블이어도 다음 플레이어로 넘어갑니다. (통행료 파산과 같습니다)
+    /// </summary>
+    public void HandleBankruptcyDeclared(long playerId)
+    {
+        HandleRoutine();
+
+        var player = GetPlayerState(playerId);
+        if (player == null) return;
+
+        // 돌려줄 땅 목록을 미리 기억해 둡니다. (규칙이 상태를 바꾼 뒤 보드에 반영하려고)
+        var ownedIds = gameState.PropertyStates.FindAll(p => p.OwnerId == playerId).ConvertAll(p => p.PropertyId);
+        Log($"[파산 신청] {P(playerId)}: 땅 {ownedIds.Count}개와 현금 {Won(player.Money)}을 은행에 돌려줍니다.");
+
+        // GameState를 갱신합니다. (땅 주인 없음, 건설 단계 초기화, 현금 0, 파산 표시) 규칙(TradeRules.DeclareBankruptcy)이 합니다.
+        BankruptResult result = TradeRules.DeclareBankruptcy(gameState, gameData, player);
+        foreach (var id in ownedIds)
+        {
+            var property = GetPropertyState(id);
+            if (property == null) continue;
+
+            screen.UpdatePropertyOwner(property); // 주인 없는 땅으로
+            screen.UpdatePropertyBuilding(property); // 건설 레벨 초기화
+        }
+
+        AfterBankrupt(player, result); // 파산 연출 → 게임 종료 판정
+        HandleTurnChanged(GetNextPlayerId()); // 강제로 턴을 넘깁니다. (게임이 끝났으면 아무것도 하지 않습니다)
+    }
+
     // 통행료를 이체하고 연출을 재생합니다. 이체는 규칙(TradeRules.PayToll)이 합니다.
     // 땅 도착 처리에서는 규칙(TradeRules.ArriveAtProperty)이 이미 이체하므로 ShowTollPaid만 부릅니다. (개발용 패널은 이 함수를 직접 부릅니다)
     public void HandleTollPaid(long payerId, long receiverId, long amount)
