@@ -65,15 +65,28 @@ public class CurrentTurnView : UIView
             .Join(PanelGroup.DOFade(1f, 0.2f));
     }
 
+    /// <summary>
+    /// 이름 글자만 지금 언어로 다시 쓴다. 연출은 없다. 게임 중에 언어를 바꿨을 때 UIManager가 부른다.
+    /// </summary>
+    public void SetName(string playerName) => ApplyName(playerName);
+
     private void Apply(string playerName, Sprite portrait, int playerColorIndex)
     {
         Color color = UIPalette.PlayerColor(playerColorIndex);
-        // 한국어는 "이름" + "님의 차례" 두 칸이다. 영어는 "Bot 1's turn"으로 붙여 써야 해서 이름 칸에 전체를 넣고 뒤 칸은 숨긴다
-        bool english = Loc.Language == GameLanguage.English;
-        if (suffixText != null) suffixText.gameObject.SetActive(!english);
-        if (playerNameText != null) playerNameText.text = english ? Loc.T("{0}님의 차례", Loc.TName(playerName)) : Loc.TName(playerName);
+        ApplyName(playerName);
         if (playerStroke != null) playerStroke.color = color;
         if (portraitRing != null) portraitRing.color = color;
         SetPortrait(portraitImage, portrait, UIPalette.PlayerLightColor(playerColorIndex));
+    }
+
+    // 한국어는 "이름" + "님의 차례" 두 칸이다. 영어는 "Bot 1's turn"으로 붙여 써야 해서 이름 칸에 전체를 넣고 뒤 칸은 숨긴다
+    private void ApplyName(string playerName)
+    {
+        // 프리팹에 "님의 차례" 칸이 연결돼 있지 않아 영어에서 "'s turn"이 두 번 보였다. 처음 쓸 때 찾는다
+        if (suffixText == null) suffixText = Find<TMP_Text>("CurrentTurn/SuffixText");
+
+        bool english = Loc.Language == GameLanguage.English;
+        if (suffixText != null) suffixText.gameObject.SetActive(!english);
+        if (playerNameText != null) playerNameText.text = english ? Loc.T("{0}님의 차례", Loc.TName(playerName)) : Loc.TName(playerName);
     }
 }
