@@ -196,14 +196,6 @@ public class UIDebugPanel : MonoBehaviour
         Log("호스트를 내 상태로 다시 시작했습니다");
     }
 
-    // 카드에 쓰는 이름. 로비에서 들어왔으면 방 안의 이름, 아니면 기본 이름
-    private static string NameOf(int index)
-    {
-        var room = LobbyManager.CurrentRoom;
-        if (room != null && index < room.Players.Count) return room.Players[index].nickname;
-        return index < DefaultNames.Length ? DefaultNames[index] : "플레이어" + (index + 1);
-    }
-
     // 카드에 붙이는 이름. 게임 상태의 닉네임을 쓴다.
     // (로비 방 목록은 선턴을 섞기 전 순서라 카드 순서와 다를 수 있어서 쓰지 않는다)
     private string NameOf(int index)
