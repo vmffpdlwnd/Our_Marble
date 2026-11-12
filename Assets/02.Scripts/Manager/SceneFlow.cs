@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -18,12 +19,16 @@ public static class SceneFlow
     // 로그인 화면이 열리자마자 토스트로 보여줄 안내. (예: 연결이 끊겨 돌아온 경우) 로그인 씬이 읽고(ConsumeLoginNotice) 지운다.
     private static string pendingLoginNotice;
 
+    // 게임에서 나가는 중 (나가기를 여러 번 눌러도 한 번만 처리한다)
+    private static bool leavingGame;
+
     // 에디터에서 도메인 리로드 없이 플레이를 다시 시작해도 이전 플레이의 값이 남지 않게 한다
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
     {
         reopenRoomSetup = false;
         pendingLoginNotice = null;
+        leavingGame = false;
     }
 
     /// <summary>로그인 화면으로 간다. (로비의 나가기, 연결 끊김) notice를 주면 로그인 화면에서 토스트로 띄운다.</summary>
@@ -50,6 +55,34 @@ public static class SceneFlow
 
     /// <summary>로비로 간다. 로그인 성공 후, 또는 게임에서 방을 떠날 때. 방 정보는 로비가 비운다.</summary>
     public static bool ToLobby() => Load(LobbyScenePath, false);
+
+    /// <summary>
+    /// 게임 화면에서 나가기를 눌러 로비로 간다. 씬만 바꾸면 Photon 연결이 게임 방에 그대로 남아 새 방을 만들거나 들어갈 수 없고,
+    /// 내가 방장이면 다른 사람들의 게임을 이어받을 새 방장도 정해지지 않는다. 그래서 방과 연결을 먼저 정리한 뒤 로비로 간다.
+    /// keepResume: 로비에서 이어하기로 돌아올 수 있게 남길지. 파산했거나 게임이 끝났으면 false다.
+    /// </summary>
+    public static async void LeaveGameToLobby(bool keepResume)
+    {
+        if (leavingGame) return;
+        leavingGame = true;
+        try
+        {
+            PhotonConnection photon = PhotonConnection.Instance;
+            if (photon.LobbyBridge.IsActive) await photon.LobbyBridge.LeaveGame(keepResume);
+            else LocalLobbyHost.Reset(); // 혼자 하기: 이 PC의 방은 나와 봇만 쓰던 것이라 버린다
+
+            HostGameService.Reset(); // 이 PC가 돌리던 게임 호스트는 버린다. 방장이었다면 남은 사람 중 새 방장이 이어받는다
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[SceneFlow] 게임에서 나가며 정리하다 오류가 났습니다. 로비로는 그대로 갑니다.\n{e}");
+        }
+        finally
+        {
+            leavingGame = false;
+            ToLobby();
+        }
+    }
 
     /// <summary>방 설정 화면에서 게임 씬으로 간다.</summary>
     public static bool ToGame() => Load(GameScenePath, false);

@@ -25,7 +25,10 @@ public enum GameMessageType
     
     [EnumMember(Value = "AWAITING_SELL")]
     PROPERTIES_SOLD,
-    
+      
+    // 파산 신청 알림. 기다리는 단계(phase)가 아니라서 EnumMember가 없다. (어느 입력 단계에서나 올 수 있다)
+    BANKRUPTCY_DECLARED,
+
     GAME_STATE_SYNC,
     
     GAME_ERROR

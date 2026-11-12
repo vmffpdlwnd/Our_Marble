@@ -108,7 +108,7 @@ def check_code(keys, show_all=False):
             if skip_line.search(code):
                 continue
             for m in re.finditer(r'(\$?)"((?:[^"\\]|\\.)*)"', code):
-                s = m.group(2)
+                s = m.group(2).replace('\\n', '\n').replace('\\t', '\t')  # 코드의 \n, \t는 번역표 키처럼 실제 줄바꿈과 탭으로 바꿔 비교한다
                 if not HAN.search(s):
                     continue
                 if m.group(1) == '$':

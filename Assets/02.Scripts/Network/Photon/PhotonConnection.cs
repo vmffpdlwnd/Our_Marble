@@ -25,7 +25,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
     // 이 값이 다른 빌드끼리는 서로의 방이 보이지 않는다. 통신 방식이 바뀌어 호환되지 않으면 올린다.
     // (옛 빌드의 방이 보이지 않게 해서, 응답 없는 옛 방에 들어가 헤매는 일을 막는다)
-    public const string NetworkVersion = "3";
+    public const string NetworkVersion = "4";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
     public const string CodeRevision = "9-4.1";

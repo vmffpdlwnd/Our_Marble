@@ -269,7 +269,7 @@ public static class TradeRules
         return new PropertyArrival { Kind = PropertyArrivalKind.Bankrupt, Owner = owner, Toll = toll };
     }
 
-    // GameManager.HandleTollPaid (통행료는 알림 없이 양쪽이 같은 규칙으로 반영한다)
+    // ArriveAtProperty가 부른다. (통행료는 알림 없이 양쪽이 같은 규칙으로 반영한다)
     /// <summary>통행료를 이체한다. 낸 사람의 현금에서 빼고 받는 사람의 현금에 더한다.</summary>
     public static void PayToll(PlayerState payer, PlayerState receiver, long amount)
     {
@@ -279,7 +279,7 @@ public static class TradeRules
 
     // ───────────── 파산 ─────────────
 
-    // GameManager.HandleBankruptcy, ProcessBankruptcy
+    // GameManager.HandleBankruptcy
     /// <summary>
     /// 파산: 가진 땅을 매각가로 현금화하고, 현금과 함께 통행료를 받을 사람에게 전부 넘긴다. 땅은 주인 없음 + 땅 단계로 돌아간다.
     /// 최종 등수는 파산하는 시점에 남아 있던 인원 수다. (예: 4명 중 첫 파산은 4위)
@@ -287,15 +287,7 @@ public static class TradeRules
     /// </summary>
     public static BankruptResult Bankrupt(GameState state, GameData data, PlayerState payer, PlayerState receiver)
     {
-        long liquidated = 0;
-        foreach (PropertyState property in state.PropertyStates)
-        {
-            if (property.OwnerId != payer.PlayerId) continue;
-
-            liquidated += data.Properties.GetSellValue(property);
-            property.OwnerId = null;
-            property.BuildingLevel = BuildingLevel.Land;
-        }
+        long liquidated = ReleaseProperties(state, data, payer);
 
         receiver.Money += payer.Money + liquidated;
         payer.Money = 0;
@@ -303,7 +295,7 @@ public static class TradeRules
         return MarkBankrupt(state, payer);
     }
 
-    // GameManager.ProcessBankruptcy
+    // Bankrupt, DeclareBankruptcy가 부른다
     /// <summary>
     /// 파산 표시만 한다. 최종 등수는 파산하는 시점에 남아 있던 인원 수이고, 이미 파산한 플레이어는 다시 처리하지 않는다.
     /// 남은 플레이어가 1명 이하가 되면 게임을 끝내야 한다고 알린다. (재산 이전은 Bankrupt가 한다)
@@ -318,6 +310,38 @@ public static class TradeRules
         return state.PlayerStates.Count(p => !p.IsBankrupt) <= 1 ? BankruptResult.LastPlayerLeft : BankruptResult.Bankrupted;
     }
 
+        // GameManager.HandleBankruptcyDeclared
+    /// <summary>
+    /// 파산 신청: 내 차례에 스스로 파산한다. 받을 사람이 없어서 재산은 은행으로 간다.
+    /// 가진 땅은 주인 없음 + 땅 단계로 돌아가고 현금은 0이 된다. (통행료 파산처럼 누구에게 넘기지 않는다)
+    /// 등수와 게임 종료 판정은 통행료 파산과 같다. (MarkBankrupt)
+    /// 신청할 수 있는 때인지(내 차례, 입력을 기다리는 중)는 부른 쪽(호스트)이 먼저 확인한다.
+    /// </summary>
+    public static BankruptResult DeclareBankruptcy(GameState state, GameData data, PlayerState player)
+    {
+        if (player.IsBankrupt) return BankruptResult.AlreadyBankrupt; // 이미 파산한 플레이어의 재산은 건드리지 않는다
+
+        ReleaseProperties(state, data, player);
+        player.Money = 0;
+
+        return MarkBankrupt(state, player);
+    }
+
+    // 가진 땅을 모두 주인 없음 + 땅 단계로 돌리고, 돌리기 전의 매각가 합계를 돌려준다. (Bankrupt, DeclareBankruptcy가 같이 쓴다)
+    private static long ReleaseProperties(GameState state, GameData data, PlayerState owner)
+    {
+        long liquidated = 0;
+        foreach (PropertyState property in state.PropertyStates)
+        {
+            if (property.OwnerId != owner.PlayerId) continue;
+
+            liquidated += data.Properties.GetSellValue(property);
+            property.OwnerId = null;
+            property.BuildingLevel = BuildingLevel.Land;
+        }
+        return liquidated;
+    }
+    
     private static PropertyState FindProperty(GameState state, int propertyId)
     {
         return state.PropertyStates.Find(p => p.PropertyId == propertyId);

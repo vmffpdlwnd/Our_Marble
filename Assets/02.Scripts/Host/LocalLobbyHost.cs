@@ -322,6 +322,14 @@ public class LocalLobbyHost : IHostRequestReceiver
             return false;
         }
 
+        // 파산한 사람은 관전하다 나가면 다시 들어올 수 없다. 같은 오류 이름이라 화면은 다시 시도하지 않고 이어하기도 지운다.
+        HostGameService game = HostGameService.Current;
+        if (game != null && game.IsRunning && game.IsBankrupt(playerId))
+        {
+            SendError(playerId, "NOT_REJOINABLE", "파산해서 이 게임에 다시 들어올 수 없어요");
+            return false;
+        }
+
         Debug.Log($"[LocalLobbyHost] 게임 중인 방으로 돌아옴: {room.Id} ({NicknameOf(playerId)})");
         Send(playerId, LobbyMessageType.ROOM_ENTERED, new RoomEnteredResponse { type = "ROOM_ENTERED" });
         Send(playerId, LobbyMessageType.ROOM_UPDATED, new RoomUpdatedBroadcast { type = "ROOM_UPDATED", room = ToSnapshot(room) });
