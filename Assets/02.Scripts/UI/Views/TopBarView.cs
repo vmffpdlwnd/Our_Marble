@@ -37,10 +37,10 @@ public class TopBarView : UIView
         if (roomNameText != null) roomNameText.text = roomName;
     }
 
-    /// <summary>"현재 인원 / 최대 인원명"을 보여 준다.</summary>
+    /// <summary>"현재 인원 / 최대 인원"을 보여 준다. 숫자만 있어서 번역하지 않는다. (한국어와 영어 모양을 같게 맞췄다)</summary>
     public void SetPlayerCount(int current, int max)
     {
-        if (playerCountText != null) playerCountText.text = Loc.T("{0} / {1}명", current, max);
+        if (playerCountText != null) playerCountText.text = $"{current} / {max}";
     }
 
     /// <summary>비밀번호 방이면 인원수 옆에 비밀번호를 보여준다. 비어 있으면 칩을 숨긴다.</summary>

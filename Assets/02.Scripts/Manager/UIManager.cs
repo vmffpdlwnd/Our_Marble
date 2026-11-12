@@ -245,8 +245,36 @@ public class UIManager : MonoBehaviour
     }
 
     // 돈이 바뀌면 EconomyManager가 알려준다. 돈 표시와 연출은 여기서 갱신한다.
-    private void OnEnable() => EconomyManager.OnMoneyChanged += HandleMoneyChanged;
-    private void OnDisable() => EconomyManager.OnMoneyChanged -= HandleMoneyChanged;
+    private void OnEnable()
+    {
+        EconomyManager.OnMoneyChanged += HandleMoneyChanged;
+        Loc.Changed += OnLanguageChanged;
+    }
+
+    private void OnDisable()
+    {
+        EconomyManager.OnMoneyChanged -= HandleMoneyChanged;
+        Loc.Changed -= OnLanguageChanged;
+    }
+
+    // 게임 중에 언어를 바꾸면 코드가 한 번 넣고 끝나는 글(카드의 이름과 등수, 차례 표시의 이름)을 지금 언어로 다시 쓴다.
+    // (프리팹과 씬의 글은 LocalizedText가, 보드 칸 이름은 BoardController가 따로 다시 쓴다)
+    private void OnLanguageChanged()
+    {
+        GameState state = State;
+        if (state == null) return;
+
+        for (int i = 0; i < state.PlayerStates.Count; i++)
+        {
+            PlayerInfoView view = GetPlayerInfo(i);
+            if (view == null) continue;
+            view.SetName(NameOf(state.PlayerStates[i].PlayerId));
+            view.RefreshRankText();
+        }
+
+        if (currentTurn != null && currentTurn.IsOpen && shownTurnIndex >= 0 && shownTurnIndex < state.PlayerStates.Count)
+            currentTurn.SetName(NameOf(state.PlayerStates[shownTurnIndex].PlayerId));
+    }
     #endregion
 
     #region 창 띄우기 (GameManager가 호출)
@@ -963,8 +991,11 @@ public class UIManager : MonoBehaviour
     }
 
     /// <summary>차례 표시와 카드 강조를 함께 바꾼다. (카드 번호 기준. playerId 기준은 ShowTurn)</summary>
+    private int shownTurnIndex = -1; // 차례 표시에 떠 있는 플레이어 순서. 언어가 바뀌면 이 사람의 이름을 다시 쓴다
+
     public void SetTurn(int playerIndex, string playerName, Sprite portrait)
     {
+        shownTurnIndex = playerIndex;
         for (int i = 0; i < playerInfos.Length; i++)
             if (playerInfos[i] != null) playerInfos[i].SetTurn(i == playerIndex);
         if (currentTurn != null) currentTurn.Show(playerName, portrait, playerIndex);

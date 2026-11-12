@@ -30,6 +30,19 @@ public class BoardController : MonoBehaviour
     [SerializeField] private Color taxColor = new Color32(255, 154, 154, 255);
     [SerializeField] private Color charityColor = new Color32(154, 255, 188, 255);
     public IReadOnlyList<BoardTile> BoardTiles => boardTiles;
+
+    private bool tileLabelsDrawn; // InitializeBoardTiles가 칸 이름을 그렸는지. 그리기 전에는 언어가 바뀌어도 다시 쓸 것이 없다
+
+    private void OnEnable() => Loc.Changed += RefreshTileLabels;
+    private void OnDisable() => Loc.Changed -= RefreshTileLabels;
+
+    // 게임 중에 언어를 바꾸면 칸 이름을 지금 언어로 다시 쓴다. (칸 이름은 코드가 게임 시작 때 한 번 넣는 글이라 저절로 바뀌지 않는다)
+    private void RefreshTileLabels()
+    {
+        if (!tileLabelsDrawn || BoardManager.Instance == null) return;
+        for (int i = 0; i < boardTiles.Count; i++)
+            boardTiles[i].SetText(defaultTextColor, GetTileLabel(BoardManager.Instance.GetTileData(i)));
+    }
     public int TileCount => boardTiles.Count;
     
     /// <summary>tileIndex번 타일의 월드 좌표 (말 이동용)</summary>
@@ -84,6 +97,7 @@ public class BoardController : MonoBehaviour
             // 색상 설정
             boardTiles[i].SetSpriteColor(GetTileColor(i, tileData));
         }
+        tileLabelsDrawn = true;
     }
 
     private Color GetTileColor(int index, TileData tileData)
