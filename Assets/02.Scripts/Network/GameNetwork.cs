@@ -94,7 +94,7 @@ public class GameNetwork : Singleton<GameNetwork>
         // Warning Log를 띄우고, 클라이언트에게 새로고침을 요구해야함.
         // 게임 진행이 멈추진 않지만, 흐름이 완전히 꼬여버릴것. ex) A차례인데 B가 건설하는 등의 상황 발생 가능.
         // 파산 신청은 차례인 사람이 어느 입력 단계에서나 보낼 수 있어서, 기다리던 단계와 달라도 정상이다.
-        if (type != waitingType && type != GameMessageType.BANKRUPTCY_DECLARED)if (type != waitingType)
+        if (type != waitingType && type != GameMessageType.BANKRUPTCY_DECLARED)
         {
             Debug.LogWarning("클라이언트에서 기대하는 type과 서버에서 보내준 브로드캐스트 메시지의 type이 일치하지 않습니다. 정상 진행을 위해 반드시 새로고침을 하세요");
             // 새로고침을 강제로 하지는 않고, 유저에게 알림만 보냄.
@@ -193,6 +193,7 @@ public class GameNetwork : Singleton<GameNetwork>
     public event Action<long, int, int> OnDiceRolled;
     public event Action<long, List<int>> OnPropertiesSold;
     public event Action<long, int, bool> OnPropertyAcquired;
+    public event Action<long, int, bool> OnPropertyPurchased;
     public event Action<long> OnBankruptcyDeclared; // 차례인 사람이 스스로 파산했다 (playerId)
     public event Action<string, string> OnGameError; // 호스트가 내 요청을 거절했다 (code, message)
    
