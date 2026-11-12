@@ -269,7 +269,7 @@ public static class TradeRules
         return new PropertyArrival { Kind = PropertyArrivalKind.Bankrupt, Owner = owner, Toll = toll };
     }
 
-    // GameManager.HandleTollPaid (통행료는 알림 없이 양쪽이 같은 규칙으로 반영한다)
+    // ArriveAtProperty가 부른다. (통행료는 알림 없이 양쪽이 같은 규칙으로 반영한다)
     /// <summary>통행료를 이체한다. 낸 사람의 현금에서 빼고 받는 사람의 현금에 더한다.</summary>
     public static void PayToll(PlayerState payer, PlayerState receiver, long amount)
     {
@@ -279,7 +279,7 @@ public static class TradeRules
 
     // ───────────── 파산 ─────────────
 
-    // GameManager.HandleBankruptcy, ProcessBankruptcy
+    // GameManager.HandleBankruptcy
     /// <summary>
     /// 파산: 가진 땅을 매각가로 현금화하고, 현금과 함께 통행료를 받을 사람에게 전부 넘긴다. 땅은 주인 없음 + 땅 단계로 돌아간다.
     /// 최종 등수는 파산하는 시점에 남아 있던 인원 수다. (예: 4명 중 첫 파산은 4위)
@@ -295,7 +295,7 @@ public static class TradeRules
         return MarkBankrupt(state, payer);
     }
 
-    // GameManager.ProcessBankruptcy
+    // Bankrupt, DeclareBankruptcy가 부른다
     /// <summary>
     /// 파산 표시만 한다. 최종 등수는 파산하는 시점에 남아 있던 인원 수이고, 이미 파산한 플레이어는 다시 처리하지 않는다.
     /// 남은 플레이어가 1명 이하가 되면 게임을 끝내야 한다고 알린다. (재산 이전은 Bankrupt가 한다)

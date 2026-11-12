@@ -770,16 +770,6 @@ public class GameManager : Singleton<GameManager>
     #endregion
 
     #region 땅 거래, 통행료, 파산
-    public void ProcessBankruptcy(long playerId)
-    {
-        // playerId에 해당하는 GameState.PlayerStates의 PlayerState.IsBankrupt 값을 true로 갱신합니다.
-        var player = GetPlayerState(playerId);
-        if (player == null) return;
-
-        // 최종 등수를 정하고 파산 표시를 하는 일은 규칙(TradeRules.MarkBankrupt)이 합니다. (이미 파산한 플레이어는 다시 처리하지 않습니다.)
-        AfterBankrupt(player, TradeRules.MarkBankrupt(gameState, player));
-    }
-
     // 파산 뒤처리: 화면 표시(GameScreen), 파산 이벤트, 남은 플레이어가 1명이면 게임 종료. GameState는 규칙이 이미 갱신했습니다.
     private void AfterBankrupt(PlayerState player, BankruptResult result)
     {
@@ -1098,18 +1088,6 @@ public class GameManager : Singleton<GameManager>
 
         AfterBankrupt(player, result); // 파산 연출 → 게임 종료 판정
         HandleTurnChanged(GetNextPlayerId()); // 강제로 턴을 넘깁니다. (게임이 끝났으면 아무것도 하지 않습니다)
-    }
-
-    // 통행료를 이체하고 연출을 재생합니다. 이체는 규칙(TradeRules.PayToll)이 합니다.
-    // 땅 도착 처리에서는 규칙(TradeRules.ArriveAtProperty)이 이미 이체하므로 ShowTollPaid만 부릅니다. (개발용 패널은 이 함수를 직접 부릅니다)
-    public void HandleTollPaid(long payerId, long receiverId, long amount)
-    {
-        var payer = GetPlayerState(payerId); // 통행료 내는 사람
-        var receiver = GetPlayerState(receiverId); // 통행료 받는 사람
-        if (payer == null || receiver == null) return;
-
-        TradeRules.PayToll(payer, receiver, amount);
-        screen.ShowTollPaid(payerId, receiverId, amount);
     }
     #endregion
 

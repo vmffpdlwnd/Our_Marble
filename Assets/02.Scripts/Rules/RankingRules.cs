@@ -20,7 +20,7 @@ public static class RankingRules
     {
         if (a.IsBankrupt != b.IsBankrupt) return a.IsBankrupt ? 1 : -1;
 
-        // 둘 다 파산: 나중에 파산한 쪽(FinalRank가 작은 쪽)이 앞. (파산하면 ProcessBankruptcy에서 FinalRank가 바로 정해짐)
+        // 둘 다 파산: 나중에 파산한 쪽(FinalRank가 작은 쪽)이 앞. (파산하면 TradeRules.MarkBankrupt에서 FinalRank가 바로 정해짐)
         if (a.IsBankrupt)
             return a.FinalRank.CompareTo(b.FinalRank);
 

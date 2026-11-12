@@ -784,7 +784,7 @@ public class HostGameService : IHostRequestReceiver
         }
     }
 
-    // GameManager.HandleBankruptcy, ProcessBankruptcy
+    // GameManager.HandleBankruptcy
     // 재산을 넘기고 파산 처리하는 일은 규칙(TradeRules.Bankrupt)이 하고, 여기서는 로그와 게임 종료를 처리한다.
     private void Bankrupt(PlayerState payer, PlayerState receiver)
     {

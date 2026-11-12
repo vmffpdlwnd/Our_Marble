@@ -4,7 +4,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>상단바: 방 정보, 라운드 수, 설정·나가기 버튼. Canvas_TopBar에 붙는다.</summary>
+/// <summary>상단바: 방 정보, 라운드 수, 파산 신청·설정·나가기 버튼. Canvas_TopBar에 붙는다.</summary>
 public class TopBarView : UIView
 {
     [SerializeField] private TMP_Text roomNameText;
@@ -15,6 +15,9 @@ public class TopBarView : UIView
     [SerializeField] private GameObject passwordChip;
     [SerializeField] private TMP_Text passwordText;
     [SerializeField] private GameObject turnInfo;
+
+    private const float BankruptButtonWidth = 140f; // 나가기 버튼(116)보다 넓게. 영어 "Bankrupt"가 들어가야 한다
+    private Button bankruptButton; // 파산 신청 버튼. 프리팹에 없고 나가기 버튼을 복사해 코드로 만든다
 
     public override void Bind()
     {
@@ -72,5 +75,40 @@ public class TopBarView : UIView
     {
         SetOnClick(settingsButton, onSettings);
         SetOnClick(exitButton, onExit);
+    }
+
+    /// <summary>
+    /// 파산 신청 버튼을 만들고 누를 때의 동작을 정한다. 게임 화면(UIManager)에서만 부른다. 이미 만들었으면 동작만 바꾼다.
+    /// 프리팹을 고치지 않으려고 나가기 버튼을 복사해 버튼 줄 맨 왼쪽(설정 버튼 왼쪽)에 둔다. (설정창의 언어 줄처럼 코드로 만든다)
+    /// 처음에는 숨겨 두고, 보일지와 누를 수 있는지는 SetBankruptState로 정한다.
+    /// </summary>
+    public void SetBankruptButton(Action onClick)
+    {
+        if (bankruptButton == null)
+        {
+            if (exitButton == null) return;
+
+            bankruptButton = Instantiate(exitButton, exitButton.transform.parent);
+            bankruptButton.name = "BankruptButton";
+            bankruptButton.transform.SetSiblingIndex(0);
+
+            var layout = bankruptButton.GetComponent<LayoutElement>();
+            if (layout != null) layout.preferredWidth = BankruptButtonWidth;
+
+            Loc.Bind(bankruptButton.GetComponentInChildren<TMP_Text>(true), "파산 신청");
+            bankruptButton.gameObject.SetActive(false);
+        }
+        SetOnClick(bankruptButton, onClick);
+    }
+
+    /// <summary>
+    /// 파산 신청 버튼의 상태. visible이 false면 숨긴다. (파산했거나 게임이 끝남)
+    /// interactable이 false면 흐리게 잠근다. (내 차례가 아니거나 입력을 기다리는 중이 아님)
+    /// </summary>
+    public void SetBankruptState(bool visible, bool interactable)
+    {
+        if (bankruptButton == null) return;
+        if (bankruptButton.gameObject.activeSelf != visible) bankruptButton.gameObject.SetActive(visible);
+        if (bankruptButton.interactable != interactable) bankruptButton.interactable = interactable;
     }
 }
