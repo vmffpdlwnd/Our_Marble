@@ -102,13 +102,11 @@ public class UIManager : MonoBehaviour
         HookSelectionTimer(islandEscape, SelectionKind.IslandEscape);
 
         // 상단바: 로비에서 넘어온 방 정보 표시, 설정은 설정 창 열기/닫기, 나가기는 확인 후 로비로 돌아간다
-        // 파산 신청은 확인 후 호스트에 보낸다. 버튼의 상태는 매 프레임 RefreshBankruptButton이 맞춘다
         if (topBar != null)
         {
             RefreshTopBarRoom();
             topBar.SetPassword(null); // 서버 방 정보에는 비밀번호가 없다
             topBar.SetCallbacks(settings != null ? settings.Open : (Action)null, RequestExit);
-            topBar.SetBankruptButton(RequestBankruptcy);
         }
     }
 
@@ -187,50 +185,12 @@ public class UIManager : MonoBehaviour
 
     #endregion
 
-    #region 나가기 · 파산 신청 · 돈 변화 구독
+    #region 나가기 · 돈 변화 구독
     // 나가기 버튼: 로비로 돌아갈지 묻고, 확인하면 돌아간다
     private void RequestExit()
     {
-        bankruptConfirmOpen = false; // 같은 확인 창을 나가기가 쓴다
         if (exitConfirm != null) exitConfirm.Show(() => SceneFlow.ToLobby());
         else SceneFlow.ToLobby();
-    }
-
-    // 확인 창(exitConfirm)이 파산 신청을 묻는 중인지. 나가기와 같은 창을 쓰므로 구분해 둔다
-    private bool bankruptConfirmOpen;
-
-    // 파산 신청 버튼: 되돌릴 수 없으니 확인 창으로 한 번 더 묻고, 확인하면 GameManager가 호스트에 보낸다
-    private void RequestBankruptcy()
-    {
-        if (Game == null || exitConfirm == null) return;
-
-        bankruptConfirmOpen = true;
-        exitConfirm.Show(() =>
-        {
-            bankruptConfirmOpen = false;
-            if (Game != null) Game.DeclareBankruptcy(); // 그 사이 차례가 넘어갔으면 GameManager가 보내지 않는다
-        }, "파산하면 땅과 현금을 모두 잃어요.\n남은 게임은 관전만 할 수 있어요.", "파산 신청");
-    }
-
-    // 파산 신청 버튼을 게임 상태에 맞춘다. 살아 있는 동안 보이고, 내 차례에 입력을 기다릴 때만 눌린다.
-    // 누를 수 없게 되면(차례가 넘어감, 제한 시간이 지나 대신 진행됨) 열어 둔 파산 확인 창도 닫는다.
-    private void RefreshBankruptButton()
-    {
-        if (topBar == null) return;
-
-        GameState state = State;
-        PlayerState me = state != null ? GetPlayer(LocalPlayerId) : null;
-        bool visible = me != null && !me.IsBankrupt && !state.IsGameOver;
-        bool canDeclare = visible && state.CurrentPlayerId == me.PlayerId && state.WaitingType != null;
-        topBar.SetBankruptState(visible, canDeclare);
-
-        if (!bankruptConfirmOpen) return;
-        if (exitConfirm == null || !exitConfirm.IsOpen) bankruptConfirmOpen = false; // 취소로 닫힘
-        else if (!canDeclare)
-        {
-            bankruptConfirmOpen = false;
-            exitConfirm.Close();
-        }
     }
 
     // 돈이 바뀌면 EconomyManager가 알려준다. 돈 표시와 연출은 여기서 갱신한다.
@@ -314,6 +274,15 @@ public class UIManager : MonoBehaviour
 
     /// <summary>목적지 선택 창이 떠 있고 칸을 고르기를 기다리는 중인지</summary>
     public bool IsChoosingDestination => chooseDestinationMode;
+
+    // 목적지 선택 창을 선택 없이 닫는 함수입니다. (보드 선택이 구현되기 전의 임시 흐름에서 씁니다.)
+    public void HideChooseDestinationPopup()
+    {
+        chooseDestinationMode = false;
+        travelTileIndex = -1;
+        if (destinationSelect != null) destinationSelect.Close();
+        // BoardManager.Instance.ChangeToInspectMode(); // TODO: BoardManager 구현 후 주석 해제
+    }
 
     // 주사위 굴리기 버튼이 있는 창을 띄워주는 함수입니다.
     // 굴리기 버튼을 누르면 GameManager.RollDice() 를 호출합니다.
@@ -914,7 +883,7 @@ public class UIManager : MonoBehaviour
     private float lastBankruptEffectAt = -100f;     // 마지막으로 파산 연출을 재생한 시각
     private bool skipResultDelay;                   // 이미 기다렸으니 결과 창을 바로 띄운다
 
-    // 파산 연출을 재생합니다. GameManager의 파산 뒤처리(AfterBankrupt)가 GameState를 갱신한 뒤 부릅니다.
+    // 파산 연출을 재생합니다. GameManager.ProcessBankruptcy가 GameState를 갱신한 뒤 부릅니다.
     // shortfall은 못 낸 금액으로, 게임 결과 창에 마이너스 자산으로 표시됩니다. (모르면 생략)
     public void PlayBankruptEffect(long playerId, long shortfall = 0)
     {
@@ -1370,8 +1339,6 @@ public class UIManager : MonoBehaviour
 
     private void Update()
     {
-        RefreshBankruptButton();
-
         if (timerWindow == null) return;
 
         // 창이 닫혔거나(선택을 마침), 주사위 버튼을 이미 눌렀으면 시간을 더 세지 않는다

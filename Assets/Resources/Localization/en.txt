@@ -438,7 +438,3 @@
 
 # ── 차례 표시 (영어는 이름과 붙여 쓴다) ──
 {0}님의 차례	{0}'s turn
-
-# ── 파산 신청 (상단바 버튼, 확인 창) ──
-파산 신청	Bankrupt
-파산하면 땅과 현금을 모두 잃어요.\n남은 게임은 관전만 할 수 있어요.	You lose all your land and cash.\nYou can only watch the rest.
