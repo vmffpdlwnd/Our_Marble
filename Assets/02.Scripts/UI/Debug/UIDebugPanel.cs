@@ -204,6 +204,14 @@ public class UIDebugPanel : MonoBehaviour
         return index < DefaultNames.Length ? DefaultNames[index] : "플레이어" + (index + 1);
     }
 
+    // 카드에 붙이는 이름. 게임 상태의 닉네임을 쓴다.
+    // (로비 방 목록은 선턴을 섞기 전 순서라 카드 순서와 다를 수 있어서 쓰지 않는다)
+    private string NameOf(int index)
+    {
+        if (State != null && index < Players.Count && !string.IsNullOrEmpty(Players[index].Nickname)) return Players[index].Nickname;
+        return index < DefaultNames.Length ? DefaultNames[index] : "플레이어" + (index + 1);
+    }
+
     // ───────────── 상태 읽기 ─────────────
 
     // 지금 차례인 플레이어의 번호(PlayerStates 인덱스)
