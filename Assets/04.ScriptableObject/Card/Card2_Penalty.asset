@@ -13,11 +13,12 @@ MonoBehaviour:
   m_Name: Card2_Penalty
   m_EditorClassIdentifier: Assembly-CSharp::CardData
   id: 2
-  cardName: "\uD328\uB110\uD2F0"
-  description: "\uB3C8 \uBE8F\uAE30\uAE30"
+  cardName: "\uC138\uAE08\uD3ED\uD0C4"
+  description: "\uAC11\uC791\uC2A4\uB7F0 \uC138\uBB34 \uC810\uAC80! \uCD94\uAC00
+    \uC138\uAE08\uC744 \uB0A9\uBD80\uD55C\uB2E4."
   icon: {fileID: 21300000, guid: 3b32829e0998d6c499f435c869b25bea, type: 3}
   effectType: 1
   amount: 100000
   targetTileId: 0
   steps: 0
-  penaltyToFestivalPool: 0
+  penaltyToWelfareFund: 0

@@ -301,16 +301,18 @@
 기부금 납부	Donate
 기부금 수령	Collect donations
 세계여행	World Tour
-칸 이동	Move tiles
-본사 이동	Go to HQ
-패널티	Penalty
-돈 받기	Collect money
-무인도로 가라	Go to the island
-3칸 뒤로 가라	Move back 3 tiles
-3칸 앞으로 가라	Move forward 3 tiles
-본사로 이동	Go to HQ
-돈 뺏기기	Lose money
-돈을 받아라	Receive money
+무인도 표류	Castaway
+시공의 폭풍에 휩쓸려 무인도에 표류했다.\n옆엔 배구공 ‘왓슨’뿐이다.	A space-time storm left you stranded on an island.\nYour only friend is a volleyball named Watson.
+고객 감사금	Customer Tip
+친절한 배달에 감동한 고객이 팁을 지급했다.	A happy customer tipped you for a kind delivery.
+세금폭탄	Tax Bomb
+갑작스런 세무 점검! 추가 세금을 납부한다.	Surprise tax audit! Pay extra taxes.
+본사 긴급 호출	HQ Summons
+본사에서 좋은 소식이 있다며 급히 부른다.	HQ has good news and wants you there now.
+손 미끄러짐	Slippery Hands
+어이쿠— 손이 미끄러져 주사위가 엉뚱하게 굴러갔다.\n3칸 뒤로 간다.	Oops! The dice slipped out of your hand.\nMove back 3 tiles.
+지름길 발견	Shortcut Found
+숨겨진 지름길을 찾아 3칸 앞으로 이동한다.	You found a hidden shortcut. Move forward 3 tiles.
 황금열쇠 {0}	Golden Key {0}
 땅 {0}	Property {0}
 플레이어 {0}	Player {0}
