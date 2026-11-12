@@ -871,6 +871,37 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         await connection.Disconnect();
     }
 
+    // ───────────── 게임 화면에서 나가기 ─────────────
+
+    /// <summary>
+    /// 게임 화면에서 나가기를 눌렀을 때 방과 연결을 정리한다. (SceneFlow.LeaveGameToLobby가 부른다)
+    /// 방장에게 나간다고 알리지 않고 연결만 끊는다. 방장은 연결이 끊긴 사람처럼 자리를 남기고 AFK로 대신 진행하고,
+    /// 내가 방장이었다면 남은 사람 중 한 명이 이어받는다. (기획서 "사람 구분과 재접속", "방장 승계")
+    /// keepResume이면 방 코드를 남겨 로비에서 이어하기로 돌아올 수 있고, 아니면 지운다. (파산한 사람은 돌아올 수 없다)
+    /// </summary>
+    public async Task LeaveGame(bool keepResume)
+    {
+        if (!IsActive) return;
+
+        string roomCode = lastSnapshot != null ? lastSnapshot.roomId : null;
+        if (!keepResume) LastGameRoom = null;
+        else if (!string.IsNullOrEmpty(roomCode)) LastGameRoom = roomCode;
+
+        Log(keepResume ? "게임에서 나갑니다. 이어하기로 돌아올 수 있게 방 코드를 남깁니다" : "게임에서 나갑니다. 이 게임에는 다시 들어오지 않습니다");
+
+        leaving = true; // 끊기는 동안 OnConnectionLost가 끊김으로 보고 다시 들어가지 않게 한다
+        try
+        {
+            ClearRoomState();
+            LocalPlayer.Set(0, LocalPlayer.Nickname);
+            if (connection.IsInSession) await connection.Disconnect();
+        }
+        finally
+        {
+            leaving = false;
+        }
+    }
+
     // ───────────── 연결이 예기치 않게 끊겼을 때 ─────────────
 
     private void OnConnectionLost(PhotonConnection.ConnectionState previous, ShutdownReason reason)

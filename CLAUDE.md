@@ -56,6 +56,7 @@ AI(Claude)가 이 저장소에서 작업하기 전에 가장 먼저 읽는 안�
 | 한/영 전환(번역) | `Localization/Loc`(언어 저장, `Loc.T`, `Loc.Bind`, `Loc.TName`, `Loc.TShort`, `Loc.Rank`, 값이 끝에 붙은 글의 앞부분 번역, 씬이 열릴 때 한국어 글자 자동 묶기), `Localization/LocalizedText`(언어가 바뀌면 글자를 다시 번역). 번역표는 `Assets/Resources/Localization/en.txt` (한국어 문장이 키). 빠진 글 점검은 `tools/check_translations.py` |
 | 게임 씬 진행(알림 받아 화면 연출) | `Manager/GameManager`, 화면 표시는 `Screen/GameScreen`, UI 진입점은 `Manager/UIManager` |
 | 파산 신청 버튼과 확인 창 | `UI/Views/TopBarView`(나가기 버튼을 복사해 코드로 만든다), `UIManager`의 `RequestBankruptcy`와 `RefreshBankruptButton` → `GameManager.DeclareBankruptcy` |
+| 게임 중 나가기 (방과 연결 정리, 이어하기 남김, 파산한 사람은 재접속 막기) | `UIManager.RequestExit` → `SceneFlow.LeaveGameToLobby` → `PhotonLobbyBridge.LeaveGame`, 재접속 막기는 `LocalLobbyHost.RejoinPlayingRoom` + `HostGameService.IsBankrupt` |
 | 게임 규칙(구매, 통행료, 카드, 파산, 순위) | `Rules/` (`TradeRules`, `GameRules`, `CardRules`, `ArrivalRules`, `PropertyRules`, `RankingRules`, `TimeRules`) |
 | 호스트가 하는 일(게임 진행, 로비 관리) | `Host/HostGameService`, `Host/LocalLobbyHost`, 봇과 제한 시간은 `Host/HostAutoPlayRunner` |
 | 봇 | `Bot/` (`BasicBotStrategy`, 성향 값은 `BotSettings`) |

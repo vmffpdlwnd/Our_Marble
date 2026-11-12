@@ -188,12 +188,23 @@ public class UIManager : MonoBehaviour
     #endregion
 
     #region 나가기 · 파산 신청 · 돈 변화 구독
-    // 나가기 버튼: 로비로 돌아갈지 묻고, 확인하면 돌아간다
+    // 나가기 버튼: 로비로 돌아갈지 묻고, 확인하면 방과 연결을 정리한 뒤 돌아간다. (SceneFlow.LeaveGameToLobby)
+    // 게임 중이고 파산하지 않았으면 이어하기로 돌아올 수 있다. 파산한 사람은 다시 들어올 수 없어서 그 점을 알린다.
     private void RequestExit()
     {
         bankruptConfirmOpen = false; // 같은 확인 창을 나가기가 쓴다
-        if (exitConfirm != null) exitConfirm.Show(() => SceneFlow.ToLobby());
-        else SceneFlow.ToLobby();
+
+        GameState state = State;
+        PlayerState me = state != null ? GetPlayer(LocalPlayerId) : null;
+        bool playing = state != null && !state.IsGameOver;
+        bool keepResume = playing && me != null && !me.IsBankrupt;
+        bool bankrupt = playing && me != null && me.IsBankrupt;
+
+        Action leave = () => SceneFlow.LeaveGameToLobby(keepResume);
+        if (exitConfirm == null) { leave(); return; }
+
+        if (bankrupt) exitConfirm.Show(leave, "나가면 다시 들어올 수 없어요.\n로비로 돌아갈까요?");
+        else exitConfirm.Show(leave);
     }
 
     // 확인 창(exitConfirm)이 파산 신청을 묻는 중인지. 나가기와 같은 창을 쓰므로 구분해 둔다
@@ -234,8 +245,36 @@ public class UIManager : MonoBehaviour
     }
 
     // 돈이 바뀌면 EconomyManager가 알려준다. 돈 표시와 연출은 여기서 갱신한다.
-    private void OnEnable() => EconomyManager.OnMoneyChanged += HandleMoneyChanged;
-    private void OnDisable() => EconomyManager.OnMoneyChanged -= HandleMoneyChanged;
+    private void OnEnable()
+    {
+        EconomyManager.OnMoneyChanged += HandleMoneyChanged;
+        Loc.Changed += OnLanguageChanged;
+    }
+
+    private void OnDisable()
+    {
+        EconomyManager.OnMoneyChanged -= HandleMoneyChanged;
+        Loc.Changed -= OnLanguageChanged;
+    }
+
+    // 게임 중에 언어를 바꾸면 코드가 한 번 넣고 끝나는 글(카드의 이름과 등수, 차례 표시의 이름)을 지금 언어로 다시 쓴다.
+    // (프리팹과 씬의 글은 LocalizedText가, 보드 칸 이름은 BoardController가 따로 다시 쓴다)
+    private void OnLanguageChanged()
+    {
+        GameState state = State;
+        if (state == null) return;
+
+        for (int i = 0; i < state.PlayerStates.Count; i++)
+        {
+            PlayerInfoView view = GetPlayerInfo(i);
+            if (view == null) continue;
+            view.SetName(NameOf(state.PlayerStates[i].PlayerId));
+            view.RefreshRankText();
+        }
+
+        if (currentTurn != null && currentTurn.IsOpen && shownTurnIndex >= 0 && shownTurnIndex < state.PlayerStates.Count)
+            currentTurn.SetName(NameOf(state.PlayerStates[shownTurnIndex].PlayerId));
+    }
     #endregion
 
     #region 창 띄우기 (GameManager가 호출)
@@ -952,8 +991,11 @@ public class UIManager : MonoBehaviour
     }
 
     /// <summary>차례 표시와 카드 강조를 함께 바꾼다. (카드 번호 기준. playerId 기준은 ShowTurn)</summary>
+    private int shownTurnIndex = -1; // 차례 표시에 떠 있는 플레이어 순서. 언어가 바뀌면 이 사람의 이름을 다시 쓴다
+
     public void SetTurn(int playerIndex, string playerName, Sprite portrait)
     {
+        shownTurnIndex = playerIndex;
         for (int i = 0; i < playerInfos.Length; i++)
             if (playerInfos[i] != null) playerInfos[i].SetTurn(i == playerIndex);
         if (currentTurn != null) currentTurn.Show(playerName, portrait, playerIndex);

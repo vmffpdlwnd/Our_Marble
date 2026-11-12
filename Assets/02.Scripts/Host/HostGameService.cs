@@ -95,6 +95,13 @@ public class HostGameService : IHostRequestReceiver
     /// <summary>진행 중인 게임을 버린다. 타이틀로 돌아갈 때 부른다.</summary>
     public static void Reset() => current = null;
 
+    /// <summary>이 게임에서 파산한 사람인지. 파산한 사람은 나간 뒤 다시 들어올 수 없어서, 방장이 자리를 돌려주기 전에 묻는다. (LocalLobbyHost.RejoinPlayingRoom)</summary>
+    public bool IsBankrupt(long playerId)
+    {
+        PlayerState player = state.PlayerStates.Find(p => p.PlayerId == playerId);
+        return player != null && player.IsBankrupt;
+    }
+
     /// <summary>
     /// 이 사람을 AFK로 본다. 연결이 끊긴 사람의 차례를 제한 시간(60초)까지 기다리지 않고 AFK 시간(8초) 뒤에 자동으로 진행하려는 것이다.
     /// 그 사람이 요청을 보내면(돌아오면) 풀린다.
