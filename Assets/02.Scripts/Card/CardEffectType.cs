@@ -8,6 +8,7 @@ public enum CardEffectType
     CollectFromAll,     // 다른 플레이어 모두에게서 amount씩 받기 (각자 현금 한도 안에서)
     PayToAll,           // 다른 플레이어 모두에게 amount씩 주기 (내 현금 한도 안에서)
     RepairCost,         // 내 건물 수 × amount 내기 (현금 한도 안에서, 은행 또는 적립금으로)
+    SwapPosition,       // 무작위 상대 1명과 위치만 바꾸기 (칸 효과 없음, 무인도만 예외)
 
     // 추후 통행료 면제 또는 매수 방지 카드 등 
 }

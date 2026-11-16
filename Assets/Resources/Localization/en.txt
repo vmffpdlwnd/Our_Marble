@@ -326,6 +326,8 @@
 기분 좋게 회식을 쐈다. 모두에게 돈을 준다.	You treated everyone to dinner. Pay every player.
 가게 보수 공사	Shop Repairs
 낡은 건물을 고쳐야 한다.\n건물 하나당 수리비를 낸다.	Your old buildings need repairs.\nPay a fee for each building.
+배달 경로 꼬임	Mixed-up Route
+배달 경로가 꼬여 버렸다!\n무작위 상대와 자리를 바꾼다.	Your delivery route got mixed up!\nSwap places with a random player.
 황금열쇠 {0}	Golden Key {0}
 땅 {0}	Property {0}
 플레이어 {0}	Player {0}

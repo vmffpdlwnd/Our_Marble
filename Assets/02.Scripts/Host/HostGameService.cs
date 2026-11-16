@@ -383,11 +383,14 @@ public class HostGameService : IHostRequestReceiver
             return;
         }
         
+        // 위치 바꾸기는 호스트가 상대를 골라 알림에 싣는다. 모두가 같은 상대와 바꾸도록 클라이언트는 따로 고르지 않는다
+        long targetPlayerId = card.effectType == CardEffectType.SwapPosition ? CardRules.PickSwapTarget(state, player, random) : 0;
+
         state.WaitingType = null;
-        Broadcast(GameMessageType.CARD_DRAWN, new CardDrawnBroadcast { playerId = senderId, cardId = cardId });
+        Broadcast(GameMessageType.CARD_DRAWN, new CardDrawnBroadcast { playerId = senderId, cardId = cardId, targetPlayerId = targetPlayerId });
         Debug.Log($"[HostGameService] 황금열쇠: {player.Nickname} '{card.cardName}' ({card.effectType})");
 
-        ExecuteCardEffect(player, card);
+        ExecuteCardEffect(player, card, targetPlayerId);
     }
 
     // GameManager.HandleDestinationChosen
@@ -536,9 +539,9 @@ public class HostGameService : IHostRequestReceiver
 
     // GameManager.ExecuteCardEffect
     // 뽑은 카드의 효과 반영은 규칙(CardRules)이 하고, 여기서는 로그를 남기고 그 결과대로 이어서 진행한다. (턴 종료 또는 도착 칸 처리까지)
-    private void ExecuteCardEffect(PlayerState player, CardData card)
+    private void ExecuteCardEffect(PlayerState player, CardData card, long targetPlayerId)
     {
-        CardOutcome outcome = CardRules.ApplyCard(state, gameData, player, card);
+        CardOutcome outcome = CardRules.ApplyCard(state, gameData, player, card, targetPlayerId);
 
         if (outcome.IsPenalty)
             Debug.Log($"[HostGameService] 카드 벌금: {player.Nickname} {card.amount} 중 {outcome.PenaltyPaid} 납부 (현금 {player.Money})");
@@ -560,6 +563,10 @@ public class HostGameService : IHostRequestReceiver
                 Debug.LogError($"[HostGameService] 이동 카드 실패: 보드에 {card.targetTileType} 칸 없음");
                 break;
 
+            case CardProblem.NoSwapTarget:
+                Debug.Log("[HostGameService] 위치 바꾸기: 바꿀 상대가 없어 효과 없이 턴을 끝냅니다.");
+                break;
+
             case CardProblem.UnknownEffect:
                 Debug.LogError($"[HostGameService] 처리하지 않은 CardEffectType: {card.effectType}");
                 break;
@@ -573,6 +580,11 @@ public class HostGameService : IHostRequestReceiver
 
             case CardOutcomeKind.MoveDirectly:
                 MovePlayerDirectly(player, outcome.To);
+                break;
+
+            case CardOutcomeKind.Swap: // 위치만 바꿨으니 도착 처리 없이 턴을 끝낸다
+                Debug.Log($"[HostGameService] 위치 바꾸기: {player.Nickname} → {outcome.To}, 상대 {outcome.SwapTargetId} → {outcome.TargetTo}");
+                ProcessEndTurn();
                 break;
 
             default:

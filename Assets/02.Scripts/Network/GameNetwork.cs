@@ -117,7 +117,7 @@ public class GameNetwork : Singleton<GameNetwork>
                 CardDrawnBroadcast cardDrawnBroadcast =
                     JsonConvert.DeserializeObject<CardDrawnBroadcast>(json);
                 
-                OnCardDrawn?.Invoke(cardDrawnBroadcast.playerId, cardDrawnBroadcast.cardId);
+                OnCardDrawn?.Invoke(cardDrawnBroadcast.playerId, cardDrawnBroadcast.cardId, cardDrawnBroadcast.targetPlayerId);
                 break;
             }
             case GameMessageType.DESTINATION_CHOSEN:
@@ -188,7 +188,7 @@ public class GameNetwork : Singleton<GameNetwork>
 
     // GameNetwork는 GameManager의 존재를 몰라도 되게 하기 위해서, GameManager의 함수를 직접 호출하는 대신, 이벤트 방식을 사용할것이다.
     public event Action<long, int, bool> OnBuilt; // GameManager의 OnEnable에서  GameNetwork.Instance.OnDiceRolled += HandleDiceRolled; 하면 된다.
-    public event Action<long, int> OnCardDrawn;
+    public event Action<long, int, long> OnCardDrawn; // 뽑은 사람, 카드 id, 위치 바꾸기 상대(없으면 0)
     public event Action<long, int> OnDestinationChosen;
     public event Action<long, int, int> OnDiceRolled;
     public event Action<long, List<int>> OnPropertiesSold;

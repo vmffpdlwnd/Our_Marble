@@ -350,9 +350,8 @@ public class GameManager : Singleton<GameManager>
         screen.ShowTurn(playerId);
         screen.SetCurrentTurn(playerId);
 
-        // 새 차례가 온 플레이어의 위치가 자유여행인 경우
-        TileData currentTile = gameData.GetTile(playerState.Position);
-        if (currentTile != null && currentTile.Type == TileType.WORLD_TRAVEL)
+        // 세계여행 칸에 도착했던 플레이어의 차례 (규칙 GameRules.StartTurn이 목적지 단계로 정해 둔다)
+        if (gameState.WaitingType == GameMessageType.DESTINATION_CHOSEN)
         {
             // 주사위를 굴리는 창 대신, 원하는 타일을 선택하는 창을 띄웁니다.
             HandleChooseDestinationPrompt();
@@ -1098,7 +1097,7 @@ public class GameManager : Singleton<GameManager>
     // 대상은 현재 턴 플레이어(gameState.CurrentPlayerId)이며, 게임 상태 변경 후 다음 흐름(턴 종료, 도착 칸 처리)까지 진행합니다.
 
     // 카드 효과를 규칙(CardRules)으로 반영하고, 카드 종류에 맞게 로그와 연출을 이어서 진행합니다.
-    private void ExecuteCardEffect(long playerId, CardData card)
+    private void ExecuteCardEffect(long playerId, CardData card, long targetPlayerId)
     {
         PlayerState player = GetPlayerState(playerId);
         if (player == null)
@@ -1114,7 +1113,7 @@ public class GameManager : Singleton<GameManager>
         // 다른 플레이어의 돈도 바뀌는 카드(모두에게서 받기, 모두에게 주기)를 위해 모두의 돈을 기억해 둡니다.
         var moneyBefore = new Dictionary<long, long>();
         foreach (PlayerState p in gameState.PlayerStates) moneyBefore[p.PlayerId] = p.Money;
-        CardOutcome outcome = CardRules.ApplyCard(gameState, gameData, player, card);
+        CardOutcome outcome = CardRules.ApplyCard(gameState, gameData, player, card, targetPlayerId);
 
         switch (outcome.Problem)
         {
@@ -1128,6 +1127,10 @@ public class GameManager : Singleton<GameManager>
 
             case CardProblem.NoTargetTile:
                 Debug.LogError($"[GameManager] 이동 카드 실패: 보드에 {card.targetTileType} 칸 없음");
+                break;
+
+            case CardProblem.NoSwapTarget:
+                Log($"[카드:위치 바꾸기] {P(playerId)}: 바꿀 상대가 없어 효과 없이 넘어갑니다.");
                 break;
 
             case CardProblem.UnknownEffect:
@@ -1173,6 +1176,11 @@ public class GameManager : Singleton<GameManager>
                 Log($"[카드:모두에게 주기] {P(playerId)}: {Won(outcome.Transferred)} 줌 (현금 {Won(player.Money)})");
                 break;
 
+            case CardEffectType.SwapPosition: // 상대와 위치만 바꾼다 (칸 효과 없음, 무인도만 예외)
+                if (outcome.Problem == CardProblem.None)
+                    Log($"[카드:위치 바꾸기] {P(playerId)} ↔ {P(outcome.SwapTargetId)}: {P(playerId)}는 {TileName(outcome.To)}, {P(outcome.SwapTargetId)}는 {TileName(outcome.TargetTo)}(으)로 (칸 효과 없음)");
+                break;
+
             case CardEffectType.RepairCost: // 내 건물 수 × 금액을 낸다 (현금 한도 안에서)
                 screen.NotifyMoneyChanged(playerId, before, player.Money);
                 Log($"[카드:수리비] {P(playerId)}: 건물 {outcome.BuildingCount}채, {Won((long)card.amount * outcome.BuildingCount)} 중 {Won(outcome.PenaltyPaid)} 납부 (현금 {Won(player.Money)})");
@@ -1194,10 +1202,40 @@ public class GameManager : Singleton<GameManager>
                 MovePlayerDirectly(playerId, outcome.To);
                 break;
 
+            case CardOutcomeKind.Swap:
+                // 위치는 규칙이 이미 바꿨습니다. 두 말을 옮긴 뒤 도착 처리 없이 턴을 끝냅니다.
+                SwapPawns(playerId, outcome.SwapTargetId);
+                break;
+
             default:
                 ProcessEndTurn(); // 돈 받기, 벌금, 효과를 못 쓴 경우: 턴 종료 (턴이 멈추지 않도록)
                 break;
         }
+    }
+
+    // 위치 바꾸기 카드: 두 말을 동시에 지금 위치(규칙이 이미 바꿔 둠)로 옮기고, 둘 다 도착하면 턴을 끝냅니다. (도착 칸 처리 없음)
+    private void SwapPawns(long playerId, long targetId)
+    {
+        PlayerState player = GetPlayerState(playerId);
+        PlayerState target = GetPlayerState(targetId);
+        if (player == null || target == null)
+        {
+            ProcessEndTurn();
+            return;
+        }
+
+        int remaining = 2;
+        isMoving = true;
+        void OnPawnArrived()
+        {
+            remaining -= 1;
+            if (remaining > 0) return;
+            isMoving = false;
+            ProcessEndTurn();
+        }
+
+        screen.MoveToTile(playerId, player.Position, OnPawnArrived);
+        screen.MoveToTile(targetId, target.Position, OnPawnArrived);
     }
 
     // 카드로 돈이 바뀐 모든 플레이어에게 돈 변화 연출을 보여 줍니다. 뽑은 사람이 아닌 사람도 사유가 '황금열쇠'로 뜹니다.
@@ -1226,7 +1264,7 @@ public class GameManager : Singleton<GameManager>
         gameState.WaitingType = GameMessageType.CARD_DRAWN;
     }
 
-    public void HandleCardDrawn(long playerId, int cardId)
+    public void HandleCardDrawn(long playerId, int cardId, long targetPlayerId)
     {
         HandleRoutine();
         
@@ -1242,7 +1280,7 @@ public class GameManager : Singleton<GameManager>
 
         // 카드 연출을 재생합니다. 연출이 끝나면 EffectType에 맞는 CardEffect 실행 메서드를 호출합니다.
         // 내 카드면 확인을 눌렀을 때, 다른 플레이어 카드면 자동으로 닫힐 때 실행됩니다. (전원 자동 진행 테스트에서는 모두 자동으로 닫힘)
-        screen.ShowCardDrawPopup(playerId, card.id, true, () => ExecuteCardEffect(playerId, card));
+        screen.ShowCardDrawPopup(playerId, card.id, true, () => ExecuteCardEffect(playerId, card, targetPlayerId));
     }
     #endregion
 }

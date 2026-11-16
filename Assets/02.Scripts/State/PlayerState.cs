@@ -16,6 +16,10 @@ public class PlayerState
     [Newtonsoft.Json.JsonProperty("CardIds")]
     public List<int> HeldCardIds { get; set; }
 
+    // 세계여행 칸에 도착해 다음 차례에 목적지를 고를 예정이면 true. 차례가 시작될 때 쓰고 지운다.
+    // 칸 위치가 아니라 이 값으로 정해서, 위치 바꾸기처럼 도착 없이 세계여행 칸에 선 경우에는 세계여행을 하지 않는다
+    public bool WorldTravelPending { get; set; }
+
     // 파산 여부
     public bool IsBankrupt { get; set; }
 
@@ -39,6 +43,7 @@ public class PlayerState
         Money = 0;
         IslandTurnsRemaining = 0;
         HeldCardIds = new List<int>();
+        WorldTravelPending = false;
         IsBankrupt = false;
         FinalRank = 0;
     }

@@ -80,11 +80,11 @@ public static class GameRules
 
         PlayerState player = FindPlayer(state, playerId);
 
-        // 세계여행 칸에서 시작하는 차례는 주사위 대신 목적지 선택으로 시작한다
-        TileData tile = data.GetTile(player.Position);
-        state.WaitingType = tile != null && tile.Type == TileType.WORLD_TRAVEL
+        // 세계여행 칸에 도착했던 사람(WorldTravelPending)의 차례는 주사위 대신 목적지 선택으로 시작한다. 예정은 여기서 쓰고 지운다
+        state.WaitingType = player.WorldTravelPending
             ? GameMessageType.DESTINATION_CHOSEN
             : GameMessageType.DICE_ROLLED;
+        player.WorldTravelPending = false;
 
         return TurnStartResult.Started;
     }
