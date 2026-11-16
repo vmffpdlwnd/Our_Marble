@@ -1111,6 +1111,9 @@ public class GameManager : Singleton<GameManager>
         // 아래에서는 돈 변화 알림과 로그, 말 이동 연출, 다음 흐름(턴 종료, 도착 칸 처리)을 이어서 진행합니다.
         long before = player.Money;
         int fromPosition = player.Position;
+        // 다른 플레이어의 돈도 바뀌는 카드(모두에게서 받기, 모두에게 주기)를 위해 모두의 돈을 기억해 둡니다.
+        var moneyBefore = new Dictionary<long, long>();
+        foreach (PlayerState p in gameState.PlayerStates) moneyBefore[p.PlayerId] = p.Money;
         CardOutcome outcome = CardRules.ApplyCard(gameState, gameData, player, card);
 
         switch (outcome.Problem)
@@ -1159,6 +1162,21 @@ public class GameManager : Singleton<GameManager>
                 if (outcome.Problem == CardProblem.None)
                     Log($"[카드:무인도] {P(playerId)}: 무인도로 이동합니다.");
                 break;
+
+            case CardEffectType.CollectFromAll: // 다른 플레이어 모두에게서 받는다 (각자 현금 한도 안에서)
+                NotifyCardMoneyChanges(moneyBefore);
+                Log($"[카드:모두에게서 받기] {P(playerId)}: {Won(outcome.Transferred)} 받음 (현금 {Won(player.Money)})");
+                break;
+
+            case CardEffectType.PayToAll: // 다른 플레이어 모두에게 준다 (내 현금 한도 안에서)
+                NotifyCardMoneyChanges(moneyBefore);
+                Log($"[카드:모두에게 주기] {P(playerId)}: {Won(outcome.Transferred)} 줌 (현금 {Won(player.Money)})");
+                break;
+
+            case CardEffectType.RepairCost: // 내 건물 수 × 금액을 낸다 (현금 한도 안에서)
+                screen.NotifyMoneyChanged(playerId, before, player.Money);
+                Log($"[카드:수리비] {P(playerId)}: 건물 {outcome.BuildingCount}채, {Won((long)card.amount * outcome.BuildingCount)} 중 {Won(outcome.PenaltyPaid)} 납부 (현금 {Won(player.Money)})");
+                break;
         }
 
         switch (outcome.Kind)
@@ -1179,6 +1197,17 @@ public class GameManager : Singleton<GameManager>
             default:
                 ProcessEndTurn(); // 돈 받기, 벌금, 효과를 못 쓴 경우: 턴 종료 (턴이 멈추지 않도록)
                 break;
+        }
+    }
+
+    // 카드로 돈이 바뀐 모든 플레이어에게 돈 변화 연출을 보여 줍니다. 뽑은 사람이 아닌 사람도 사유가 '황금열쇠'로 뜹니다.
+    private void NotifyCardMoneyChanges(Dictionary<long, long> moneyBefore)
+    {
+        foreach (PlayerState p in gameState.PlayerStates)
+        {
+            if (!moneyBefore.TryGetValue(p.PlayerId, out long before) || before == p.Money) continue;
+            if (p.PlayerId != gameState.CurrentPlayerId) screen.SetNextMoneyReason(p.PlayerId, "황금열쇠");
+            screen.NotifyMoneyChanged(p.PlayerId, before, p.Money);
         }
     }
 

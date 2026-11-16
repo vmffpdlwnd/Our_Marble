@@ -543,6 +543,9 @@ public class HostGameService : IHostRequestReceiver
         if (outcome.IsPenalty)
             Debug.Log($"[HostGameService] 카드 벌금: {player.Nickname} {card.amount} 중 {outcome.PenaltyPaid} 납부 (현금 {player.Money})");
 
+        if (card.effectType == CardEffectType.CollectFromAll || card.effectType == CardEffectType.PayToAll)
+            Debug.Log($"[HostGameService] 카드 {card.effectType}: {player.Nickname} 합계 {outcome.Transferred} (현금 {player.Money})");
+
         switch (outcome.Problem)
         {
             case CardProblem.NoBoard:

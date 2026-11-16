@@ -264,6 +264,13 @@ public class GameScreen
         EconomyManager.NotifyMoneyChanged(playerId, before, after);
     }
 
+    /// <summary>다음 돈 변화 표시에 붙일 사유를 정한다. (예: 황금열쇠)</summary>
+    public void SetNextMoneyReason(long playerId, string reason)
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.SetNextMoneyReason(playerId, reason);
+    }
+
     public void PlayMoneyChange(long playerId, long amount, string reason)
     {
         if (UIManager.Instance != null)

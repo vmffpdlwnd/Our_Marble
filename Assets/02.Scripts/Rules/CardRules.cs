@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 /// <summary>카드 효과를 반영한 뒤 이어서 할 일</summary>
 public enum CardOutcomeKind
@@ -25,7 +26,9 @@ public class CardOutcome
     public int To;
     public bool ReceivesSalary;
     public bool IsPenalty;     // 벌금 카드였는지
-    public long PenaltyPaid;   // 실제로 낸 벌금 (현금 한도 안에서)
+    public long PenaltyPaid;   // 실제로 낸 벌금 (현금 한도 안에서). 수리비 카드도 여기에 담는다
+    public long Transferred;   // 모두에게서 받기, 모두에게 주기에서 실제로 오간 합계
+    public int BuildingCount;  // 수리비 카드에서 센 건물 수
     public CardProblem Problem;
 }
 
@@ -61,6 +64,29 @@ public static class CardRules
                 int island = GameRules.FindIslandTileIndex(data);
                 if (island < 0) return new CardOutcome { Kind = CardOutcomeKind.EndTurn, Problem = CardProblem.NoIslandTile };
                 return new CardOutcome { Kind = CardOutcomeKind.MoveDirectly, To = island };
+
+            case CardEffectType.CollectFromAll: // 다른 플레이어 모두에게서 amount씩 받는다. 각자 현금 한도 안에서만 낸다 (매각, 파산 없음)
+                long collected = 0;
+                foreach (PlayerState other in OtherActivePlayers(state, player))
+                    collected += DeductMoneyWithinBalance(other, card.amount);
+                player.Money += collected;
+                return new CardOutcome { Kind = CardOutcomeKind.EndTurn, Transferred = collected };
+
+            case CardEffectType.PayToAll: // 다른 플레이어 모두에게 amount씩 준다. 내 현금 한도 안에서 차례 순서대로 준다 (매각, 파산 없음)
+                long given = 0;
+                foreach (PlayerState other in OtherActivePlayers(state, player))
+                {
+                    long gift = DeductMoneyWithinBalance(player, card.amount);
+                    other.Money += gift;
+                    given += gift;
+                }
+                return new CardOutcome { Kind = CardOutcomeKind.EndTurn, Transferred = given };
+
+            case CardEffectType.RepairCost: // 내 건물 수 × amount를 은행 또는 적립금에 낸다. 현금 한도 안에서만 낸다 (매각, 파산 없음)
+                int buildings = CountBuildings(state, player.PlayerId);
+                long repair = DeductMoneyWithinBalance(player, (long)card.amount * buildings);
+                if (card.penaltyToWelfareFund) state.WelfareFund += repair;
+                return new CardOutcome { Kind = CardOutcomeKind.EndTurn, IsPenalty = true, PenaltyPaid = repair, BuildingCount = buildings };
 
             default:
                 // 턴이 멈추지 않도록 종료한다
@@ -102,6 +128,28 @@ public static class CardRules
         }
 
         return new CardOutcome { Kind = CardOutcomeKind.EndTurn, Problem = CardProblem.NoTargetTile };
+    }
+
+    // 뽑은 사람을 뺀, 파산하지 않은 플레이어들 (차례 순서대로)
+    private static List<PlayerState> OtherActivePlayers(GameState state, PlayerState player)
+    {
+        var others = new List<PlayerState>();
+        foreach (long id in state.PlayerOrder)
+        {
+            if (id == player.PlayerId) continue;
+            PlayerState other = state.PlayerStates.Find(p => p.PlayerId == id);
+            if (other != null && !other.IsBankrupt) others.Add(other);
+        }
+        return others;
+    }
+
+    // 내 건물 수. 땅마다 건물 단계만큼 센다 (땅만 0, 별장 1, 빌딩 2, 호텔 3)
+    private static int CountBuildings(GameState state, long ownerId)
+    {
+        int count = 0;
+        foreach (PropertyState property in state.PropertyStates)
+            if (property.OwnerId == ownerId) count += (int)property.BuildingLevel;
+        return count;
     }
 
     // GameManager.DeductMoneyWithinBalance (현금 한도 안에서만 뺀다. 실제로 뺀 금액을 돌려준다)

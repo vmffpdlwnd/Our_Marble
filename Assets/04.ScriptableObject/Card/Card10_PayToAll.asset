@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ded43c9fb85c65468f822ecd36f3b34, type: 3}
+  m_Name: Card10_PayToAll
+  m_EditorClassIdentifier: Assembly-CSharp::CardData
+  id: 10
+  cardName: "\uD68C\uC2DD \uD55C\uD131"
+  description: "\uAE30\uBD84 \uC88B\uAC8C \uD68C\uC2DD\uC744 \uC408\uB2E4. \uBAA8\uB450\uC5D0\uAC8C
+    \uB3C8\uC744 \uC900\uB2E4."
+  icon: {fileID: 21300000, guid: 3b32829e0998d6c499f435c869b25bea, type: 3}
+  effectType: 6
+  amount: 20000
+  targetTileType: 0
+  steps: 0
+  penaltyToWelfareFund: 0

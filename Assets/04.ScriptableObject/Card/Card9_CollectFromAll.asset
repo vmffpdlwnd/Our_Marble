@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ded43c9fb85c65468f822ecd36f3b34, type: 3}
+  m_Name: Card9_CollectFromAll
+  m_EditorClassIdentifier: Assembly-CSharp::CardData
+  id: 9
+  cardName: "\uAC1C\uC5C5 \uAE30\uB150\uC77C"
+  description: "\uAC00\uAC8C \uAC1C\uC5C5 \uAE30\uB150\uC77C! \uBAA8\uB450\uC5D0\uAC8C\uC11C
+    \uCD95\uD558\uAE08\uC744 \uBC1B\uB294\uB2E4."
+  icon: {fileID: 21300000, guid: ecfd30677295e32448e58964581cf14d, type: 3}
+  effectType: 5
+  amount: 30000
+  targetTileType: 0
+  steps: 0
+  penaltyToWelfareFund: 0
