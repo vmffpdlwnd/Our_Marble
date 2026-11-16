@@ -25,6 +25,9 @@ public enum GameMessageType
     
     [EnumMember(Value = "AWAITING_SELL")]
     PROPERTIES_SOLD,
+
+    [EnumMember(Value = "AWAITING_TOLL_DOUBLE")] // 통행료 2배 카드: 내 땅 하나를 고르기를 기다린다
+    TOLL_DOUBLE_CHOSEN,
       
     // 파산 신청 알림. 기다리는 단계(phase)가 아니라서 EnumMember가 없다. (어느 입력 단계에서나 올 수 있다)
     BANKRUPTCY_DECLARED,

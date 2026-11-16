@@ -44,6 +44,7 @@ public class SellPlan
     public PlayerState Receiver; // 통행료를 받을 사람
     public long Toll;            // 낼 통행료
     public long TotalAmount;     // 팔 땅의 매각가 합계
+    public PropertyState Landed; // 통행료를 낼 땅 (통행료 2배 표시를 지우려고 담는다)
 }
 
 /// <summary>파산 처리의 결과</summary>
@@ -165,6 +166,7 @@ public static class TradeRules
         }
 
         plan.Receiver = GameRules.FindPlayer(state, landed.OwnerId.Value);
+        plan.Landed = landed;
         plan.Toll = data.Properties.GetToll(landed);
 
         if (propertyIds.Distinct().Count() != propertyIds.Count)
@@ -207,6 +209,7 @@ public static class TradeRules
 
         player.Money = player.Money + plan.TotalAmount - plan.Toll;
         plan.Receiver.Money += plan.Toll;
+        if (plan.Landed != null) plan.Landed.TollDoubleOwnerId = null; // 통행료를 받았으니 2배 표시는 사라진다
     }
 
     // ───────────── 땅에 도착 ─────────────
@@ -246,6 +249,7 @@ public static class TradeRules
         if (player.Money >= toll)
         {
             PayToll(player, owner, toll);
+            property.TollDoubleOwnerId = null; // 통행료를 받았으니 2배 표시는 사라진다
 
             // 통행료를 내고도 인수할 돈이 있으면 인수를 선택할 수 있다
             long acquireValue = data.Properties.GetAcquireValue(property);

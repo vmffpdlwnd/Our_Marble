@@ -185,6 +185,12 @@ public class GameScreen
             UIManager.Instance.ShowRollDicePopup();
     }
 
+    public void ShowChooseTollDoublePopup()
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.ShowChooseTollDoublePopup();
+    }
+
     public void ShowChooseDestinationPopup()
     {
         if (UIManager.Instance != null)

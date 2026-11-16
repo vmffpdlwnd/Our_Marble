@@ -8,6 +8,7 @@ public enum CardOutcomeKind
     Move,         // To 칸으로 이동. ReceivesSalary이면 월급을 받는다
     MoveDirectly, // To 칸으로 순간이동 (월급 없음)
     Swap,         // 위치 바꾸기. 상태는 이미 바뀌었고, 두 말을 옮긴 뒤 턴을 끝낸다 (도착 칸 처리 없음)
+    ChooseProperty, // 통행료 2배. 땅 고르기 단계(TOLL_DOUBLE_CHOSEN)로 들어갔으니 고른 땅을 기다린다
 }
 
 /// <summary>카드 효과를 쓰지 못한 이유. None이면 정상</summary>
@@ -18,6 +19,7 @@ public enum CardProblem
     NoIslandTile,  // 무인도 칸이 없음
     NoTargetTile,  // 카드가 가리키는 종류의 칸이 보드에 없음 (MoveTo)
     NoSwapTarget,  // 위치를 바꿀 상대가 없음 (SwapPosition)
+    NoOwnedProperty, // 고를 내 땅이 없음 (TollDouble)
     UnknownEffect, // 처리하지 않는 카드 종류
 }
 
@@ -95,6 +97,12 @@ public static class CardRules
             case CardEffectType.SwapPosition: // 상대와 위치만 바꾼다. 둘 다 칸 효과 없음 (무인도만 예외)
                 return SwapPosition(state, data, player, targetPlayerId);
 
+            case CardEffectType.TollDouble: // 내 땅 하나를 고르는 단계로 들어간다. 내 땅이 없으면 효과 없이 끝난다
+                if (!state.PropertyStates.Exists(p => p.OwnerId == player.PlayerId))
+                    return new CardOutcome { Kind = CardOutcomeKind.EndTurn, Problem = CardProblem.NoOwnedProperty };
+                state.WaitingType = GameMessageType.TOLL_DOUBLE_CHOSEN;
+                return new CardOutcome { Kind = CardOutcomeKind.ChooseProperty };
+
             default:
                 // 턴이 멈추지 않도록 종료한다
                 return new CardOutcome { Kind = CardOutcomeKind.EndTurn, Problem = CardProblem.UnknownEffect };
@@ -170,6 +178,37 @@ public static class CardRules
         }
 
         return new CardOutcome { Kind = CardOutcomeKind.Swap, To = player.Position, SwapTargetId = target.PlayerId, TargetTo = target.Position };
+    }
+
+    // HostGameService.HandleChooseTollDouble
+    /// <summary>통행료 2배를 붙일 수 있는 땅인지. 고르는 사람이 주인인 땅이어야 한다.</summary>
+    public static bool CanChooseTollDouble(GameState state, PlayerState player, int propertyId)
+    {
+        PropertyState property = state.PropertyStates.Find(p => p.PropertyId == propertyId);
+        return property != null && property.OwnerId == player.PlayerId;
+    }
+
+    // GameManager.HandleTollDoubleChosen
+    /// <summary>고른 땅에 통행료 2배 표시를 붙인다. 다음 통행료 한 번이 2배가 되고, 통행료를 받으면 사라진다.</summary>
+    public static void ApplyTollDouble(GameState state, PlayerState player, int propertyId)
+    {
+        PropertyState property = state.PropertyStates.Find(p => p.PropertyId == propertyId);
+        if (property != null) property.TollDoubleOwnerId = player.PlayerId;
+    }
+
+    // HostGameService.AutoAct (봇과 AFK 대신 고르기)
+    /// <summary>통행료가 가장 비싼 내 땅을 고른다. 없으면 0.</summary>
+    public static int PickTollDoubleProperty(GameState state, GameData data, long playerId)
+    {
+        int best = 0;
+        long bestToll = -1;
+        foreach (PropertyState property in state.PropertyStates)
+        {
+            if (property.OwnerId != playerId) continue;
+            long toll = data.Properties.GetToll(property);
+            if (toll > bestToll) { best = property.PropertyId; bestToll = toll; }
+        }
+        return best;
     }
 
     // 뽑은 사람을 뺀, 파산하지 않은 플레이어들 (차례 순서대로)

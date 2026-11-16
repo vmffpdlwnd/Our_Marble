@@ -328,6 +328,8 @@
 낡은 건물을 고쳐야 한다.\n건물 하나당 수리비를 낸다.	Your old buildings need repairs.\nPay a fee for each building.
 배달 경로 꼬임	Mixed-up Route
 배달 경로가 꼬여 버렸다!\n무작위 상대와 자리를 바꾼다.	Your delivery route got mixed up!\nSwap places with a random player.
+주말 대목	Weekend Rush
+주말 대목! 내 땅 하나를 골라\n다음 통행료를 2배로 받는다.	Weekend rush! Choose one of your lands.\nIts next toll is doubled.
 황금열쇠 {0}	Golden Key {0}
 땅 {0}	Property {0}
 플레이어 {0}	Player {0}
@@ -365,6 +367,8 @@
 라운드	Round
 여행지 선택 완료	Confirm destination
 보드에서 이동할 칸을 선택하세요	Choose a tile on the board to move to
+통행료 2배	Double Toll
+보드에서 통행료를 2배로 받을 내 땅을 선택하세요	Choose one of your lands on the board to double its next toll
 
 # ── 게임 화면: 플레이어 카드와 결과 ──
 총 자산	Total assets

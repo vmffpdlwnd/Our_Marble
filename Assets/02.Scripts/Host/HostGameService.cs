@@ -247,6 +247,7 @@ public class HostGameService : IHostRequestReceiver
             case "SELL_PROPERTIES": HandleSellProperties(senderId, JsonConvert.DeserializeObject<SellPropertiesRequest>(json)); break;
             case "DRAW_CARD": HandleDrawCard(senderId); break;
             case "CHOOSE_DESTINATION": HandleChooseDestination(senderId, JsonConvert.DeserializeObject<ChooseDestinationRequest>(json)); break;
+            case "CHOOSE_TOLL_DOUBLE": HandleChooseTollDouble(senderId, JsonConvert.DeserializeObject<ChooseTollDoubleRequest>(json)); break;
             case "DECLARE_BANKRUPTCY": HandleDeclareBankruptcy(senderId); break;
 
             default:
@@ -391,6 +392,21 @@ public class HostGameService : IHostRequestReceiver
         Debug.Log($"[HostGameService] 황금열쇠: {player.Nickname} '{card.cardName}' ({card.effectType})");
 
         ExecuteCardEffect(player, card, targetPlayerId);
+    }
+
+    // GameManager.HandleTollDoubleChosen
+    // 통행료 2배 카드로 땅 고르기 단계(TOLL_DOUBLE_CHOSEN)에 있을 때, 고른 땅을 받는다. 내 땅이어야 한다.
+    private void HandleChooseTollDouble(long senderId, ChooseTollDoubleRequest request)
+    {
+        if (!Validate(senderId, GameMessageType.TOLL_DOUBLE_CHOSEN, out PlayerState player, request.propertyId)) return;
+        if (!CardRules.CanChooseTollDouble(state, player, request.propertyId)) { SendError(senderId, "INVALID_PROPERTY", "내 땅만 고를 수 있어요"); return; }
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.TOLL_DOUBLE_CHOSEN, new TollDoubleChosenBroadcast { playerId = senderId, propertyId = request.propertyId });
+        CardRules.ApplyTollDouble(state, player, request.propertyId);
+        Debug.Log($"[HostGameService] 통행료 2배: {player.Nickname} {request.propertyId}번 땅");
+
+        ProcessEndTurn();
     }
 
     // GameManager.HandleDestinationChosen
@@ -567,6 +583,10 @@ public class HostGameService : IHostRequestReceiver
                 Debug.Log("[HostGameService] 위치 바꾸기: 바꿀 상대가 없어 효과 없이 턴을 끝냅니다.");
                 break;
 
+            case CardProblem.NoOwnedProperty:
+                Debug.Log("[HostGameService] 통행료 2배: 고를 땅이 없어 효과 없이 턴을 끝냅니다.");
+                break;
+
             case CardProblem.UnknownEffect:
                 Debug.LogError($"[HostGameService] 처리하지 않은 CardEffectType: {card.effectType}");
                 break;
@@ -580,6 +600,10 @@ public class HostGameService : IHostRequestReceiver
 
             case CardOutcomeKind.MoveDirectly:
                 MovePlayerDirectly(player, outcome.To);
+                break;
+
+            case CardOutcomeKind.ChooseProperty: // 땅 고르기 요청(CHOOSE_TOLL_DOUBLE)을 기다린다. 봇과 AFK는 AutoAct가 대신 고른다
+                Debug.Log($"[HostGameService] 통행료 2배: {player.Nickname}의 땅 고르기를 기다립니다.");
                 break;
 
             case CardOutcomeKind.Swap: // 위치만 바꿨으니 도착 처리 없이 턴을 끝낸다
@@ -941,6 +965,10 @@ public class HostGameService : IHostRequestReceiver
 
             case GameMessageType.DESTINATION_CHOSEN:
                 HandleChooseDestination(id, new ChooseDestinationRequest { type = "CHOOSE_DESTINATION", destinationPosition = ChooseDestination(actor) });
+                break;
+
+            case GameMessageType.TOLL_DOUBLE_CHOSEN: // 통행료가 가장 비싼 내 땅을 고른다
+                HandleChooseTollDouble(id, new ChooseTollDoubleRequest { type = "CHOOSE_TOLL_DOUBLE", propertyId = CardRules.PickTollDoubleProperty(state, gameData, id) });
                 break;
 
             // 구매, 건설, 인수는 봇과 제한 시간을 넘긴 사람 모두 같은 전략이 판단한다

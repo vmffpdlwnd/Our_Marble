@@ -72,6 +72,7 @@ public class GameManager : Singleton<GameManager>
         subscribedNetwork.OnBuilt += HandleBuilt;
         subscribedNetwork.OnCardDrawn += HandleCardDrawn;
         subscribedNetwork.OnDestinationChosen += HandleDestinationChosen;
+        subscribedNetwork.OnTollDoubleChosen += HandleTollDoubleChosen;
         subscribedNetwork.OnDiceRolled += HandleDiceRolled;
         subscribedNetwork.OnPropertiesSold += HandlePropertiesSold;
         subscribedNetwork.OnPropertyAcquired += HandlePropertyAcquired;
@@ -90,6 +91,7 @@ public class GameManager : Singleton<GameManager>
         subscribedNetwork.OnBuilt -= HandleBuilt;
         subscribedNetwork.OnCardDrawn -= HandleCardDrawn;
         subscribedNetwork.OnDestinationChosen -= HandleDestinationChosen;
+        subscribedNetwork.OnTollDoubleChosen -= HandleTollDoubleChosen;
         subscribedNetwork.OnDiceRolled -= HandleDiceRolled;
         subscribedNetwork.OnPropertiesSold -= HandlePropertiesSold;
         subscribedNetwork.OnPropertyAcquired -= HandlePropertyAcquired;
@@ -182,6 +184,10 @@ public class GameManager : Singleton<GameManager>
 
             case GameMessageType.DESTINATION_CHOSEN:
                 HandleChooseDestinationPrompt();
+                return;
+
+            case GameMessageType.TOLL_DOUBLE_CHOSEN:
+                HandleChooseTollDoublePrompt();
                 return;
 
             case GameMessageType.CARD_DRAWN:
@@ -399,6 +405,39 @@ public class GameManager : Singleton<GameManager>
         Log($"[세계여행] {P(playerId)}: {TileName(fromPosition)} → {TileName(toPosition)}");
 
         MovePlayerToDestination(playerId, fromPosition, toPosition, shouldReceiveSalary);
+    }
+
+    // 통행료 2배 카드: 내 차례면 통행료를 2배로 받을 내 땅을 고르는 창을 띄웁니다. (세계여행 목적지 고르기와 같은 화면)
+    public void HandleChooseTollDoublePrompt()
+    {
+        // HandleChooseDestinationPrompt와 같은 이유로 HandleRoutine을 부르지 않습니다.
+        if (IsLocalPlayerTurn())
+        {
+            screen.ShowChooseTollDoublePopup();
+        }
+
+        gameState.WaitingType = GameMessageType.TOLL_DOUBLE_CHOSEN;
+    }
+
+    /// <summary>화면에서 통행료 2배로 받을 내 땅(칸 번호)을 고르면 이 함수가 호출됩니다.</summary>
+    public void ChooseTollDoubleTile(int tileIndex)
+    {
+        TileData tile = gameData.GetTile(tileIndex);
+        if (tile == null || tile.Type != TileType.PROPERTY) return;
+
+        sendAndWaiting = true;
+        GameNetwork.Instance.SendChooseTollDoubleRequest(tile.PropertyId);
+    }
+
+    public void HandleTollDoubleChosen(long playerId, int propertyId)
+    {
+        HandleRoutine();
+
+        PlayerState player = GetPlayerState(playerId);
+        if (player != null) CardRules.ApplyTollDouble(gameState, player, propertyId);
+        Log($"[카드:통행료 2배] {P(playerId)}: {CityName(propertyId)}의 다음 통행료가 2배가 됩니다.");
+
+        ProcessEndTurn();
     }
 
     public void HandleRollDicePrompt()
@@ -1133,6 +1172,10 @@ public class GameManager : Singleton<GameManager>
                 Log($"[카드:위치 바꾸기] {P(playerId)}: 바꿀 상대가 없어 효과 없이 넘어갑니다.");
                 break;
 
+            case CardProblem.NoOwnedProperty:
+                Log($"[카드:통행료 2배] {P(playerId)}: 고를 땅이 없어 효과 없이 넘어갑니다.");
+                break;
+
             case CardProblem.UnknownEffect:
                 Debug.LogError($"[GameManager] 처리하지 않은 CardEffectType: {card.effectType}");
                 break;
@@ -1200,6 +1243,11 @@ public class GameManager : Singleton<GameManager>
             case CardOutcomeKind.MoveDirectly:
                 // 뒤로 이동하거나 무인도로 순간이동 (월급 없음) → 도착 처리에서 영업정지 설정 + 추가 턴 없이 턴 넘김
                 MovePlayerDirectly(playerId, outcome.To);
+                break;
+
+            case CardOutcomeKind.ChooseProperty:
+                // 통행료 2배: 땅 고르기 창을 띄우고, 고른 땅이 알림(TOLL_DOUBLE_CHOSEN)으로 오면 턴을 끝냅니다.
+                HandleChooseTollDoublePrompt();
                 break;
 
             case CardOutcomeKind.Swap:

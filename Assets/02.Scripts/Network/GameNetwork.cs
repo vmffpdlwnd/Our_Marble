@@ -128,6 +128,14 @@ public class GameNetwork : Singleton<GameNetwork>
                 OnDestinationChosen?.Invoke(destinationChosenBroadcast.playerId, destinationChosenBroadcast.destinationPosition);
                 break;
             }
+            case GameMessageType.TOLL_DOUBLE_CHOSEN:
+            {
+                TollDoubleChosenBroadcast tollDoubleChosenBroadcast =
+                    JsonConvert.DeserializeObject<TollDoubleChosenBroadcast>(json);
+
+                OnTollDoubleChosen?.Invoke(tollDoubleChosenBroadcast.playerId, tollDoubleChosenBroadcast.propertyId);
+                break;
+            }
             case GameMessageType.DICE_ROLLED:
             {
                 DiceRolledBroadcast diceRolledBroadcast =
@@ -190,6 +198,7 @@ public class GameNetwork : Singleton<GameNetwork>
     public event Action<long, int, bool> OnBuilt; // GameManager의 OnEnable에서  GameNetwork.Instance.OnDiceRolled += HandleDiceRolled; 하면 된다.
     public event Action<long, int, long> OnCardDrawn; // 뽑은 사람, 카드 id, 위치 바꾸기 상대(없으면 0)
     public event Action<long, int> OnDestinationChosen;
+    public event Action<long, int> OnTollDoubleChosen; // 고른 사람, 통행료 2배를 붙인 땅 id
     public event Action<long, int, int> OnDiceRolled;
     public event Action<long, List<int>> OnPropertiesSold;
     public event Action<long, int, bool> OnPropertyAcquired;
@@ -233,6 +242,18 @@ public class GameNetwork : Singleton<GameNetwork>
         SendGameMessage(json);
     }
     
+    public void SendChooseTollDoubleRequest(int propertyId)
+    {
+        ChooseTollDoubleRequest message = new ChooseTollDoubleRequest
+        {
+            type = "CHOOSE_TOLL_DOUBLE",
+            propertyId = propertyId
+        };
+
+        string json = JsonConvert.SerializeObject(message);
+        SendGameMessage(json);
+    }
+
     public void SendRollDiceRequest()
     {
         RollDiceRequest message = new RollDiceRequest

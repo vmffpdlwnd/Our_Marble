@@ -51,7 +51,12 @@ public class PropertyRules
         var data = GetData(state.PropertyId);
         if (data == null) return 0;
 
-        return data.GetToll(state.BuildingLevel);
+        long toll = data.GetToll(state.BuildingLevel);
+
+        // 통행료 2배 카드: 고른 사람이 아직 주인이면 다음 통행료 한 번이 2배 (매각, 파산 판단과 봇 계산도 같은 금액을 쓴다)
+        if (state.TollDoubleOwnerId.HasValue && state.TollDoubleOwnerId == state.OwnerId) toll *= 2;
+
+        return toll;
     }
 
     /// <summary>
