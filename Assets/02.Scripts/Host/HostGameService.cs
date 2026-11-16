@@ -565,6 +565,9 @@ public class HostGameService : IHostRequestReceiver
         if (card.effectType == CardEffectType.CollectFromAll || card.effectType == CardEffectType.PayToAll)
             Debug.Log($"[HostGameService] 카드 {card.effectType}: {player.Nickname} 합계 {outcome.Transferred} (현금 {player.Money})");
 
+        if (outcome.Held != HeldCardResult.None)
+            Debug.Log($"[HostGameService] 보관형 {card.effectType}: {player.Nickname} {(outcome.Held == HeldCardResult.Kept ? "들기" : "같은 종류가 있어 버림")} (들고 있는 카드 {player.HeldCardIds.Count}장)");
+
         switch (outcome.Problem)
         {
             case CardProblem.NoBoard:

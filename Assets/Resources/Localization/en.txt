@@ -330,6 +330,18 @@
 배달 경로가 꼬여 버렸다!\n무작위 상대와 자리를 바꾼다.	Your delivery route got mixed up!\nSwap places with a random player.
 주말 대목	Weekend Rush
 주말 대목! 내 땅 하나를 골라\n다음 통행료를 2배로 받는다.	Weekend rush! Choose one of your lands.\nIts next toll is doubled.
+프리패스	Free Pass
+프리패스를 손에 넣었다!\n남의 땅 통행료를 한 번 내지 않는다. (보관)	You got a free pass!\nSkip one toll on another player's land. (Keep)
+반값 쿠폰	Half-Price Coupon
+반값 쿠폰을 손에 넣었다!\n남의 땅 통행료를 한 번 절반만 낸다. (보관)	You got a half-price coupon!\nPay half of one toll on another player's land. (Keep)
+구조 헬기	Rescue Chopper
+구조 헬기를 불러 두었다.\n무인도에 갇히면 바로 탈출한다. (보관)	A rescue chopper is on call.\nIf you're stuck on the island, escape at once. (Keep)
+경영권 방어	Takeover Defense
+변호사와 계약했다.\n내 땅이 인수될 때 한 번 막는다. (보관)	You hired a lawyer.\nBlock one takeover of your land. (Keep)
+공사 할인권	Build Coupon
+단골 건설사가 할인을 약속했다.\n건설할 때 건설비를 절반만 낸다. (보관)	Your builder promised a discount.\nPay half the cost when you build. (Keep)
+성과급	Performance Bonus
+이번 분기 실적 1위!\n다음 월급을 2배로 받는다. (보관)	Top sales this quarter!\nYour next salary is doubled. (Keep)
 황금열쇠 {0}	Golden Key {0}
 땅 {0}	Property {0}
 플레이어 {0}	Player {0}

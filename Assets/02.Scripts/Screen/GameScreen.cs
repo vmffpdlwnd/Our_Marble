@@ -289,6 +289,13 @@ public class GameScreen
             UIManager.Instance.PlayMoneyTransfer(payerId, receiverId, amount, payerReason, receiverReason);
     }
 
+    /// <summary>들고 있는 보관형 황금열쇠 아이콘을 모든 플레이어 칸에 맞춘다.</summary>
+    public void RefreshHeldCards()
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.RefreshHeldCards();
+    }
+
     public void PlayIslandEscapeFailed(long playerId, int remainingTurns)
     {
         SpecialTileManager.Instance.PlayIslandEscapeFailed(playerId, remainingTurns);

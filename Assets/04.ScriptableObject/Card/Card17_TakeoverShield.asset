@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ded43c9fb85c65468f822ecd36f3b34, type: 3}
+  m_Name: Card17_TakeoverShield
+  m_EditorClassIdentifier: Assembly-CSharp::CardData
+  id: 17
+  cardName: "\uACBD\uC601\uAD8C \uBC29\uC5B4"
+  description: "\uBCC0\uD638\uC0AC\uC640 \uACC4\uC57D\uD588\uB2E4.\n\uB0B4 \uB545\uC774 \uC778\uC218\uB420 \uB54C \uD55C \uBC88 \uB9C9\uB294\uB2E4. (\uBCF4\uAD00)"
+  icon: {fileID: 21300000, guid: a9961fa135fbced4492729ba348c885f, type: 3}
+  effectType: 13
+  amount: 0
+  targetTileType: 0
+  steps: 0
+  penaltyToWelfareFund: 0

@@ -175,6 +175,7 @@ public class UIManager : MonoBehaviour
             view.SetBankrupt(player.IsBankrupt); // 새로 파산했으면 도장 연출
         }
         UpdateRanks(); // 등수가 달라진 카드만 뒤집힌다
+        RefreshHeldCards(); // 들고 있는 황금열쇠 아이콘
 
         // 차례: 화면에 강조된 카드와 서버의 현재 차례가 다르면 차례 표시를 바꾼다
         int turnIndex = IndexOf(state.CurrentPlayerId);
@@ -873,6 +874,36 @@ public class UIManager : MonoBehaviour
             view.SetBankrupt(player.IsBankrupt, animate);
         }
         UpdateRanks();
+        RefreshHeldCards(); // 파산하면 들고 있던 카드가 사라진다
+    }
+
+    /// <summary>
+    /// 모든 플레이어 칸의 보관형 황금열쇠 아이콘을 GameState(HeldCardIds)에 맞춘다. 얻은 순서대로 보인다.
+    /// 아이콘은 카드 에셋의 icon이고, 덱(cardDeck)에서 id로 찾는다. 찾지 못한 카드는 건너뛴다.
+    /// </summary>
+    public void RefreshHeldCards()
+    {
+        GameState state = State;
+        if (state == null) return;
+
+        var icons = new List<Sprite>();
+        for (int i = 0; i < state.PlayerStates.Count; i++)
+        {
+            PlayerInfoView view = GetPlayerInfo(i);
+            if (view == null) continue;
+
+            icons.Clear();
+            List<int> held = state.PlayerStates[i].HeldCardIds;
+            if (held != null)
+            {
+                foreach (int id in held)
+                {
+                    CardData card = cardDeck != null ? cardDeck.FindById(id) : null;
+                    if (card != null) icons.Add(card.icon);
+                }
+            }
+            view.SetHeldCards(icons);
+        }
     }
 
     // 돈이 바뀐 것을 카드에 반영하고, 바뀐 만큼 돈 변화 표시를 띄웁니다. (EconomyManager.OnMoneyChanged)

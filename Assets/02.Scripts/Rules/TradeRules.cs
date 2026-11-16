@@ -310,6 +310,7 @@ public static class TradeRules
 
         payer.FinalRank = state.PlayerStates.Count(p => !p.IsBankrupt);
         payer.IsBankrupt = true;
+        payer.HeldCardIds?.Clear(); // 들고 있던 보관형 황금열쇠는 사라진다 (통행료 파산과 파산 신청 모두)
 
         return state.PlayerStates.Count(p => !p.IsBankrupt) <= 1 ? BankruptResult.LastPlayerLeft : BankruptResult.Bankrupted;
     }

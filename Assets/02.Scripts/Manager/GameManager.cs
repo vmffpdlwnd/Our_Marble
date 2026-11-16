@@ -1230,6 +1230,17 @@ public class GameManager : Singleton<GameManager>
                 break;
         }
 
+        // 보관형: 들었으면 플레이어 칸에 아이콘을 띄운다. 같은 종류를 이미 들고 있어 버렸으면 로그만 남긴다
+        if (outcome.Held == HeldCardResult.Kept)
+        {
+            Log($"[카드:보관] {P(playerId)}: '{card.cardName}'을(를) 들었습니다.");
+            screen.RefreshHeldCards();
+        }
+        else if (outcome.Held == HeldCardResult.Discarded)
+        {
+            Log($"[카드:보관] {P(playerId)}: '{card.cardName}'을(를) 이미 들고 있어 버렸습니다.");
+        }
+
         switch (outcome.Kind)
         {
             case CardOutcomeKind.Move:

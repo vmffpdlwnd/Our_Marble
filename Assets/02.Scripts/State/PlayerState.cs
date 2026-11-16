@@ -11,7 +11,7 @@ public class PlayerState
     // 무인도 탈출까지 남은 턴 수
     public int IslandTurnsRemaining { get; set; }
     
-    // 황금열쇠에서 얻어 들고 있는 카드 id (통행료 면제 등 나중에 쓸 자리. 아직 쓰지 않음)
+    // 황금열쇠에서 얻어 들고 있는 보관형 카드 id (얻은 순서대로). 종류마다 1장이고, 쓰거나 파산하면 지운다 (CardRules.HoldCard, TradeRules.MarkBankrupt)
     // GameData.CardIds(덱에 있는 카드 목록)와 구분하려고 이름을 나눴다. 주고받는 JSON 키는 그대로 둔다
     [Newtonsoft.Json.JsonProperty("CardIds")]
     public List<int> HeldCardIds { get; set; }

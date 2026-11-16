@@ -23,6 +23,14 @@ public enum CardProblem
     UnknownEffect, // 처리하지 않는 카드 종류
 }
 
+/// <summary>보관형 카드를 뽑았을 때 어떻게 됐는지. 보관형이 아니면 None</summary>
+public enum HeldCardResult
+{
+    None,
+    Kept,      // 새로 들었다
+    Discarded, // 같은 종류를 이미 들고 있어서 버렸다
+}
+
 /// <summary>카드 효과 결과. 돈과 적립금은 규칙이 이미 반영해 두었다.</summary>
 public class CardOutcome
 {
@@ -35,6 +43,7 @@ public class CardOutcome
     public int BuildingCount;  // 수리비 카드에서 센 건물 수
     public long SwapTargetId;  // 위치 바꾸기 상대
     public int TargetTo;       // 위치 바꾸기 상대가 옮겨 간 칸 (뽑은 사람이 옮겨 간 칸은 To)
+    public HeldCardResult Held; // 보관형 카드를 들었는지, 버렸는지
     public CardProblem Problem;
 }
 
@@ -49,6 +58,10 @@ public static class CardRules
     /// <summary>뽑은 카드의 효과를 반영하고, 이어서 할 일을 돌려준다. targetPlayerId는 위치 바꾸기에서 호스트가 고른 상대(없으면 0).</summary>
     public static CardOutcome ApplyCard(GameState state, GameData data, PlayerState player, CardData card, long targetPlayerId = 0)
     {
+        // 보관형은 효과 없이 들기만 하고 턴을 끝낸다. 쓰는 일은 쓰는 때(통행료, 무인도 등)의 규칙이 한다
+        if (IsHeldType(card.effectType))
+            return new CardOutcome { Kind = CardOutcomeKind.EndTurn, Held = HoldCard(data, player, card) };
+
         switch (card.effectType)
         {
             case CardEffectType.Bonus: // 은행에서 돈을 받는다
@@ -209,6 +222,48 @@ public static class CardRules
             if (toll > bestToll) { best = property.PropertyId; bestToll = toll; }
         }
         return best;
+    }
+
+    // ───────────── 보관형 ─────────────
+
+    /// <summary>들고 있다가 쓰는 카드(보관형)인지.</summary>
+    public static bool IsHeldType(CardEffectType type)
+    {
+        switch (type)
+        {
+            case CardEffectType.TollFree:
+            case CardEffectType.TollHalf:
+            case CardEffectType.IslandEscape:
+            case CardEffectType.TakeoverShield:
+            case CardEffectType.BuildDiscount:
+            case CardEffectType.SalaryDouble:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // GameManager.ExecuteCardEffect (보관형)
+    // 종류마다 1장만 든다. 같은 종류를 이미 들고 있으면 새 카드는 버린다. (id가 아니라 효과 종류로 비교해서, 같은 효과의 카드가 여러 장 생겨도 1장만 든다)
+    private static HeldCardResult HoldCard(GameData data, PlayerState player, CardData card)
+    {
+        player.HeldCardIds ??= new List<int>();
+        if (FindHeldCard(data, player, card.effectType) != null) return HeldCardResult.Discarded;
+
+        player.HeldCardIds.Add(card.id);
+        return HeldCardResult.Kept;
+    }
+
+    /// <summary>들고 있는 카드 중 이 종류의 카드. 없으면 null.</summary>
+    public static CardData FindHeldCard(GameData data, PlayerState player, CardEffectType type)
+    {
+        if (player.HeldCardIds == null) return null;
+        foreach (int id in player.HeldCardIds)
+        {
+            CardData held = data.FindCard(id);
+            if (held != null && held.effectType == type) return held;
+        }
+        return null;
     }
 
     // 뽑은 사람을 뺀, 파산하지 않은 플레이어들 (차례 순서대로)

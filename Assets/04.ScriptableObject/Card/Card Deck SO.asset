@@ -27,3 +27,9 @@ MonoBehaviour:
   - card: {fileID: 11400000, guid: deff7d1ab1d526d45a81872afdadfe8c, type: 2}
   - card: {fileID: 11400000, guid: fd3b6d2c10b2bfa4292702505d476807, type: 2}
   - card: {fileID: 11400000, guid: 9e21894615c1f4248961306082d3be02, type: 2}
+  - card: {fileID: 11400000, guid: 6df877d2cbde43ca92d6fba6f90c5e0e, type: 2}
+  - card: {fileID: 11400000, guid: ee4abf9fa21e4e71a57966ba8cd64007, type: 2}
+  - card: {fileID: 11400000, guid: 23fe070ff0ab44a4852ada68a27e3bbb, type: 2}
+  - card: {fileID: 11400000, guid: 8f3dd370fddb426badddbc71e9a8c7f3, type: 2}
+  - card: {fileID: 11400000, guid: 739733b6211742f39b8756a7ddbb3103, type: 2}
+  - card: {fileID: 11400000, guid: fe246a3051414f539d08ba6453a45fa2, type: 2}
