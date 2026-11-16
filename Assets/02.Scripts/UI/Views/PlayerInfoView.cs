@@ -257,7 +257,16 @@ public class PlayerInfoView : UIView
     {
         // 자리를 나중에 만든 씬에서 Bind를 다시 하지 않아도 되게, 연결이 비어 있으면 이름으로 한 번 찾는다
         if (heldCards == null) heldCards = transform.Find("Card/HeldCards") as RectTransform;
-        if (heldCards == null) return;
+        if (heldCards == null)
+        {
+            // 자리가 없으면 아이콘이 조용히 안 보이므로 한 번 알린다. (이름 끝의 띄어쓰기처럼 눈에 안 띄는 차이로 못 찾는 경우가 있었다)
+            if (!warnedNoHeldCards && icons.Count > 0)
+            {
+                warnedNoHeldCards = true;
+                Debug.LogWarning($"[PlayerInfoView] '{name}/Card/HeldCards' 오브젝트 없음. 들고 있는 황금열쇠 아이콘을 보여 줄 수 없습니다. (이름 앞뒤 띄어쓰기 확인)", this);
+            }
+            return;
+        }
 
         float size = heldCards.rect.height > 0f ? heldCards.rect.height : 24f;
         for (int i = 0; i < icons.Count; i++)
@@ -271,6 +280,7 @@ public class PlayerInfoView : UIView
     }
 
     private readonly List<Image> heldCardIcons = new List<Image>();
+    private bool warnedNoHeldCards; // 자리가 없다는 경고는 한 번만 띄운다
 
     private Image CreateHeldCardIcon(float size)
     {
