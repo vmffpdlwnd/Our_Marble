@@ -14,6 +14,7 @@ public enum CardProblem
     None,
     NoBoard,       // 보드 데이터가 없어 이동할 수 없음
     NoIslandTile,  // 무인도 칸이 없음
+    NoTargetTile,  // 카드가 가리키는 종류의 칸이 보드에 없음 (MoveTo)
     UnknownEffect, // 처리하지 않는 카드 종류
 }
 
@@ -50,9 +51,8 @@ public static class CardRules
                 if (card.penaltyToWelfareFund) state.WelfareFund += paid;
                 return new CardOutcome { Kind = CardOutcomeKind.EndTurn, IsPenalty = true, PenaltyPaid = paid };
 
-            case CardEffectType.MoveTo: // 지정한 칸으로 앞으로 이동한다. 출발 지점을 지나면 월급
-                int target = card.targetTileId;
-                return new CardOutcome { Kind = CardOutcomeKind.Move, To = target, ReceivesSalary = target < player.Position };
+            case CardEffectType.MoveTo: // 앞쪽에서 가장 가까운 지정 종류의 칸으로 이동한다. 출발 지점을 지나면 월급
+                return MoveToTileType(data, player, card.targetTileType);
 
             case CardEffectType.MoveBy: // N칸 이동한다. 음수면 뒤로 가고, 뒤로 갈 때는 월급이 없다
                 return MoveBy(data, player, card.steps);
@@ -82,6 +82,26 @@ public static class CardRules
             return new CardOutcome { Kind = CardOutcomeKind.Move, To = to, ReceivesSalary = shouldReceiveSalary };
 
         return new CardOutcome { Kind = CardOutcomeKind.MoveDirectly, To = to };
+    }
+
+    // GameManager.ExecuteCardEffect (MoveTo)
+    // 지금 칸 다음부터 한 바퀴를 돌며 처음 나오는 그 종류의 칸으로 간다. 출발 칸을 지나거나 출발 칸에 도착하면 월급
+    private static CardOutcome MoveToTileType(GameData data, PlayerState player, TileType type)
+    {
+        int boardSize = data.TileCount;
+        if (boardSize <= 0) return new CardOutcome { Kind = CardOutcomeKind.EndTurn, Problem = CardProblem.NoBoard };
+
+        int from = player.Position;
+        for (int step = 1; step <= boardSize; step++)
+        {
+            int to = (from + step) % boardSize;
+            TileData tile = data.GetTile(to);
+            if (tile == null || tile.Type != type) continue;
+
+            return new CardOutcome { Kind = CardOutcomeKind.Move, To = to, ReceivesSalary = from + step >= boardSize };
+        }
+
+        return new CardOutcome { Kind = CardOutcomeKind.EndTurn, Problem = CardProblem.NoTargetTile };
     }
 
     // GameManager.DeductMoneyWithinBalance (현금 한도 안에서만 뺀다. 실제로 뺀 금액을 돌려준다)

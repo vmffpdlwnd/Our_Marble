@@ -1123,6 +1123,10 @@ public class GameManager : Singleton<GameManager>
                 Debug.LogError($"[GameManager] 무인도 카드 실패: 무인도 칸 없음");
                 break;
 
+            case CardProblem.NoTargetTile:
+                Debug.LogError($"[GameManager] 이동 카드 실패: 보드에 {card.targetTileType} 칸 없음");
+                break;
+
             case CardProblem.UnknownEffect:
                 Debug.LogError($"[GameManager] 처리하지 않은 CardEffectType: {card.effectType}");
                 break;
@@ -1141,8 +1145,9 @@ public class GameManager : Singleton<GameManager>
                 // 재화 손실 연출을 재생합니다.
                 break;
 
-            case CardEffectType.MoveTo: // 지정한 칸으로 앞으로 이동한다 (출발지를 지나면 월급)
-                Log($"[카드:이동] {P(playerId)}: {TileName(outcome.To)}(으)로 이동");
+            case CardEffectType.MoveTo: // 앞쪽에서 가장 가까운 지정 종류의 칸으로 이동한다 (출발지를 지나면 월급)
+                if (outcome.Problem == CardProblem.None)
+                    Log($"[카드:이동] {P(playerId)}: {TileName(outcome.To)}(으)로 이동");
                 break;
 
             case CardEffectType.MoveBy: // N칸 이동한다 (음수면 뒤로, 뒤로 갈 때는 월급 없음)

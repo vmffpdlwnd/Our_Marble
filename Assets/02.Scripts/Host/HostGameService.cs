@@ -553,6 +553,10 @@ public class HostGameService : IHostRequestReceiver
                 Debug.LogError("[HostGameService] 무인도 카드 실패: 무인도 칸 없음");
                 break;
 
+            case CardProblem.NoTargetTile:
+                Debug.LogError($"[HostGameService] 이동 카드 실패: 보드에 {card.targetTileType} 칸 없음");
+                break;
+
             case CardProblem.UnknownEffect:
                 Debug.LogError($"[HostGameService] 처리하지 않은 CardEffectType: {card.effectType}");
                 break;

@@ -314,6 +314,12 @@
 어이쿠— 손이 미끄러져 주사위가 엉뚱하게 굴러갔다.\n3칸 뒤로 간다.	Oops! The dice slipped out of your hand.\nMove back 3 tiles.
 지름길 발견	Shortcut Found
 숨겨진 지름길을 찾아 3칸 앞으로 이동한다.	You found a hidden shortcut. Move forward 3 tiles.
+해외 출장	Overseas Trip
+해외 지점 시찰 명령이 떨어졌다.\n세계여행 칸으로 이동한다.	You have been sent to inspect an overseas branch.\nGo to World Tour.
+착한 가게 선정	Good Shop Award
+착한 가게로 뽑혀 후원금이 모였다고 한다.\n기부금 수령 칸으로 이동한다.	Your shop was chosen as a good shop and donations came in.\nGo to Collect donations.
+나눔 캠페인	Charity Drive
+본사가 나눔 캠페인에 참여하라고 한다.\n기부금 납부 칸으로 이동한다.	HQ asks you to join a charity drive.\nGo to Donate.
 황금열쇠 {0}	Golden Key {0}
 땅 {0}	Property {0}
 플레이어 {0}	Player {0}
