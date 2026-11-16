@@ -247,6 +247,7 @@ public class HostGameService : IHostRequestReceiver
             case "SELL_PROPERTIES": HandleSellProperties(senderId, JsonConvert.DeserializeObject<SellPropertiesRequest>(json)); break;
             case "DRAW_CARD": HandleDrawCard(senderId); break;
             case "CHOOSE_DESTINATION": HandleChooseDestination(senderId, JsonConvert.DeserializeObject<ChooseDestinationRequest>(json)); break;
+            case "CHOOSE_TOLL_DOUBLE": HandleChooseTollDouble(senderId, JsonConvert.DeserializeObject<ChooseTollDoubleRequest>(json)); break;
             case "DECLARE_BANKRUPTCY": HandleDeclareBankruptcy(senderId); break;
 
             default:
@@ -383,11 +384,29 @@ public class HostGameService : IHostRequestReceiver
             return;
         }
         
+        // 위치 바꾸기는 호스트가 상대를 골라 알림에 싣는다. 모두가 같은 상대와 바꾸도록 클라이언트는 따로 고르지 않는다
+        long targetPlayerId = card.effectType == CardEffectType.SwapPosition ? CardRules.PickSwapTarget(state, player, random) : 0;
+
         state.WaitingType = null;
-        Broadcast(GameMessageType.CARD_DRAWN, new CardDrawnBroadcast { playerId = senderId, cardId = cardId });
+        Broadcast(GameMessageType.CARD_DRAWN, new CardDrawnBroadcast { playerId = senderId, cardId = cardId, targetPlayerId = targetPlayerId });
         Debug.Log($"[HostGameService] 황금열쇠: {player.Nickname} '{card.cardName}' ({card.effectType})");
 
-        ExecuteCardEffect(player, card);
+        ExecuteCardEffect(player, card, targetPlayerId);
+    }
+
+    // GameManager.HandleTollDoubleChosen
+    // 통행료 2배 카드로 땅 고르기 단계(TOLL_DOUBLE_CHOSEN)에 있을 때, 고른 땅을 받는다. 내 땅이어야 한다.
+    private void HandleChooseTollDouble(long senderId, ChooseTollDoubleRequest request)
+    {
+        if (!Validate(senderId, GameMessageType.TOLL_DOUBLE_CHOSEN, out PlayerState player, request.propertyId)) return;
+        if (!CardRules.CanChooseTollDouble(state, player, request.propertyId)) { SendError(senderId, "INVALID_PROPERTY", "내 땅만 고를 수 있어요"); return; }
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.TOLL_DOUBLE_CHOSEN, new TollDoubleChosenBroadcast { playerId = senderId, propertyId = request.propertyId });
+        CardRules.ApplyTollDouble(state, player, request.propertyId);
+        Debug.Log($"[HostGameService] 통행료 2배: {player.Nickname} {request.propertyId}번 땅");
+
+        ProcessEndTurn();
     }
 
     // GameManager.HandleDestinationChosen
@@ -536,12 +555,15 @@ public class HostGameService : IHostRequestReceiver
 
     // GameManager.ExecuteCardEffect
     // 뽑은 카드의 효과 반영은 규칙(CardRules)이 하고, 여기서는 로그를 남기고 그 결과대로 이어서 진행한다. (턴 종료 또는 도착 칸 처리까지)
-    private void ExecuteCardEffect(PlayerState player, CardData card)
+    private void ExecuteCardEffect(PlayerState player, CardData card, long targetPlayerId)
     {
-        CardOutcome outcome = CardRules.ApplyCard(state, gameData, player, card);
+        CardOutcome outcome = CardRules.ApplyCard(state, gameData, player, card, targetPlayerId);
 
         if (outcome.IsPenalty)
             Debug.Log($"[HostGameService] 카드 벌금: {player.Nickname} {card.amount} 중 {outcome.PenaltyPaid} 납부 (현금 {player.Money})");
+
+        if (card.effectType == CardEffectType.CollectFromAll || card.effectType == CardEffectType.PayToAll)
+            Debug.Log($"[HostGameService] 카드 {card.effectType}: {player.Nickname} 합계 {outcome.Transferred} (현금 {player.Money})");
 
         switch (outcome.Problem)
         {
@@ -551,6 +573,18 @@ public class HostGameService : IHostRequestReceiver
 
             case CardProblem.NoIslandTile:
                 Debug.LogError("[HostGameService] 무인도 카드 실패: 무인도 칸 없음");
+                break;
+
+            case CardProblem.NoTargetTile:
+                Debug.LogError($"[HostGameService] 이동 카드 실패: 보드에 {card.targetTileType} 칸 없음");
+                break;
+
+            case CardProblem.NoSwapTarget:
+                Debug.Log("[HostGameService] 위치 바꾸기: 바꿀 상대가 없어 효과 없이 턴을 끝냅니다.");
+                break;
+
+            case CardProblem.NoOwnedProperty:
+                Debug.Log("[HostGameService] 통행료 2배: 고를 땅이 없어 효과 없이 턴을 끝냅니다.");
                 break;
 
             case CardProblem.UnknownEffect:
@@ -566,6 +600,15 @@ public class HostGameService : IHostRequestReceiver
 
             case CardOutcomeKind.MoveDirectly:
                 MovePlayerDirectly(player, outcome.To);
+                break;
+
+            case CardOutcomeKind.ChooseProperty: // 땅 고르기 요청(CHOOSE_TOLL_DOUBLE)을 기다린다. 봇과 AFK는 AutoAct가 대신 고른다
+                Debug.Log($"[HostGameService] 통행료 2배: {player.Nickname}의 땅 고르기를 기다립니다.");
+                break;
+
+            case CardOutcomeKind.Swap: // 위치만 바꿨으니 도착 처리 없이 턴을 끝낸다
+                Debug.Log($"[HostGameService] 위치 바꾸기: {player.Nickname} → {outcome.To}, 상대 {outcome.SwapTargetId} → {outcome.TargetTo}");
+                ProcessEndTurn();
                 break;
 
             default:
@@ -857,7 +900,7 @@ public class HostGameService : IHostRequestReceiver
             {
                 botStrategy = new BasicBotStrategy(
                     BoardManager.Instance.BoardData.Tiles,
-                    PropertyManager.Instance.GetToll,
+                    property => PropertyManager.Instance.GetToll(property, state.PropertyStates), // 관광지 줄 보너스까지 넣은 통행료
                     PropertyManager.Instance.GetData,
                     BotSettings.Balanced(),
                     state.Config.maxRound,
@@ -922,6 +965,10 @@ public class HostGameService : IHostRequestReceiver
 
             case GameMessageType.DESTINATION_CHOSEN:
                 HandleChooseDestination(id, new ChooseDestinationRequest { type = "CHOOSE_DESTINATION", destinationPosition = ChooseDestination(actor) });
+                break;
+
+            case GameMessageType.TOLL_DOUBLE_CHOSEN: // 통행료가 가장 비싼 내 땅을 고른다
+                HandleChooseTollDouble(id, new ChooseTollDoubleRequest { type = "CHOOSE_TOLL_DOUBLE", propertyId = CardRules.PickTollDoubleProperty(state, gameData, id) });
                 break;
 
             // 구매, 건설, 인수는 봇과 제한 시간을 넘긴 사람 모두 같은 전략이 판단한다
@@ -991,7 +1038,7 @@ public class HostGameService : IHostRequestReceiver
         PropertyState landed = tile != null && tile.Type == TileType.PROPERTY ? GetProperty(tile.PropertyId) : null;
         if (landed == null) return new List<int>();
 
-        long toll = PropertyManager.Instance.GetToll(landed);
+        long toll = PropertyManager.Instance.GetToll(landed, state.PropertyStates);
         return Strategy.ChooseSellProperties(state, actor.PlayerId, toll, PropertyManager.Instance.GetSellValue);
     }
 

@@ -11,8 +11,14 @@ public class PlayerState
     // 무인도 탈출까지 남은 턴 수
     public int IslandTurnsRemaining { get; set; }
     
-    // 황금열쇠에서 얻은 사용카드
-    public List<int> CardIds { get; set; }
+    // 황금열쇠에서 얻어 들고 있는 카드 id (통행료 면제 등 나중에 쓸 자리. 아직 쓰지 않음)
+    // GameData.CardIds(덱에 있는 카드 목록)와 구분하려고 이름을 나눴다. 주고받는 JSON 키는 그대로 둔다
+    [Newtonsoft.Json.JsonProperty("CardIds")]
+    public List<int> HeldCardIds { get; set; }
+
+    // 세계여행 칸에 도착해 다음 차례에 목적지를 고를 예정이면 true. 차례가 시작될 때 쓰고 지운다.
+    // 칸 위치가 아니라 이 값으로 정해서, 위치 바꾸기처럼 도착 없이 세계여행 칸에 선 경우에는 세계여행을 하지 않는다
+    public bool WorldTravelPending { get; set; }
 
     // 파산 여부
     public bool IsBankrupt { get; set; }
@@ -36,7 +42,8 @@ public class PlayerState
         Position = 0;
         Money = 0;
         IslandTurnsRemaining = 0;
-        CardIds = new List<int>();
+        HeldCardIds = new List<int>();
+        WorldTravelPending = false;
         IsBankrupt = false;
         FinalRank = 0;
     }

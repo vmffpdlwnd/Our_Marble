@@ -285,6 +285,7 @@ public class UIManager : MonoBehaviour
     public void ShowChooseDestinationPopup()
     {
         chooseDestinationMode = true;
+        chooseTollDoubleMode = false;
         travelTileIndex = -1;
         if (diceRoll != null) diceRoll.SetInteractable(false); // 목적지를 고르는 동안에는 주사위를 굴릴 수 없다
 
@@ -294,6 +295,32 @@ public class UIManager : MonoBehaviour
         if (destinationSelect != null) destinationSelect.Show(CompleteDestination); // 완료 버튼은 꺼진 상태로 시작
     }
 
+    // 통행료 2배 카드: 통행료를 2배로 받을 내 땅을 고르는 창을 띄웁니다.
+    // 세계여행 목적지 고르기와 같은 화면(보드에서 칸 고르기 + 완료 버튼)을 쓰고, 내 땅을 골랐을 때만 완료 버튼이 켜집니다.
+    public void ShowChooseTollDoublePopup()
+    {
+        chooseDestinationMode = true;
+        chooseTollDoubleMode = true;
+        travelTileIndex = -1;
+        if (diceRoll != null) diceRoll.SetInteractable(false);
+
+        BoardManager.Instance.ChangeToSelectTravelMode();
+
+        if (destinationSelect != null) destinationSelect.Show(CompleteDestination, "통행료 2배", "보드에서 통행료를 2배로 받을 내 땅을 선택하세요");
+    }
+
+    // 통행료 2배 땅 고르기 중인지 (목적지 고르기 화면을 같이 쓴다)
+    private bool chooseTollDoubleMode;
+
+    // 통행료 2배로 고를 수 있는 칸인지: 내가 주인인 땅
+    private bool IsMyPropertyTile(int tileIndex)
+    {
+        TileData tile = BoardManager.Instance != null ? BoardManager.Instance.GetTileData(tileIndex) : null;
+        if (tile == null || tile.Type != TileType.PROPERTY || Game == null) return false;
+        PropertyState property = Game.GetPropertyState(tile.PropertyId);
+        return property != null && property.OwnerId == LocalPlayerId;
+    }
+
     /// <summary>
     /// 보드의 칸을 누를 때마다 BoardManager가 부르는 함수입니다. tileIndexes: 지금 고른 칸 번호들.
     /// 정확히 1개일 때만 "여행지 선택 완료" 버튼을 켭니다. (칸의 종류는 따로 보지 않습니다)
@@ -301,6 +328,7 @@ public class UIManager : MonoBehaviour
     public void CheckTileValidForTravel(List<int> tileIndexes)
     {
         bool valid = tileIndexes != null && tileIndexes.Count == 1;
+        if (valid && chooseTollDoubleMode) valid = IsMyPropertyTile(tileIndexes[0]); // 통행료 2배는 내 땅만
         travelTileIndex = valid ? tileIndexes[0] : -1;
         if (destinationSelect != null) destinationSelect.SetCompleteInteractable(valid);
     }
@@ -312,15 +340,19 @@ public class UIManager : MonoBehaviour
     {
         if (travelTileIndex < 0) return;
         int destination = travelTileIndex;
+        bool tollDouble = chooseTollDoubleMode;
         chooseDestinationMode = false;
+        chooseTollDoubleMode = false;
         travelTileIndex = -1;
         if (destinationSelect != null) destinationSelect.Close();
 
         // 보드를 다시 둘러보기 모드로 되돌린다
         BoardManager.Instance.ChangeToInspectMode();
 
-        // 고른 목적지를 GameManager로 넘긴다
-        if (Game != null) Game.ChooseDestination(destination);
+        // 고른 칸을 GameManager로 넘긴다 (통행료 2배면 고른 땅, 아니면 세계여행 목적지)
+        if (Game == null) return;
+        if (tollDouble) Game.ChooseTollDoubleTile(destination);
+        else Game.ChooseDestination(destination);
     }
 
     /// <summary>목적지 선택 창이 떠 있고 칸을 고르기를 기다리는 중인지</summary>
@@ -1050,6 +1082,18 @@ public class UIManager : MonoBehaviour
         }, autoClose ? otherCardShowSeconds : 0f);
     }
 
+    // [개발용] UIDebugPanel에서 황금열쇠 카드 앞면을 미리 볼 때 씁니다.
+    // 카드 효과와 돈 변화 사유(SetNextMoneyReason)를 건드리지 않고, 확인을 누르면 닫히기만 합니다.
+    // 카드 뽑기 창이나 카드를 찾지 못하면 false를 돌려줍니다.
+    public bool PreviewCardDraw(int cardId)
+    {
+        CardData card = cardDeck != null ? cardDeck.FindById(cardId) : null;
+        if (cardDraw == null || card == null) return false;
+
+        cardDraw.Show(Loc.T(card.cardName), Loc.T(card.description), card.icon, false, null);
+        return true;
+    }
+
     // 게임 결과 창을 띄우는 함수입니다. 게임이 끝났을 때 GameManager가 호출합니다.
     // 등수 순(파산한 사람은 맨 뒤)으로 승리/패배/파산과 최종 자산을 보여주고, 닫기를 누르면 onClose를 호출합니다. (결과 시간이 지나 자동으로 방으로 돌아갈 때는 호출되지 않습니다)
     public void ShowGameResultPopup(Action onClose = null)
@@ -1339,6 +1383,7 @@ public class UIManager : MonoBehaviour
         bool boardSelecting = chooseDestinationMode || sellMode;
 
         chooseDestinationMode = false;
+        chooseTollDoubleMode = false;
         travelTileIndex = -1;
         ExitSellMode();
         if (boardSelecting && BoardManager.Instance != null) BoardManager.Instance.ChangeToInspectMode();

@@ -102,7 +102,8 @@ public class PropertyManager : Singleton<PropertyManager>
             CityName = data.CityName,
             OwnerId = state.OwnerId,
             Level = state.BuildingLevel,
-            CurrentToll = state.OwnerId.HasValue ? data.GetToll(state.BuildingLevel) : 0,
+            // 관광지 줄 보너스와 통행료 2배가 들어간 실제 통행료 (규칙과 같은 계산)
+            CurrentToll = Rules.GetToll(state, GameManager.Instance != null ? GameManager.Instance.gameState?.PropertyStates : null),
             LandPrice = data.LandPrice,
             BuildCosts = new[]
             {
@@ -132,15 +133,16 @@ public class PropertyManager : Singleton<PropertyManager>
     private PropertyRules rules;
 
     /// <summary>부동산 계산 규칙. 이 매니저가 가진 가격표를 읽는다.</summary>
-    public PropertyRules Rules => rules ?? (rules = new PropertyRules(GetData, message => Debug.LogWarning(message)));
+    public PropertyRules Rules => rules ?? (rules = new PropertyRules(GetData, message => Debug.LogWarning(message),
+        () => BoardManager.Instance != null ? BoardManager.Instance.TileCount : 0));
 
     /// <summary>땅값. PurchaseProperty의 amount.</summary>
     public long GetLandPrice(int propertyId) => Rules.GetLandPrice(propertyId);
 
     public long GetBuildCost(int propertyId, BuildingLevel level) => Rules.GetBuildCost(propertyId, level);
 
-    /// <summary>통행료. 주인 없는 땅이면 0.</summary>
-    public long GetToll(PropertyState state) => Rules.GetToll(state);
+    /// <summary>통행료. 주인 없는 땅이면 0. allProperties: 모든 땅 상태 (관광지 줄 보너스)</summary>
+    public long GetToll(PropertyState state, IReadOnlyList<PropertyState> allProperties) => Rules.GetToll(state, allProperties);
 
     /// <summary>투자금 = 땅값 + 지금 단계까지 지은 건물 비용 합계. 가격표가 없는 땅이면 0.</summary>
     public long GetInvestedAmount(PropertyState state) => Rules.GetInvestedAmount(state);

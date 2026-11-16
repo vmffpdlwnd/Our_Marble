@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 // 에디터에서 카드 한 장
 [CreateAssetMenu(menuName = "Card/Card Data", fileName = "CardSO")]
@@ -13,7 +14,9 @@ public class CardData : ScriptableObject
     [Header("효과")]
     public CardEffectType effectType;
     [Min(0)] public int amount;
-    public int targetTileId;
+    // MoveTo: 지금 칸 앞쪽에서 가장 가까운 이 종류의 칸으로 간다. (보드가 바뀌어도 맞도록 칸 번호 대신 종류로 정한다)
+    public TileType targetTileType = TileType.START;
     public int steps;
-    public bool penaltyToFestivalPool;
+    // 벌금을 적립금(GameState.WelfareFund)에 넣을지. 옛 이름의 에셋 값을 그대로 읽는다
+    [FormerlySerializedAs("penaltyToFestivalPool")] public bool penaltyToWelfareFund;
 }

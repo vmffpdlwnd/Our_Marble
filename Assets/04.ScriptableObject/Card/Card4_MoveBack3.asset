@@ -10,14 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0ded43c9fb85c65468f822ecd36f3b34, type: 3}
-  m_Name: Island
+  m_Name: Card4_MoveBack3
   m_EditorClassIdentifier: Assembly-CSharp::CardData
-  id: 0
-  cardName: "\uBB34\uC778\uB3C4"
-  description: "\uBB34\uC778\uB3C4\uB85C \uAC00\uB77C"
-  icon: {fileID: 21300000, guid: dca36c8791661ee4980793d2de05d85f, type: 3}
-  effectType: 4
+  id: 4
+  cardName: "\uC190 \uBBF8\uB044\uB7EC\uC9D0"
+  description: "\uC5B4\uC774\uCFE0\u2014 \uC190\uC774 \uBBF8\uB044\uB7EC\uC838 \uC8FC\uC0AC\uC704\uAC00
+    \uC5C9\uB6B1\uD558\uAC8C \uAD74\uB7EC\uAC14\uB2E4.\n3\uCE78 \uB4A4\uB85C \uAC04\uB2E4."
+  icon: {fileID: 21300000, guid: 3517b8d53095f1e498762bea4ff5f30a, type: 3}
+  effectType: 3
   amount: 0
   targetTileId: 0
-  steps: 0
-  penaltyToFestivalPool: 1
+  steps: -3
+  penaltyToWelfareFund: 0

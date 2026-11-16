@@ -10,14 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0ded43c9fb85c65468f822ecd36f3b34, type: 3}
-  m_Name: MoveBy_forward
+  m_Name: Card12_SwapPosition
   m_EditorClassIdentifier: Assembly-CSharp::CardData
-  id: 5
-  cardName: "\uCE78 \uC774\uB3D9"
-  description: "3\uCE78 \uC55E\uC73C\uB85C \uAC00\uB77C"
-  icon: {fileID: 21300000, guid: 93286fdf7ac22694aafeda87a2f9fb60, type: 3}
-  effectType: 3
+  id: 12
+  cardName: "\uBC30\uB2EC \uACBD\uB85C \uAF2C\uC784"
+  description: "\uBC30\uB2EC \uACBD\uB85C\uAC00 \uAF2C\uC5EC \uBC84\uB838\uB2E4!\n\uBB34\uC791\uC704
+    \uC0C1\uB300\uC640 \uC790\uB9AC\uB97C \uBC14\uAFBC\uB2E4."
+  icon: {fileID: 21300000, guid: 58f8d5c3c5df6ee419821a5c345ebed1, type: 3}
+  effectType: 8
   amount: 0
-  targetTileId: 0
-  steps: 3
-  penaltyToFestivalPool: 0
+  targetTileType: 0
+  steps: 0
+  penaltyToWelfareFund: 0

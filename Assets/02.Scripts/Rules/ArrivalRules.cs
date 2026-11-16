@@ -72,6 +72,7 @@ public static class ArrivalRules
                 break;
 
             case TileType.WORLD_TRAVEL:
+                player.WorldTravelPending = true; // 다음 차례가 목적지 선택으로 시작한다
                 arrival.Kind = TileArrivalKind.NextTurn; // 도착 후에는 더블이어도 턴을 넘긴다
                 break;
 

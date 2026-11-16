@@ -13,6 +13,7 @@ using UnityEngine;
 /// - 방 정보, 플레이어 상태(현금, 땅, 파산) 보기
 /// - 호스트 교체(방장 승계 연습)
 /// - 파산 신청 보내기
+/// - 황금열쇠 카드 앞면 보기 (효과 없이 화면만)
 /// </summary>
 public class UIDebugPanel : MonoBehaviour
 {
@@ -99,6 +100,7 @@ public class UIDebugPanel : MonoBehaviour
         DrawPlayerSection();
         DrawHostSwapSection();
         DrawBankruptSection();
+        DrawCardPreviewSection();
 
         GUILayout.EndScrollView();
 
@@ -196,6 +198,30 @@ public class UIDebugPanel : MonoBehaviour
             Log("파산 신청을 보냈습니다");
         }
         GUI.enabled = true;
+    }
+
+    // ───────────── 황금열쇠 카드 보기 ─────────────
+
+    private void DrawCardPreviewSection()
+    {
+        Header("황금열쇠 카드 보기");
+        GUILayout.Label("카드 앞면만 띄웁니다. 효과는 쓰지 않고 게임 상태도 바꾸지 않습니다.");
+
+        CardDeckData deck = CardManager.Instance.DeckData;
+        if (deck == null)
+        {
+            GUILayout.Label("CardManager에 카드 덱이 연결되지 않았습니다.");
+            return;
+        }
+
+        foreach (var entry in deck.entries)
+        {
+            if (entry.card == null) continue;
+
+            int cardId = entry.card.id;
+            if (GUILayout.Button($"{cardId}. {entry.card.cardName}"))
+                Log(UI.PreviewCardDraw(cardId) ? $"카드 {cardId} 미리 보기" : $"카드 {cardId}를 띄우지 못했습니다");
+        }
     }
 
     // ───────────── GUI 헬퍼 ─────────────

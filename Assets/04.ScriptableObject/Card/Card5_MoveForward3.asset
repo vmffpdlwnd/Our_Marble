@@ -10,14 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0ded43c9fb85c65468f822ecd36f3b34, type: 3}
-  m_Name: Penalty
+  m_Name: Card5_MoveForward3
   m_EditorClassIdentifier: Assembly-CSharp::CardData
-  id: 2
-  cardName: "\uD328\uB110\uD2F0"
-  description: "\uB3C8 \uBE8F\uAE30\uAE30"
-  icon: {fileID: 21300000, guid: 3b32829e0998d6c499f435c869b25bea, type: 3}
-  effectType: 1
-  amount: 100000
+  id: 5
+  cardName: "\uC9C0\uB984\uAE38 \uBC1C\uACAC"
+  description: "\uC228\uACA8\uC9C4 \uC9C0\uB984\uAE38\uC744 \uCC3E\uC544 3\uCE78
+    \uC55E\uC73C\uB85C \uC774\uB3D9\uD55C\uB2E4."
+  icon: {fileID: 21300000, guid: 93286fdf7ac22694aafeda87a2f9fb60, type: 3}
+  effectType: 3
+  amount: 0
   targetTileId: 0
-  steps: 0
-  penaltyToFestivalPool: 0
+  steps: 3
+  penaltyToWelfareFund: 0

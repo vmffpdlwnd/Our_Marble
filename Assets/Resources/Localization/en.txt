@@ -302,15 +302,34 @@
 기부금 수령	Collect donations
 세계여행	World Tour
 칸 이동	Move tiles
-본사 이동	Go to HQ
-패널티	Penalty
-돈 받기	Collect money
-무인도로 가라	Go to the island
-3칸 뒤로 가라	Move back 3 tiles
-3칸 앞으로 가라	Move forward 3 tiles
-본사로 이동	Go to HQ
-돈 뺏기기	Lose money
-돈을 받아라	Receive money
+무인도 표류	Castaway
+시공의 폭풍에 휩쓸려 무인도에 표류했다.\n옆엔 배구공 ‘왓슨’뿐이다.	A space-time storm left you stranded on an island.\nYour only friend is a volleyball named Watson.
+고객 감사금	Customer Tip
+친절한 배달에 감동한 고객이 팁을 지급했다.	A happy customer tipped you for a kind delivery.
+세금폭탄	Tax Bomb
+갑작스런 세무 점검! 추가 세금을 납부한다.	Surprise tax audit! Pay extra taxes.
+본사 긴급 호출	HQ Summons
+본사에서 좋은 소식이 있다며 급히 부른다.	HQ has good news and wants you there now.
+손 미끄러짐	Slippery Hands
+어이쿠— 손이 미끄러져 주사위가 엉뚱하게 굴러갔다.\n3칸 뒤로 간다.	Oops! The dice slipped out of your hand.\nMove back 3 tiles.
+지름길 발견	Shortcut Found
+숨겨진 지름길을 찾아 3칸 앞으로 이동한다.	You found a hidden shortcut. Move forward 3 tiles.
+해외 출장	Overseas Trip
+해외 지점 시찰 명령이 떨어졌다.\n세계여행 칸으로 이동한다.	You have been sent to inspect an overseas branch.\nGo to World Tour.
+착한 가게 선정	Good Shop Award
+착한 가게로 뽑혀 후원금이 모였다고 한다.\n기부금 수령 칸으로 이동한다.	Your shop was chosen as a good shop and donations came in.\nGo to Collect donations.
+나눔 캠페인	Charity Drive
+본사가 나눔 캠페인에 참여하라고 한다.\n기부금 납부 칸으로 이동한다.	HQ asks you to join a charity drive.\nGo to Donate.
+개업 기념일	Shop Anniversary
+가게 개업 기념일! 모두에게서 축하금을 받는다.	It's your shop's anniversary! Collect a gift from every player.
+회식 한턱	Team Dinner
+기분 좋게 회식을 쐈다. 모두에게 돈을 준다.	You treated everyone to dinner. Pay every player.
+가게 보수 공사	Shop Repairs
+낡은 건물을 고쳐야 한다.\n건물 하나당 수리비를 낸다.	Your old buildings need repairs.\nPay a fee for each building.
+배달 경로 꼬임	Mixed-up Route
+배달 경로가 꼬여 버렸다!\n무작위 상대와 자리를 바꾼다.	Your delivery route got mixed up!\nSwap places with a random player.
+주말 대목	Weekend Rush
+주말 대목! 내 땅 하나를 골라\n다음 통행료를 2배로 받는다.	Weekend rush! Choose one of your lands.\nIts next toll is doubled.
 황금열쇠 {0}	Golden Key {0}
 땅 {0}	Property {0}
 플레이어 {0}	Player {0}
@@ -348,6 +367,8 @@
 라운드	Round
 여행지 선택 완료	Confirm destination
 보드에서 이동할 칸을 선택하세요	Choose a tile on the board to move to
+통행료 2배	Double Toll
+보드에서 통행료를 2배로 받을 내 땅을 선택하세요	Choose one of your lands on the board to double its next toll
 
 # ── 게임 화면: 플레이어 카드와 결과 ──
 총 자산	Total assets

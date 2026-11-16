@@ -10,14 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0ded43c9fb85c65468f822ecd36f3b34, type: 3}
-  m_Name: MoveBy-backward
+  m_Name: Card10_PayToAll
   m_EditorClassIdentifier: Assembly-CSharp::CardData
-  id: 4
-  cardName: "\uCE78 \uC774\uB3D9"
-  description: "3\uCE78 \uB4A4\uB85C \uAC00\uB77C"
-  icon: {fileID: 21300000, guid: 3517b8d53095f1e498762bea4ff5f30a, type: 3}
-  effectType: 3
-  amount: 0
-  targetTileId: 0
-  steps: -3
-  penaltyToFestivalPool: 0
+  id: 10
+  cardName: "\uD68C\uC2DD \uD55C\uD131"
+  description: "\uAE30\uBD84 \uC88B\uAC8C \uD68C\uC2DD\uC744 \uC408\uB2E4. \uBAA8\uB450\uC5D0\uAC8C
+    \uB3C8\uC744 \uC900\uB2E4."
+  icon: {fileID: 21300000, guid: 3b32829e0998d6c499f435c869b25bea, type: 3}
+  effectType: 6
+  amount: 20000
+  targetTileType: 0
+  steps: 0
+  penaltyToWelfareFund: 0
