@@ -19,6 +19,6 @@ MonoBehaviour:
   icon: {fileID: 21300000, guid: dca36c8791661ee4980793d2de05d85f, type: 3}
   effectType: 4
   amount: 0
-  targetTileId: 0
+  targetTileType: 3
   steps: 0
   penaltyToWelfareFund: 1

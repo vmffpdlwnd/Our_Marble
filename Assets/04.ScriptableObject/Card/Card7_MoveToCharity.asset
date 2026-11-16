@@ -12,13 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0ded43c9fb85c65468f822ecd36f3b34, type: 3}
   m_Name: Card7_MoveToCharity
   m_EditorClassIdentifier: Assembly-CSharp::CardData
-  id: 5
-  cardName: "\uC9C0\uB984\uAE38 \uBC1C\uACAC"
-  description: "\uC228\uACA8\uC9C4 \uC9C0\uB984\uAE38\uC744 \uCC3E\uC544 3\uCE78
-    \uC55E\uC73C\uB85C \uC774\uB3D9\uD55C\uB2E4."
-  icon: {fileID: 21300000, guid: 93286fdf7ac22694aafeda87a2f9fb60, type: 3}
-  effectType: 3
+  id: 7
+  cardName: "\uCC29\uD55C \uAC00\uAC8C \uC120\uC815"
+  description: "\uCC29\uD55C \uAC00\uAC8C\uB85C \uBF51\uD600 \uD6C4\uC6D0\uAE08\uC774
+    \uBAA8\uC600\uB2E4\uACE0 \uD55C\uB2E4.\n\uAE30\uBD80\uAE08 \uC218\uB839 \uCE78\uC73C\uB85C
+    \uC774\uB3D9\uD55C\uB2E4."
+  icon: {fileID: 21300000, guid: ecfd30677295e32448e58964581cf14d, type: 3}
+  effectType: 2
   amount: 0
-  targetTileType: 0
-  steps: 3
+  targetTileType: 5
+  steps: 0
   penaltyToWelfareFund: 0
