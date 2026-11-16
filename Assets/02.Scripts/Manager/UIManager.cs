@@ -1104,9 +1104,10 @@ public class UIManager : MonoBehaviour
         string cardName = card != null ? Loc.T(card.cardName) : Loc.T("황금열쇠 {0}", cardId);
         string description = card != null ? Loc.T(card.description) : "";
         Sprite icon = card != null ? card.icon : null;
+        bool keepable = card != null && CardRules.IsHeldType(card.effectType); // 보관형이면 "보관 가능" 태그와 "보관하기" 버튼
 
         bool autoClose = forceAutoClose || playerId != LocalPlayerId; // 내 카드가 아니면 자동으로 닫힌다
-        cardDraw.Show(cardName, description, icon, false, () =>
+        cardDraw.Show(cardName, description, icon, keepable, () =>
         {
             SetNextMoneyReason(playerId, "황금열쇠"); // 카드로 돈이 바뀌면 사유가 '황금열쇠'로 뜬다
             onConfirm?.Invoke();
@@ -1121,7 +1122,7 @@ public class UIManager : MonoBehaviour
         CardData card = cardDeck != null ? cardDeck.FindById(cardId) : null;
         if (cardDraw == null || card == null) return false;
 
-        cardDraw.Show(Loc.T(card.cardName), Loc.T(card.description), card.icon, false, null);
+        cardDraw.Show(Loc.T(card.cardName), Loc.T(card.description), card.icon, CardRules.IsHeldType(card.effectType), null);
         return true;
     }
 

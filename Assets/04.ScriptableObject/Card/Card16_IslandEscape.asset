@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CardData
   id: 16
   cardName: "\uAD6C\uC870 \uD5EC\uAE30"
-  description: "\uAD6C\uC870 \uD5EC\uAE30\uB97C \uBD88\uB7EC \uB450\uC5C8\uB2E4.\n\uBB34\uC778\uB3C4\uC5D0 \uAC07\uD788\uBA74 \uBC14\uB85C \uD0C8\uCD9C\uD55C\uB2E4. (\uBCF4\uAD00)"
+  description: "\uAD6C\uC870 \uD5EC\uAE30\uB97C \uBD88\uB7EC \uB450\uC5C8\uB2E4.\n\uBB34\uC778\uB3C4\uC5D0 \uAC07\uD788\uBA74 \uBC14\uB85C \uD0C8\uCD9C\uD55C\uB2E4."
   icon: {fileID: 21300000, guid: dca36c8791661ee4980793d2de05d85f, type: 3}
   effectType: 12
   amount: 0
