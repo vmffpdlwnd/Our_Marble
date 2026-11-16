@@ -11,15 +11,22 @@ public class PropertyRules
     private const float SellRate = 0.5f; //매각가 = 투자금의 50%로 계산. 추후 밸런스 조정 필요.
     private const float AcquireRate = 2f; //인수가 = 투자금의 200%로 계산. 추후 밸런스 조정 필요.
 
+    private const int LineCount = 4; // 보드 줄 수. 정사각형 보드라 모서리 칸(0, n/4, n/2, 3n/4)이 줄을 나눈다
+    private const long TouristLineRateNumerator = 3;   // 관광지 줄 보너스 1.5배 = 3/2
+    private const long TouristLineRateDenominator = 2;
+
     private readonly Func<int, PropertyData> getData;
     private readonly Action<string> logWarning;
+    private readonly Func<int> getBoardSize;
 
     /// <param name="getData">땅 번호로 가격표를 찾는다. 없으면 null</param>
     /// <param name="logWarning">경고를 남기는 함수. 없으면 남기지 않는다</param>
-    public PropertyRules(Func<int, PropertyData> getData, Action<string> logWarning = null)
+    /// <param name="getBoardSize">보드 칸 수. 관광지 줄 보너스에서 줄을 나눌 때 쓴다. 없거나 0이면 보너스를 계산하지 않는다</param>
+    public PropertyRules(Func<int, PropertyData> getData, Action<string> logWarning = null, Func<int> getBoardSize = null)
     {
         this.getData = getData;
         this.logWarning = logWarning;
+        this.getBoardSize = getBoardSize;
     }
 
     /// <summary>땅 번호로 가격표를 찾는다. 없으면 null.</summary>
@@ -43,8 +50,11 @@ public class PropertyRules
         return cost;
     }
 
-    /// <summary>통행료. 주인 없는 땅이면 0.</summary>
-    public long GetToll(PropertyState state)
+    /// <summary>
+    /// 통행료. 주인 없는 땅이면 0. allProperties는 모든 땅 상태로, 관광지 줄 보너스를 보려고 받는다.
+    /// 기본 통행료 × 1.5 (같은 줄의 관광지를 이 땅 주인이 가짐) × 2 (통행료 2배 카드) = 최대 3배
+    /// </summary>
+    public long GetToll(PropertyState state, IReadOnlyList<PropertyState> allProperties)
     {
         if (!state.OwnerId.HasValue) return 0;
 
@@ -52,6 +62,10 @@ public class PropertyRules
         if (data == null) return 0;
 
         long toll = data.GetToll(state.BuildingLevel);
+
+        // 관광지 줄 보너스: 같은 줄의 관광지(건설 불가 땅)를 이 땅 주인이 가지고 있으면 1.5배 (관광지 자신도 포함)
+        if (OwnsTouristInLine(state.OwnerId.Value, data.BoardIndex, allProperties))
+            toll = toll * TouristLineRateNumerator / TouristLineRateDenominator;
 
         // 통행료 2배 카드: 고른 사람이 아직 주인이면 다음 통행료 한 번이 2배 (매각, 파산 판단과 봇 계산도 같은 금액을 쓴다)
         if (state.TollDoubleOwnerId.HasValue && state.TollDoubleOwnerId == state.OwnerId) toll *= 2;
@@ -212,6 +226,25 @@ public class PropertyRules
         List<PropertyState> ordered = SortBySellValue(normal, cheapestFirst: true);
         ordered.AddRange(SortBySellValue(tourist, cheapestFirst: true));
         return TakeUntilCovered(ordered, shortage);
+    }
+
+    // 보드 한 줄의 칸 수. 보드 크기를 모르면 0
+    private int LineLength => getBoardSize != null ? getBoardSize() / LineCount : 0;
+
+    // ownerId가 boardIndex와 같은 줄의 관광지를 가지고 있는지
+    private bool OwnsTouristInLine(long ownerId, int boardIndex, IReadOnlyList<PropertyState> allProperties)
+    {
+        int length = LineLength;
+        if (length <= 0 || allProperties == null) return false;
+
+        int line = boardIndex / length;
+        foreach (PropertyState other in allProperties)
+        {
+            if (other.OwnerId != ownerId) continue;
+            PropertyData otherData = GetData(other.PropertyId);
+            if (otherData != null && !otherData.CanBuild && otherData.BoardIndex / length == line) return true;
+        }
+        return false;
     }
 
     private bool IsTourist(PropertyState property)

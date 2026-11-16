@@ -167,7 +167,7 @@ public static class TradeRules
 
         plan.Receiver = GameRules.FindPlayer(state, landed.OwnerId.Value);
         plan.Landed = landed;
-        plan.Toll = data.Properties.GetToll(landed);
+        plan.Toll = data.Properties.GetToll(landed, state.PropertyStates);
 
         if (propertyIds.Distinct().Count() != propertyIds.Count)
         {
@@ -244,7 +244,7 @@ public static class TradeRules
 
         // 남의 땅: 통행료를 낸다
         PlayerState owner = GameRules.FindPlayer(state, property.OwnerId.Value);
-        long toll = data.Properties.GetToll(property);
+        long toll = data.Properties.GetToll(property, state.PropertyStates);
 
         if (player.Money >= toll)
         {

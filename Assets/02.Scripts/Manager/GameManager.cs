@@ -223,7 +223,7 @@ public class GameManager : Singleton<GameManager>
 
             case GameMessageType.PROPERTIES_SOLD:
                 if (propertyState.OwnerId == null) break;
-                HandleSellPropertiesPrompt(playerId, propertyState.OwnerId.Value, gameData.Properties.GetToll(propertyState));
+                HandleSellPropertiesPrompt(playerId, propertyState.OwnerId.Value, gameData.Properties.GetToll(propertyState, gameState.PropertyStates));
                 break;
         }
     }

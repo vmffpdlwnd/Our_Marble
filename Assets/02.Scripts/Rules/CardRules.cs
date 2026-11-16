@@ -205,7 +205,7 @@ public static class CardRules
         foreach (PropertyState property in state.PropertyStates)
         {
             if (property.OwnerId != playerId) continue;
-            long toll = data.Properties.GetToll(property);
+            long toll = data.Properties.GetToll(property, state.PropertyStates);
             if (toll > bestToll) { best = property.PropertyId; bestToll = toll; }
         }
         return best;

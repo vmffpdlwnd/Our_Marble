@@ -900,7 +900,7 @@ public class HostGameService : IHostRequestReceiver
             {
                 botStrategy = new BasicBotStrategy(
                     BoardManager.Instance.BoardData.Tiles,
-                    PropertyManager.Instance.GetToll,
+                    property => PropertyManager.Instance.GetToll(property, state.PropertyStates), // 관광지 줄 보너스까지 넣은 통행료
                     PropertyManager.Instance.GetData,
                     BotSettings.Balanced(),
                     state.Config.maxRound,
@@ -1038,7 +1038,7 @@ public class HostGameService : IHostRequestReceiver
         PropertyState landed = tile != null && tile.Type == TileType.PROPERTY ? GetProperty(tile.PropertyId) : null;
         if (landed == null) return new List<int>();
 
-        long toll = PropertyManager.Instance.GetToll(landed);
+        long toll = PropertyManager.Instance.GetToll(landed, state.PropertyStates);
         return Strategy.ChooseSellProperties(state, actor.PlayerId, toll, PropertyManager.Instance.GetSellValue);
     }
 
