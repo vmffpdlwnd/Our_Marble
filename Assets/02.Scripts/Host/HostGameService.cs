@@ -36,6 +36,10 @@ public class HostGameService : IHostRequestReceiver
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     /// <summary>[개발용] F1 창에서 고른 다음 황금열쇠 카드 id. 0이면 무작위. 한 번 뽑으면 0으로 돌아간다. (이 PC가 호스트일 때만 의미가 있다)</summary>
     public static int DebugNextCardId;
+
+    /// <summary>[개발용] F1 창에서 고른 다음 주사위 두 개. 0이면 무작위. 한 번 굴리면 0으로 돌아간다. DebugKeepDice면 지울 때까지 계속 쓴다. (이 PC가 호스트일 때만)</summary>
+    public static int DebugDice1, DebugDice2;
+    public static bool DebugKeepDice;
 #endif
 
     // ───────────── 이 PC의 게임 호스트 ─────────────
@@ -129,7 +133,16 @@ public class HostGameService : IHostRequestReceiver
 
     // 에디터에서 도메인 리로드 없이 플레이를 다시 시작해도 이전 플레이의 게임이 남지 않게 한다
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => current = null;
+    private static void ResetStatics()
+    {
+        current = null;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // 도메인 리로드 없이 플레이를 다시 시작해도 지난 플레이의 개발용 지정이 남지 않게 한다
+        DebugNextCardId = 0;
+        DebugDice1 = DebugDice2 = 0;
+        DebugKeepDice = false;
+#endif
+    }
 
     // 이 PC에서 플레이하는 사람에게만 전달한다. (봇은 받을 필요가 없다)
     // 서버가 답하던 때처럼 한 프레임 뒤에 전달한다. 게임 씬이 열리는 순간에 바로 전달하면, 씬의 오브젝트들이 Start를 마치기 전에
@@ -360,6 +373,15 @@ public class HostGameService : IHostRequestReceiver
 
         int dice1 = random.Next(1, 7);
         int dice2 = random.Next(1, 7);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // F1 창에서 주사위를 정해 두었으면 그 눈으로 굴린다. (봇이 굴려도 적용된다)
+        if (DebugDice1 >= 1 && DebugDice1 <= 6 && DebugDice2 >= 1 && DebugDice2 <= 6)
+        {
+            dice1 = DebugDice1;
+            dice2 = DebugDice2;
+            if (!DebugKeepDice) DebugDice1 = DebugDice2 = 0;
+        }
+#endif
         Debug.Log($"[HostGameService] 주사위: {player.Nickname} {dice1}+{dice2}{(dice1 == dice2 ? " (더블)" : "")}");
 
         // 요청 하나가 흐름을 다음 입력 단계까지 끝까지 처리한다. 그 사이에는 입력을 받지 않는다.

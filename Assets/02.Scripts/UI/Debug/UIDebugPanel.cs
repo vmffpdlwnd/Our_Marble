@@ -11,6 +11,7 @@ using UnityEngine;
 /// 남겨 둔 것은 읽기만 하거나 실제 경로(GameManager → 호스트 → 알림)로 요청을 보내는 것뿐이다.
 /// - 연출 속도 (0.5~4배)
 /// - 방 정보, 플레이어 상태(현금, 땅, 파산) 보기
+/// - 다음 주사위 정하기 (이 PC가 호스트일 때만. 호스트가 굴리는 눈을 바꾼다. 한 번 또는 계속)
 /// - 황금열쇠 카드 앞면 보기 (효과 없이 화면만), 다음에 뽑힐 카드 지정 (이 PC가 호스트일 때만. 호스트가 뽑는 카드를 바꾼다)
 /// </summary>
 public class UIDebugPanel : MonoBehaviour
@@ -97,6 +98,7 @@ public class UIDebugPanel : MonoBehaviour
 
         DrawRoomSection();
         DrawPlayerSection();
+        DrawDiceSection();
         DrawCardPreviewSection();
 
         GUILayout.EndScrollView();
@@ -144,6 +146,72 @@ public class UIDebugPanel : MonoBehaviour
     }
 
     // ───────────── 황금열쇠 카드 보기 ─────────────
+
+    // ───────────── 주사위 정하기 ─────────────
+    // 다음 주사위 두 개의 눈을 고른다. 호스트가 굴리므로 이 PC가 호스트일 때만 된다. (누가 굴리든, 봇이 굴려도 적용)
+    // "적용"하면 다음 한 번만, "계속"을 켜면 지울 때까지 그 눈이 나온다.
+
+    private int pickDice1 = 1, pickDice2 = 1;
+
+    private void DrawDiceSection()
+    {
+        Header("주사위");
+
+        if (HostGameService.Current == null)
+        {
+            GUILayout.Label("이 PC는 호스트가 아니라서 주사위를 정할 수 없어요.");
+            return;
+        }
+
+        int set1 = HostGameService.DebugDice1, set2 = HostGameService.DebugDice2;
+        GUILayout.BeginHorizontal();
+        RichLabel(set1 > 0 ? $"<b>다음 주사위: {set1} + {set2} = {set1 + set2}{(set1 == set2 ? " (더블)" : "")}{(HostGameService.DebugKeepDice ? ", 계속" : "")}</b>" : "다음 주사위: 무작위");
+        if (set1 > 0 && GUILayout.Button("지우기", GUILayout.Width(70)))
+        {
+            HostGameService.DebugDice1 = HostGameService.DebugDice2 = 0;
+            Log("주사위 지정을 지웠습니다");
+        }
+        GUILayout.EndHorizontal();
+
+        pickDice1 = DicePicker("첫째", pickDice1);
+        pickDice2 = DicePicker("둘째", pickDice2);
+
+        GUILayout.BeginHorizontal();
+        HostGameService.DebugKeepDice = GUILayout.Toggle(HostGameService.DebugKeepDice, "계속 (지울 때까지)");
+        if (GUILayout.Button($"적용 ({pickDice1 + pickDice2}칸)", GUILayout.Width(110))) SetDice(pickDice1, pickDice2);
+        GUILayout.EndHorizontal();
+
+        // 자주 쓰는 눈: 더블(무인도 탈출, 한 번 더), 3연속 더블은 "계속"을 켜고 더블
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("빠른 선택", GUILayout.Width(60));
+        if (GUILayout.Button("1+1 더블")) SetDice(1, 1);
+        if (GUILayout.Button("1+2 (3칸)")) SetDice(1, 2);
+        if (GUILayout.Button("6+6 더블")) SetDice(6, 6);
+        GUILayout.EndHorizontal();
+    }
+
+    // 1~6 버튼 줄. 고른 눈을 돌려준다
+    private static int DicePicker(string label, int current)
+    {
+        GUILayout.BeginHorizontal();
+        GUILayout.Label(label, GUILayout.Width(40));
+        for (int pip = 1; pip <= 6; pip++)
+        {
+            bool selected = pip == current;
+            if (GUILayout.Toggle(selected, pip.ToString(), GUI.skin.button, GUILayout.Width(36)) && !selected) current = pip;
+        }
+        GUILayout.EndHorizontal();
+        return current;
+    }
+
+    private void SetDice(int dice1, int dice2)
+    {
+        pickDice1 = dice1;
+        pickDice2 = dice2;
+        HostGameService.DebugDice1 = dice1;
+        HostGameService.DebugDice2 = dice2;
+        Log($"다음 주사위를 {dice1} + {dice2}로 정했습니다{(HostGameService.DebugKeepDice ? " (계속)" : "")}");
+    }
 
     private void DrawCardPreviewSection()
     {
