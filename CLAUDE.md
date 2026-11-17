@@ -53,6 +53,7 @@ AI(Claude)가 이 저장소에서 작업하기 전에 가장 먼저 읽는 안�
 | 방 코드 복사(칩을 눌렀을 때) | `LobbyManager`의 `CopyRoomCode` → `Util/ClipboardCopy` |
 | 대기방 화면(준비, 설정, 채팅) | `UI/Views/RoomSetupView`, 채팅 창구는 `Chat/ChatService` |
 | 설정창(배경음, 효과음, 언어 선택) | `UI/Views/Common/SettingsView` + `Canvas_Settings` 프리팹. 로비(`LobbyManager`), 게임(`UIManager`), 로그인(`TitleManager`, `Canvas_Login/SettingsButton`)이 같은 프리팹을 쓴다. 언어 선택 줄은 `SettingsView`가 코드로 만든다 |
+| 배경음과 효과음 | `Manager/SoundManager` (첫 씬에서 스스로 생김. 씬 이름으로 `Resources/Audio/Bgm/Bgm_이름`, 효과음 종류 `Sfx`와 파일 표 `SfxTable`, UI 클릭과 내 돈 소리는 자동). 볼륨은 `SettingsView.BgmVolume`, `SfxVolume`, `SoundChanged`. 소리 파일은 `Assets/Resources/Audio/` |
 | 한/영 전환(번역) | `Localization/Loc`(언어 저장, `Loc.T`, `Loc.Bind`, `Loc.TName`, `Loc.TShort`, `Loc.Rank`, 값이 끝에 붙은 글의 앞부분 번역, 씬이 열릴 때 한국어 글자 자동 묶기), `Localization/LocalizedText`(언어가 바뀌면 글자를 다시 번역). 번역표는 `Assets/Resources/Localization/en.txt` (한국어 문장이 키). 빠진 글 점검은 `tools/check_translations.py` |
 | 게임 씬 진행(알림 받아 화면 연출) | `Manager/GameManager`, 화면 표시는 `Screen/GameScreen`, UI 진입점은 `Manager/UIManager` |
 | 파산 신청 버튼과 확인 창 | `UI/Views/TopBarView`(나가기 버튼을 복사해 코드로 만든다), `UIManager`의 `RequestBankruptcy`와 `RefreshBankruptButton` → `GameManager.DeclareBankruptcy` |

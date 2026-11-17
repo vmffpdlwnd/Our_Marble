@@ -6,7 +6,7 @@ using UnityEngine.UI;
 /// <summary>
 /// 설정 팝업. Canvas_Settings에 붙는다. 로비와 게임 씬이 같은 프리팹을 쓴다.
 /// 창 아래의 닫기 버튼으로만 닫는다. (배경을 누르거나 Esc를 눌러도, 설정 버튼을 다시 눌러도 닫히지 않는다.)
-/// 값은 PlayerPrefs에 저장만 하고, 실제 오디오 연결은 사운드 시스템이 생기면 아래 정적 값을 읽어 쓰면 된다.
+/// 값은 PlayerPrefs에 저장하고, 바뀔 때마다 SoundChanged를 알린다. SoundManager가 BgmVolume, SfxVolume을 읽어 바로 반영한다.
 /// </summary>
 public class SettingsView : UIView
 {
@@ -44,6 +44,13 @@ public class SettingsView : UIView
     /// <summary>소리 설정. 사운드 시스템이 읽어 가는 값이다. 꺼져 있으면 볼륨은 0으로 본다.</summary>
     public static float BgmVolume => PlayerPrefs.GetInt(BgmOnKey, 1) == 1 ? PlayerPrefs.GetFloat(BgmKey, 0.7f) : 0f;
     public static float SfxVolume => PlayerPrefs.GetInt(SfxOnKey, 1) == 1 ? PlayerPrefs.GetFloat(SfxKey, 0.7f) : 0f;
+
+    /// <summary>볼륨이나 스위치가 바뀌면 알린다. (SoundManager가 받아서 바로 반영한다)</summary>
+    public static event System.Action SoundChanged;
+
+    // 에디터에서 도메인 리로드 없이 플레이를 다시 시작해도 이전 플레이의 구독이 남지 않게 한다
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics() => SoundChanged = null;
 
     public override void Bind()
     {
@@ -84,6 +91,7 @@ public class SettingsView : UIView
         {
             PlayerPrefs.SetFloat(volumeKey, v);
             UpdateValueText(c);
+            SoundChanged?.Invoke();
         });
 
         c.toggle.SetIsOnWithoutNotify(PlayerPrefs.GetInt(onKey, 1) == 1);
@@ -93,6 +101,7 @@ public class SettingsView : UIView
         {
             PlayerPrefs.SetInt(onKey, on ? 1 : 0);
             ApplySwitch(c, on, true);
+            SoundChanged?.Invoke();
         });
     }
 

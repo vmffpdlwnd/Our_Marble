@@ -601,6 +601,7 @@ public class UIManager : MonoBehaviour
     {
         TileData tile = BoardManager.Instance.GetTileData(tileIndex);
         if (tile == null || tile.Type != TileType.PROPERTY) return;
+        SoundManager.Play(Sfx.TileClick);
         ShowTileInfoPopup(tile.PropertyId);
     }
 
@@ -727,9 +728,16 @@ public class UIManager : MonoBehaviour
         SetTurn(index, NameOf(playerId), PortraitOf(playerId));
         if (topBar != null) topBar.SetRound(DisplayRound(), maxRound);
         if (playerId != LocalPlayerId && diceRoll != null) diceRoll.SetInteractable(false);
+
+        // 내 차례가 새로 시작될 때만 알림 소리 (화면 동기화로 같은 차례를 다시 표시할 때는 내지 않는다)
+        if (playerId == LocalPlayerId && lastTurnPlayerId != playerId) SoundManager.Play(Sfx.TurnStart);
+        lastTurnPlayerId = playerId;
+
         // 다른 사람 차례가 되면 내 제한시간은 끝난다. (내 차례를 다시 표시하는 경우, 예: 화면 동기화는 진행 중인 제한시간을 끊지 않는다)
         if (playerId != LocalPlayerId) StopSelectionTimer();
     }
+
+    private long lastTurnPlayerId; // 마지막으로 차례를 표시한 사람 (차례 알림 소리를 한 번만 내기 위해)
 
     // 호스트가 내 요청을 거절했을 때 부릅니다. 결과를 기다리며 구르던 주사위를 멈춥니다.
     public void CancelDiceRolling() { if (diceResult != null) diceResult.CancelRolling(); }
@@ -748,6 +756,7 @@ public class UIManager : MonoBehaviour
         }
 
         bool mine = State != null && State.CurrentPlayerId == LocalPlayerId;
+        SoundManager.Play(Sfx.Dice);
         diceResult.Show(dice1, dice2, () =>
         {
             if (mine && diceRoll != null) diceRoll.ResolveIslandRoll(dice1 == dice2);
@@ -1008,6 +1017,7 @@ public class UIManager : MonoBehaviour
     {
         if (shortfall > 0) bankruptShortfall[playerId] = shortfall;
         lastBankruptEffectAt = Time.unscaledTime;
+        SoundManager.Play(Sfx.Fail);
 
         // GameState(IsBankrupt)가 이미 갱신된 뒤 호출되므로, 전체 갱신 한 번이면 됩니다.
         // 방금 파산한 플레이어의 카드만 파산 표시가 꺼짐 → 켜짐으로 바뀌면서 도장 연출이 재생됩니다.
@@ -1134,6 +1144,7 @@ public class UIManager : MonoBehaviour
         bool keepable = card != null && CardRules.IsHeldType(card.effectType); // 보관형이면 "보관 가능" 태그와 "보관하기" 버튼
 
         bool autoClose = forceAutoClose || playerId != LocalPlayerId; // 내 카드가 아니면 자동으로 닫힌다
+        SoundManager.Play(Sfx.CardFlip);
         cardDraw.Show(cardName, description, icon, keepable, () =>
         {
             SetNextMoneyReason(playerId, "황금열쇠"); // 카드로 돈이 바뀌면 사유가 '황금열쇠'로 뜬다
@@ -1174,6 +1185,10 @@ public class UIManager : MonoBehaviour
         // 더 이상 굴릴 주사위도, 진행 중인 차례도 없다
         StopSelectionTimer();
         if (diceRoll != null) { diceRoll.SetInteractable(false); diceRoll.Close(); }
+
+        // 배경음을 줄이고 결과 소리를 낸다 (배경음은 다음 씬에서 되돌아간다)
+        SoundManager.DuckBgmForResult();
+        SoundManager.Play(Sfx.Win);
         if (diceResult != null) diceResult.Close();
         if (currentTurn != null) currentTurn.Close();
 
@@ -1455,6 +1470,7 @@ public class UIManager : MonoBehaviour
     private TurnTimerView timerChip;   // 그 창 안에 들어 있는 시간 표시 칩. 없으면 null
     private SelectionKind timerKind;
     private float timerRemaining, timerTotal;
+    private const float TimerTickSeconds = 5f; // 남은 시간이 이 초 이하면 째깍 소리 (제한시간 칩이 빨개지는 때와 같다)
     private int timerEpoch;            // 제한시간을 새로 시작할 때마다 늘려서, 지난 시간 종료 처리가 새로 열린 창을 닫지 않게 한다
 
     // 잠수 중이면(GameManager.isAfk) 짧은 제한시간, 아니면 방 설정의 제한시간보다 먼저 닫히는 시간 (시간 규칙: TimeRules)
@@ -1478,6 +1494,7 @@ public class UIManager : MonoBehaviour
     /// <summary>세고 있던 제한시간을 시간 종료 처리 없이 멈추고 표시를 숨긴다.</summary>
     private void StopSelectionTimer()
     {
+        SoundManager.StopTimerTick();
         timerWindow = null;
         if (timerChip != null) timerChip.Hide();
         timerChip = null;
@@ -1497,6 +1514,7 @@ public class UIManager : MonoBehaviour
         if (timerRemaining > 0f)
         {
             if (timerChip != null) timerChip.SetRemaining(timerRemaining, timerTotal);
+            if (timerRemaining <= TimerTickSeconds) SoundManager.StartTimerTick(); // 막바지에는 째깍 소리 (이미 나고 있으면 그대로)
             return;
         }
         OnSelectionTimeout();

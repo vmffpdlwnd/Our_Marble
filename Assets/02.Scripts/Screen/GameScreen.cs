@@ -296,6 +296,9 @@ public class GameScreen
             UIManager.Instance.RefreshHeldCards();
     }
 
+    /// <summary>효과음을 낸다. (구매, 건설처럼 규칙이 결과를 낸 순간에 GameManager가 부른다)</summary>
+    public void PlaySound(Sfx sfx) => SoundManager.Play(sfx);
+
     public void PlayIslandEscapeFailed(long playerId, int remainingTurns)
     {
         SpecialTileManager.Instance.PlayIslandEscapeFailed(playerId, remainingTurns);

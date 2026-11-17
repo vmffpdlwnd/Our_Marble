@@ -111,6 +111,7 @@ public class PlayerPawn : MonoBehaviour
     /// <summary>한 칸 점프 이동 (주사위 이동용)</summary>
     public IEnumerator HopTo(int tileIndex, Vector3 targetPosition, float duration)
     {
+        SoundManager.Play(Sfx.Move); // 한 칸 뛸 때마다
         Vector3 start = transform.position;
         PlayMovement(targetPosition - start, duration);
         for (float t = 0f; t < 1f; t += Time.deltaTime / duration)

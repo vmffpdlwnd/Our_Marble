@@ -875,6 +875,7 @@ public class GameManager : Singleton<GameManager>
         long amount = TradeRules.Purchase(gameData, player, property);
         screen.UpdatePropertyOwner(property);
         screen.UpdatePropertyBuilding(property);
+        screen.PlaySound(Sfx.Buy);
         Log($"[구매] {P(playerId)}: {CityName(propertyId)} 구매 (-{Won(amount)}, 남은 현금 {Won(player.Money)})");
 
         // 자산 구매 연출을 재생합니다.
@@ -934,6 +935,7 @@ public class GameManager : Singleton<GameManager>
         // GameState를 갱신합니다. (플레이어 현금 차감, 건설 레벨 증가) 규칙(TradeRules.Build)이 합니다.
         long amount = TradeRules.Build(gameData, playerState, propertyState);
         screen.UpdatePropertyBuilding(propertyState);
+        screen.PlaySound(Sfx.Build);
 
         // 건설 연출을 재생합니다.
         OnBuildingBuiltSuccessfully?.Invoke(playerId);
@@ -993,6 +995,7 @@ public class GameManager : Singleton<GameManager>
         // GameState를 갱신합니다. (인수자 현금 차감, 인수당하는 사람 현금 증가, 자산 주인 갱신) 규칙(TradeRules.Acquire)이 합니다.
         long amount = TradeRules.Acquire(gameData, acquirer, owner, property);
         screen.UpdatePropertyOwner(property); //소유권 이전
+        screen.PlaySound(Sfx.Buy);
 
         // 인수 연출을 재생합니다.
         screen.PlayMoneyTransfer(playerId, owner.PlayerId, amount, "인수", "인수 대금");
