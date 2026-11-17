@@ -141,8 +141,9 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
                     JsonConvert.DeserializeObject<GameStartedBroadcast>(json);
 
                 string roomId = gameStartedBroadcast.roomId;
+                int mapId = gameStartedBroadcast.mapId;
                 
-                OnGameStarted?.Invoke(roomId);
+                OnGameStarted?.Invoke(roomId, mapId);
                 break;
             }
             case LobbyMessageType.LOBBY_ERROR:
@@ -186,7 +187,7 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
     public event Action OnRoomLeft;
     public event Action<List<RoomSummary>> OnRoomList;
     public event Action<RoomSnapshot> OnRoomUpdated;
-    public event Action<string> OnGameStarted;
+    public event Action<string, int> OnGameStarted; // 방 id, 맵 번호
     public event Action<string, string> OnLobbyError;
     public event Action<long, string> OnChatBroadcast; // 보낸 사람 playerId, 내용
    

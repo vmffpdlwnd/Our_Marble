@@ -22,6 +22,12 @@ public static class SceneFlow
     // 게임에서 나가는 중 (나가기를 여러 번 눌러도 한 번만 처리한다)
     private static bool leavingGame;
 
+    /// <summary>
+    /// 지금(또는 마지막으로) 들어간 게임의 맵 번호. ToGame이 정하고, 게임 씬의 BoardManager가 이 번호로 보드를 고른다.
+    /// 0이면 정해지지 않은 것이라 BoardManager의 기본 보드를 쓴다.
+    /// </summary>
+    public static int GameMapId { get; private set; }
+
     // 에디터에서 도메인 리로드 없이 플레이를 다시 시작해도 이전 플레이의 값이 남지 않게 한다
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
@@ -29,6 +35,7 @@ public static class SceneFlow
         reopenRoomSetup = false;
         pendingLoginNotice = null;
         leavingGame = false;
+        GameMapId = 0;
     }
 
     /// <summary>로그인 화면으로 간다. (로비의 나가기, 연결 끊김) notice를 주면 로그인 화면에서 토스트로 띄운다.</summary>
@@ -84,8 +91,12 @@ public static class SceneFlow
         }
     }
 
-    /// <summary>방 설정 화면에서 게임 씬으로 간다.</summary>
-    public static bool ToGame() => Load(GameScenePath, false);
+    /// <summary>방 설정 화면에서 게임 씬으로 간다. mapId: 방의 맵 번호 (게임 씬이 이 번호의 보드를 쓴다)</summary>
+    public static bool ToGame(int mapId)
+    {
+        GameMapId = mapId;
+        return Load(GameScenePath, false);
+    }
 
     /// <summary>게임이 끝나 같은 방을 유지한 채 로비로 돌아간다. 로비는 방 설정을 다시 연다.</summary>
     public static bool ReturnToRoom() => Load(LobbyScenePath, true);

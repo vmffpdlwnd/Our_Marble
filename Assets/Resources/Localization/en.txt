@@ -139,7 +139,7 @@
 맵 {0}	Map {0}
 클래식 월드	Classic World
 도시 탐험	City Explorer
-해변 마을	Beach Town
+프랜차이즈 거리	Franchise Street
 이름 없는 방	Unnamed room
 {0}의 방	{0}'s room
 {0}승 {1}패 <size=80%><color=#8C90A8>({2}%)</color></size>	{0}W {1}L <size=80%><color=#8C90A8>({2}%)</color></size>
