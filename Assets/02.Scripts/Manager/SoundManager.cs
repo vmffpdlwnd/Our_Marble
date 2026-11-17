@@ -38,17 +38,19 @@ public class SoundManager : MonoBehaviour
 {
     // ───────────── 효과음 표 ─────────────
     // file: Resources/Audio/Sfx/ 아래 이름 (확장자 없이), volume: 설정 볼륨에 곱하는 값, maxSeconds: 이 길이에서 짧게 줄이며 끊는다 (0이면 끝까지)
+    // skipSeconds: 파일 앞의 무음을 건너뛰고 이 시점부터 튼다 (버튼처럼 바로 들려야 하는 소리)
     private struct SfxInfo
     {
-        public string file; public float volume; public float maxSeconds;
-        public SfxInfo(string file, float volume = 1f, float maxSeconds = 0f) { this.file = file; this.volume = volume; this.maxSeconds = maxSeconds; }
+        public string file; public float volume; public float maxSeconds; public float skipSeconds;
+        public SfxInfo(string file, float volume = 1f, float maxSeconds = 0f, float skipSeconds = 0f)
+        { this.file = file; this.volume = volume; this.maxSeconds = maxSeconds; this.skipSeconds = skipSeconds; }
     }
 
     private static readonly Dictionary<Sfx, SfxInfo> SfxTable = new Dictionary<Sfx, SfxInfo>
     {
-        { Sfx.Click,     new SfxInfo("Sfx_Click", 0.8f) },
-        { Sfx.Toggle,    new SfxInfo("Sfx_button4", 0.8f) },
-        { Sfx.TileClick, new SfxInfo("Sfx_button", 0.7f) },
+        { Sfx.Click,     new SfxInfo("Sfx_Click", 1f, 0f, 0.05f) },     // 앞 0.055초가 무음
+        { Sfx.Toggle,    new SfxInfo("Sfx_button4", 1f, 0f, 0.04f) },   // 앞 0.045초가 무음
+        { Sfx.TileClick, new SfxInfo("Sfx_button", 1f, 0f, 0.07f) },    // 앞 0.075초가 무음
         { Sfx.Dice,      new SfxInfo("Sfx_Dice") },
         { Sfx.Move,      new SfxInfo("Sfx_Move", 0.6f) },
         { Sfx.MoneyGet,  new SfxInfo("Sfx_MoneyGet") },
@@ -63,6 +65,9 @@ public class SoundManager : MonoBehaviour
         { Sfx.Win,       new SfxInfo("Sfx_Win", 1f, 7f) },         // 6.7초 뒤는 무음
     };
 
+    // 배경음 파일이 효과음보다 훨씬 크게 만들어져 있고(약 -11 LUFS, 효과음은 -18~-31) 계속 들리므로, 설정 값에 이만큼만 곱해 튼다.
+    // 설정 창이 70%면 실제로는 약 18%로 나온다. 배경음이 여전히 크거나 작으면 이 숫자만 고친다
+    private const float BgmBaseVolume = 0.25f;
     private const string BgmFolder = "Audio/Bgm/Bgm_";
     private const string SfxFolder = "Audio/Sfx/";
     private const float BgmFadeSeconds = 0.6f;
@@ -198,7 +203,7 @@ public class SoundManager : MonoBehaviour
         bgmFade = null;
     }
 
-    private float BgmTarget => SettingsView.BgmVolume * bgmScale;
+    private float BgmTarget => SettingsView.BgmVolume * BgmBaseVolume * bgmScale;
 
     /// <summary>결과 창이 뜰 때 배경음을 줄인다. 다음 씬에서 되돌아간다.</summary>
     public static void DuckBgmForResult()
@@ -239,6 +244,7 @@ public class SoundManager : MonoBehaviour
 
         voice.clip = clip;
         voice.volume = volume;
+        voice.time = info.skipSeconds < clip.length ? info.skipSeconds : 0f;
         voice.Play();
         if (info.maxSeconds > 0f && clip.length > info.maxSeconds)
             sfxStops[voice] = StartCoroutine(StopAfter(voice, info.maxSeconds));
@@ -287,33 +293,21 @@ public class SoundManager : MonoBehaviour
     }
 
     // ───────────── UI 클릭 (자동) ─────────────
-    // 버튼마다 소리를 붙이지 않고, 누른 곳과 뗀 곳이 같은 버튼·스위치면 소리를 낸다. (코드로 만든 버튼도 따로 할 일이 없다)
-    // 누르는 순간에 눌릴 수 있는 상태였는지 기억한다. (누르자마자 스스로 잠기는 버튼도 소리가 나게)
+    // 버튼마다 소리를 붙이지 않고, 눌릴 수 있는 버튼·스위치를 누르는 순간 소리를 낸다. (코드로 만든 버튼도 따로 할 일이 없다)
+    // 떼는 순간에 내면 누르고 있는 시간만큼 늦게 들린다. 누른 채 버튼 밖으로 끌어 취소해도 소리는 이미 난 뒤다.
 
-    private GameObject pressedTarget;
-    private Selectable pressedSelectable;
     private static readonly List<RaycastResult> raycastHits = new List<RaycastResult>();
 
     private void Update()
     {
-        if (EventSystem.current == null) return;
+        if (EventSystem.current == null || !Input.GetMouseButtonDown(0)) return;
 
-        if (Input.GetMouseButtonDown(0))
-        {
-            pressedTarget = ClickTargetUnderPointer();
-            Selectable selectable = pressedTarget != null ? pressedTarget.GetComponent<Selectable>() : null;
-            pressedSelectable = selectable != null && selectable.IsInteractable() ? selectable : null;
-        }
-        else if (Input.GetMouseButtonUp(0))
-        {
-            if (pressedSelectable != null && ClickTargetUnderPointer() == pressedTarget)
-            {
-                if (pressedSelectable is Toggle) PlaySfx(Sfx.Toggle);
-                else if (pressedSelectable is Button) PlaySfx(Sfx.Click);
-            }
-            pressedTarget = null;
-            pressedSelectable = null;
-        }
+        GameObject target = ClickTargetUnderPointer();
+        Selectable selectable = target != null ? target.GetComponent<Selectable>() : null;
+        if (selectable == null || !selectable.IsInteractable()) return;
+
+        if (selectable is Toggle) PlaySfx(Sfx.Toggle);
+        else if (selectable is Button) PlaySfx(Sfx.Click);
     }
 
     private GameObject ClickTargetUnderPointer()

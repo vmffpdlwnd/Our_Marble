@@ -70,8 +70,8 @@ public class PropertyRules
 
         long toll = data.GetToll(level);
 
-        // 관광지 줄 보너스: 같은 줄의 관광지(건설 불가 땅)를 이 땅 주인이 가지고 있으면 1.5배 (관광지 자신도 포함)
-        if (OwnsTouristInLine(state.OwnerId.Value, data.BoardIndex, allProperties))
+        // 관광지 줄 보너스: 같은 줄의 관광지(건설 불가 땅)를 이 땅 주인이 가지고 있으면 1.5배. 관광지 자신은 받지 않는다
+        if (data.CanBuild && OwnsTouristInLine(state.OwnerId.Value, data.BoardIndex, allProperties))
             toll = toll * TouristLineRateNumerator / TouristLineRateDenominator;
 
         // 통행료 2배 카드: 고른 사람이 아직 주인이면 다음 통행료 한 번이 2배 (매각, 파산 판단과 봇 계산도 같은 금액을 쓴다)

@@ -465,7 +465,7 @@ public class UIManager : MonoBehaviour
                 new PurchasePopupView.Option
                 {
                     TargetLevel = BuildingLevel.Land,
-                    Toll = ActualToll(data, state, state.BuildingLevel), // 관광지 자신도 줄 보너스를 받는다
+                    Toll = ActualToll(data, state, state.BuildingLevel), // 관광지는 줄 보너스를 받지 않지만, 통행료 2배는 받는다
                     BaseToll = data.GetToll(state.BuildingLevel),
                     Locked = true,
                     LockReason = "보유 중",
