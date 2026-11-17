@@ -74,6 +74,7 @@ public class GameManager : Singleton<GameManager>
         subscribedNetwork.OnDestinationChosen += HandleDestinationChosen;
         subscribedNetwork.OnTollDoubleChosen += HandleTollDoubleChosen;
         subscribedNetwork.OnTollCardChosen += HandleTollCardChosen;
+        subscribedNetwork.OnTakeoverShieldChosen += HandleTakeoverShieldChosen;
         subscribedNetwork.OnDiceRolled += HandleDiceRolled;
         subscribedNetwork.OnPropertiesSold += HandlePropertiesSold;
         subscribedNetwork.OnPropertyAcquired += HandlePropertyAcquired;
@@ -94,6 +95,7 @@ public class GameManager : Singleton<GameManager>
         subscribedNetwork.OnDestinationChosen -= HandleDestinationChosen;
         subscribedNetwork.OnTollDoubleChosen -= HandleTollDoubleChosen;
         subscribedNetwork.OnTollCardChosen -= HandleTollCardChosen;
+        subscribedNetwork.OnTakeoverShieldChosen -= HandleTakeoverShieldChosen;
         subscribedNetwork.OnDiceRolled -= HandleDiceRolled;
         subscribedNetwork.OnPropertiesSold -= HandlePropertiesSold;
         subscribedNetwork.OnPropertyAcquired -= HandlePropertyAcquired;
@@ -231,6 +233,11 @@ public class GameManager : Singleton<GameManager>
             case GameMessageType.TOLL_CARD_CHOSEN:
                 if (propertyState.OwnerId == null) break;
                 HandleTollCardPrompt(playerId, propertyId, gameData.Properties.GetToll(propertyState, gameState.PropertyStates));
+                break;
+
+            case GameMessageType.TAKEOVER_SHIELD_CHOSEN:
+                if (propertyState.OwnerId == null) break;
+                HandleTakeoverShieldPrompt(propertyState.OwnerId.Value, playerId, propertyId);
                 break;
         }
     }
@@ -1079,15 +1086,76 @@ public class GameManager : Singleton<GameManager>
         var owner = property != null && property.OwnerId.HasValue ? GetPlayerState(property.OwnerId.Value) : null; //인수당하는 사람
         if (acquirer == null || property == null || owner == null) return;
 
-        // GameState를 갱신합니다. (인수자 현금 차감, 인수당하는 사람 현금 증가, 자산 주인 갱신) 규칙(TradeRules.Acquire)이 합니다.
+        // 땅 주인이 인수 방지권을 들고 있으면 인수하기 전에 주인에게 쓸지 묻습니다. (호스트와 같은 규칙)
+        if (CardRules.HasTakeoverShield(gameData, owner))
+        {
+            Log($"[인수 시도] {P(playerId)}: {CityName(propertyId)}, 주인 {P(owner.PlayerId)}이 인수 방지권을 쓸지 고릅니다.");
+            HandleTakeoverShieldPrompt(owner.PlayerId, playerId, propertyId);
+            return;
+        }
+
+        FinishAcquire(acquirer, owner, property);
+
+        // 턴을 종료합니다.
+        ProcessEndTurn();
+    }
+
+    // 인수를 마칩니다. GameState 갱신(인수자 현금 차감, 원래 주인 현금 증가, 주인 변경)은 규칙(TradeRules.Acquire)이 하고, 여기서는 연출을 합니다.
+    private void FinishAcquire(PlayerState acquirer, PlayerState owner, PropertyState property)
+    {
         long amount = TradeRules.Acquire(gameData, acquirer, owner, property);
         screen.UpdatePropertyOwner(property); //소유권 이전
         screen.PlaySound(Sfx.Buy);
 
         // 인수 연출을 재생합니다.
-        screen.PlayMoneyTransfer(playerId, owner.PlayerId, amount, "인수", "인수 대금");
+        screen.PlayMoneyTransfer(acquirer.PlayerId, owner.PlayerId, amount, "인수", "인수 대금");
+    }
 
-        // 턴을 종료합니다.
+    // ────────────────────────── 인수 방지권 ──────────────────────────
+    // 차례인 사람이 아니라 땅 주인에게 묻는 단계입니다. 주인의 화면에만 창이 뜹니다.
+    public void HandleTakeoverShieldPrompt(long ownerId, long acquirerId, int propertyId)
+    {
+        if (ownerId == LocalPlayer.Id) screen.ShowTakeoverShieldChoice(acquirerId, propertyId);
+
+        // broadcast메시지 수신 대기 상태에 들어갑니다.
+        gameState.WaitingType = GameMessageType.TAKEOVER_SHIELD_CHOSEN;
+    }
+
+    /// <summary>
+    /// 인수 방지권 창에서 고른 결과를 보냅니다. (땅 주인이 보냅니다)
+    /// 내 차례의 요청이 아니므로 sendAndWaiting(내 차례의 잠수 판단)은 건드리지 않습니다.
+    /// </summary>
+    public void ChooseTakeoverShield(bool use)
+    {
+        GameNetwork.Instance.SendChooseTakeoverShieldRequest(use);
+    }
+
+    // 호스트가 알린 인수 방지권 결과를 같은 규칙으로 적용합니다. 쓰면 인수가 막히고, 안 쓰면 그대로 인수합니다. 어느 쪽이든 턴이 끝납니다.
+    public void HandleTakeoverShieldChosen(long ownerId, bool used)
+    {
+        HandleRoutine();
+        screen.CloseTakeoverShieldChoice(); // 대신 진행으로 결과가 오면 주인의 화면에 남은 창을 닫는다
+
+        PlayerState acquirer = GetPlayerState(gameState.CurrentPlayerId);
+        PlayerState owner = GetPlayerState(ownerId);
+        TileData tile = acquirer != null ? gameData.GetTile(acquirer.Position) : null;
+        PropertyState property = tile != null && tile.Type == TileType.PROPERTY ? GetPropertyState(tile.PropertyId) : null;
+        if (acquirer == null || owner == null || property == null)
+        {
+            Debug.LogError($"[GameManager] 인수 방지권 처리 실패: 인수하려던 땅을 찾을 수 없습니다.");
+            return;
+        }
+
+        if (used && CardRules.UseTakeoverShield(gameData, owner))
+        {
+            Log($"[카드:인수 방지권] {P(ownerId)}: {P(acquirer.PlayerId)}의 {CityName(property.PropertyId)} 인수를 막았습니다.");
+            screen.RefreshHeldCards();
+        }
+        else
+        {
+            FinishAcquire(acquirer, owner, property);
+        }
+
         ProcessEndTurn();
     }
 

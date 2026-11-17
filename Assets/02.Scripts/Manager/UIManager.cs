@@ -631,6 +631,32 @@ public class UIManager : MonoBehaviour
             half != null ? askHalf : () => Game.ChooseTollCard(null));
     }
 
+    // 내 땅을 남이 인수하려 할 때 인수 방지권을 쓸지 묻는다. (GameManager.HandleTakeoverShieldPrompt, 땅 주인의 화면)
+    public void ShowTakeoverShieldChoice(long acquirerId, int propertyId)
+    {
+        if (Game == null) return;
+
+        CardData card = FindHeldCard(GetPlayer(LocalPlayerId), CardEffectType.TakeoverShield);
+        if (exitConfirm == null || card == null)
+        {
+            Game.ChooseTakeoverShield(false);
+            return;
+        }
+
+        AskUseHeldCard("{0}님이 {1}을(를) 인수하려고 해요.\n{2}을(를) 쓸까요?",
+            new object[] { NameOf(acquirerId), TileName(propertyId), Loc.T(card.cardName) },
+            () => Game.ChooseTakeoverShield(true),
+            () => Game.ChooseTakeoverShield(false));
+    }
+
+    /// <summary>보관형 카드를 묻는 창이 떠 있으면 시간 종료 처리 없이 닫는다.</summary>
+    public void CloseHeldCardQuestion()
+    {
+        if (exitConfirm == null || timerWindow != exitConfirm || timerKind != SelectionKind.HeldCard) return;
+        StopSelectionTimer();
+        exitConfirm.Close();
+    }
+
     // 보관형 카드를 쓸지 묻는 창 (확인 창을 같이 쓴다). 바로 앞 창(건설 창, 앞의 카드 질문)의 남은 제한시간을 이어받는다.
     // 시간이 지나면 창이 닫히고 아무것도 보내지 않는다. 호스트가 대신 진행하고, 대신 진행은 카드를 쓴다.
     private void AskUseHeldCard(string message, object[] args, Action onUse, Action onSkip)

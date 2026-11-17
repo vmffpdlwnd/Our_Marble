@@ -136,6 +136,14 @@ public class GameNetwork : Singleton<GameNetwork>
                 OnTollDoubleChosen?.Invoke(tollDoubleChosenBroadcast.playerId, tollDoubleChosenBroadcast.propertyId);
                 break;
             }
+            case GameMessageType.TAKEOVER_SHIELD_CHOSEN:
+            {
+                TakeoverShieldChosenBroadcast takeoverShieldChosenBroadcast =
+                    JsonConvert.DeserializeObject<TakeoverShieldChosenBroadcast>(json);
+
+                OnTakeoverShieldChosen?.Invoke(takeoverShieldChosenBroadcast.playerId, takeoverShieldChosenBroadcast.used);
+                break;
+            }
             case GameMessageType.TOLL_CARD_CHOSEN:
             {
                 TollCardChosenBroadcast tollCardChosenBroadcast =
@@ -208,6 +216,7 @@ public class GameNetwork : Singleton<GameNetwork>
     public event Action<long, int> OnDestinationChosen;
     public event Action<long, int> OnTollDoubleChosen; // 고른 사람, 통행료 2배를 붙인 땅 id
     public event Action<long, CardEffectType?> OnTollCardChosen; // 통행료를 낼 사람, 쓴 통행료 카드(없으면 null)
+    public event Action<long, bool> OnTakeoverShieldChosen; // 땅 주인, 인수 방지권을 써서 인수를 막았는지
     public event Action<long, int, int, bool> OnDiceRolled; // 굴린 사람, 주사위 둘, 무인도 탈출권을 썼는지
     public event Action<long, List<int>> OnPropertiesSold;
     public event Action<long, int, bool> OnPropertyAcquired;
@@ -252,6 +261,18 @@ public class GameNetwork : Singleton<GameNetwork>
         SendGameMessage(json);
     }
     
+    public void SendChooseTakeoverShieldRequest(bool use)
+    {
+        ChooseTakeoverShieldRequest message = new ChooseTakeoverShieldRequest
+        {
+            type = "CHOOSE_TAKEOVER_SHIELD",
+            use = use
+        };
+
+        string json = JsonConvert.SerializeObject(message);
+        SendGameMessage(json);
+    }
+
     public void SendChooseTollCardRequest(CardEffectType? card)
     {
         ChooseTollCardRequest message = new ChooseTollCardRequest

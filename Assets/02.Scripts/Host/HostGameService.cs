@@ -267,6 +267,7 @@ public class HostGameService : IHostRequestReceiver
             case "CHOOSE_DESTINATION": HandleChooseDestination(senderId, JsonConvert.DeserializeObject<ChooseDestinationRequest>(json)); break;
             case "CHOOSE_TOLL_DOUBLE": HandleChooseTollDouble(senderId, JsonConvert.DeserializeObject<ChooseTollDoubleRequest>(json)); break;
             case "CHOOSE_TOLL_CARD": HandleChooseTollCard(senderId, JsonConvert.DeserializeObject<ChooseTollCardRequest>(json)); break;
+            case "CHOOSE_TAKEOVER_SHIELD": HandleChooseTakeoverShield(senderId, JsonConvert.DeserializeObject<ChooseTakeoverShieldRequest>(json)); break;
             case "DECLARE_BANKRUPTCY": HandleDeclareBankruptcy(senderId); break;
 
             default:
@@ -776,8 +777,16 @@ public class HostGameService : IHostRequestReceiver
         if (request.isAccept)
         {
             PlayerState owner = GetPlayer(property.OwnerId.Value);
-            long amount = TradeRules.Acquire(gameData, player, owner, property);
-            Debug.Log($"[HostGameService] 인수: {player.Nickname} {request.propertyId}번 땅 ← {owner.Nickname} (-{amount}, 현금 {player.Money})");
+
+            // 땅 주인이 인수 방지권을 들고 있으면 인수하기 전에 주인에게 쓸지 묻는다 (받은 쪽도 같은 규칙으로 이 단계에 들어간다)
+            if (CardRules.HasTakeoverShield(gameData, owner))
+            {
+                state.WaitingType = GameMessageType.TAKEOVER_SHIELD_CHOSEN;
+                Debug.Log($"[HostGameService] 인수 시도: {player.Nickname} {request.propertyId}번 땅, 주인 {owner.Nickname}이 인수 방지권을 쓸지 기다립니다.");
+                return;
+            }
+
+            Acquire(player, owner, property);
         }
         else
         {
@@ -785,6 +794,52 @@ public class HostGameService : IHostRequestReceiver
         }
 
         ProcessEndTurn();
+    }
+
+    private void Acquire(PlayerState acquirer, PlayerState owner, PropertyState property)
+    {
+        long amount = TradeRules.Acquire(gameData, acquirer, owner, property);
+        Debug.Log($"[HostGameService] 인수: {acquirer.Nickname} {property.PropertyId}번 땅 ← {owner.Nickname} (-{amount}, 현금 {acquirer.Money})");
+    }
+
+    // GameManager.HandleTakeoverShieldChosen
+    // 인수 방지권 단계(TAKEOVER_SHIELD_CHOSEN)에서 땅 주인의 선택을 받는다. 차례인 사람이 아니라 땅 주인만 보낼 수 있다.
+    // 쓰면 인수가 막혀 턴이 끝나고(인수하려던 사람은 통행료만 낸 상태), 안 쓰면 그대로 인수한다.
+    private void HandleChooseTakeoverShield(long senderId, ChooseTakeoverShieldRequest request)
+    {
+        if (!ValidateTakeoverShield(senderId, out PlayerState owner, out PlayerState acquirer, out PropertyState property)) return;
+
+        bool used = request.use && CardRules.UseTakeoverShield(gameData, owner);
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.TAKEOVER_SHIELD_CHOSEN, new TakeoverShieldChosenBroadcast { playerId = senderId, used = used });
+
+        if (used) Debug.Log($"[HostGameService] 인수 방지권 사용: {owner.Nickname}이 {acquirer.Nickname}의 인수를 막았습니다.");
+        else Acquire(acquirer, owner, property);
+
+        ProcessEndTurn();
+    }
+
+    // 인수 방지권 단계의 요청 확인. 차례인 사람(인수하려는 사람)이 서 있는 땅의 주인만 보낼 수 있다
+    private bool ValidateTakeoverShield(long senderId, out PlayerState owner, out PlayerState acquirer, out PropertyState property)
+    {
+        owner = GetPlayer(senderId);
+        acquirer = GetPlayer(state.CurrentPlayerId);
+        property = WaitingShieldProperty();
+
+        if (state.IsGameOver) { SendError(senderId, "GAME_OVER", "이미 끝난 게임이에요"); return false; }
+        if (owner == null) { SendError(senderId, "NOT_IN_GAME", "이 게임의 참가자가 아니에요"); return false; }
+        if (state.WaitingType != GameMessageType.TAKEOVER_SHIELD_CHOSEN) { SendError(senderId, "INVALID_PHASE", "지금은 보낼 수 없는 요청이에요"); return false; }
+        if (acquirer == null || property == null || property.OwnerId != senderId) { SendError(senderId, "NOT_OWNER", "내 땅이 아니에요"); return false; }
+        return true;
+    }
+
+    // 인수 방지권 단계에서 인수하려는 땅 (차례인 사람이 서 있는 땅). 없으면 null
+    private PropertyState WaitingShieldProperty()
+    {
+        PlayerState acquirer = GetPlayer(state.CurrentPlayerId);
+        TileData tile = acquirer != null ? BoardManager.Instance.GetTileData(acquirer.Position) : null;
+        return tile != null && tile.Type == TileType.PROPERTY ? GetProperty(tile.PropertyId) : null;
     }
 
     // GameManager.HandlePropertiesSold
@@ -991,7 +1046,15 @@ public class HostGameService : IHostRequestReceiver
     {
         if (!started || state.IsGameOver || state.WaitingType == null) return;
 
-        PlayerState actor = GetPlayer(state.CurrentPlayerId);
+        // 인수 방지권 단계에서는 차례인 사람이 아니라 땅 주인의 입력을 기다린다 (봇이거나 AFK이면 주인 기준으로 대신 진행)
+        long waitingFor = state.CurrentPlayerId;
+        if (state.WaitingType == GameMessageType.TAKEOVER_SHIELD_CHOSEN)
+        {
+            PropertyState shieldProperty = WaitingShieldProperty();
+            if (shieldProperty != null && shieldProperty.OwnerId.HasValue) waitingFor = shieldProperty.OwnerId.Value;
+        }
+
+        PlayerState actor = GetPlayer(waitingFor);
         if (actor == null || actor.IsBankrupt) return;
 
         // 새 입력 단계가 시작되면 기다린 시간을 0부터 센다
@@ -1058,6 +1121,10 @@ public class HostGameService : IHostRequestReceiver
                 HandleBuild(id, build);
                 break;
             }
+
+            case GameMessageType.TAKEOVER_SHIELD_CHOSEN: // 땅 주인(봇, AFK)은 인수 방지권을 항상 쓴다
+                HandleChooseTakeoverShield(id, new ChooseTakeoverShieldRequest { type = "CHOOSE_TAKEOVER_SHIELD", use = true });
+                break;
 
             case GameMessageType.TOLL_CARD_CHOSEN: // 면제권을 먼저, 없으면 반값권을 쓴다
                 HandleChooseTollCard(id, new ChooseTollCardRequest { type = "CHOOSE_TOLL_CARD", card = CardRules.PickTollCard(gameData, actor) });

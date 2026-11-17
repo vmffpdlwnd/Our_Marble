@@ -185,6 +185,20 @@ public class GameScreen
             UIManager.Instance.ShowRollDicePopup();
     }
 
+    /// <summary>내 땅을 남이 인수하려 할 때, 인수 방지권을 쓸지 묻는다. (땅 주인의 화면)</summary>
+    public void ShowTakeoverShieldChoice(long acquirerId, int propertyId)
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.ShowTakeoverShieldChoice(acquirerId, propertyId);
+    }
+
+    /// <summary>인수 방지권 창이 떠 있으면 닫는다. (호스트가 대신 진행해 결과가 먼저 왔을 때)</summary>
+    public void CloseTakeoverShieldChoice()
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.CloseHeldCardQuestion();
+    }
+
     /// <summary>남의 땅에 도착해 통행료를 내기 전에, 통행료 면제권·반값권을 쓸지 묻는다. toll: 카드를 쓰지 않을 때의 통행료</summary>
     public void ShowTollCardChoice(long playerId, long toll)
     {

@@ -343,6 +343,22 @@ public static class CardRules
         return toll;
     }
 
+    // ── 인수 방지권 ──
+
+    /// <summary>땅 주인이 인수 방지권을 들고 있는지. 남이 인수를 고르면 주인에게 쓸지 묻는다. (주인 차례가 아니어도 묻는다)</summary>
+    public static bool HasTakeoverShield(GameData data, PlayerState owner)
+    {
+        return owner != null && FindHeldCard(data, owner, CardEffectType.TakeoverShield) != null;
+    }
+
+    /// <summary>인수 방지권을 쓴다. 들고 있으면 카드를 내고 true. 인수는 일어나지 않는다. (인수하려던 사람은 통행료만 낸 채로 턴이 끝난다)</summary>
+    public static bool UseTakeoverShield(GameData data, PlayerState owner)
+    {
+        if (!HasTakeoverShield(data, owner)) return false;
+        ConsumeHeldCard(data, owner, CardEffectType.TakeoverShield);
+        return true;
+    }
+
     // 들고 있던 이 종류의 카드를 낸다 (보관형은 모두 1회용)
     private static void ConsumeHeldCard(GameData data, PlayerState player, CardEffectType type)
     {

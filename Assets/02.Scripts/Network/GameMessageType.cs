@@ -31,6 +31,9 @@ public enum GameMessageType
 
     [EnumMember(Value = "AWAITING_TOLL_CARD")] // 남의 땅에 도착: 통행료 면제권·반값권을 쓸지 고르기를 기다린다
     TOLL_CARD_CHOSEN,
+
+    [EnumMember(Value = "AWAITING_TAKEOVER_SHIELD")] // 인수를 골랐고 땅 주인이 인수 방지권을 들고 있다: 주인이 쓸지 고르기를 기다린다 (차례가 아닌 사람의 입력)
+    TAKEOVER_SHIELD_CHOSEN,
       
     // 파산 신청 알림. 기다리는 단계(phase)가 아니라서 EnumMember가 없다. (어느 입력 단계에서나 올 수 있다)
     BANKRUPTCY_DECLARED,
