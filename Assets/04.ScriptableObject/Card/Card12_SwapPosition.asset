@@ -16,7 +16,7 @@ MonoBehaviour:
   cardName: "\uBC30\uB2EC \uACBD\uB85C \uAF2C\uC784"
   description: "\uBC30\uB2EC \uACBD\uB85C\uAC00 \uAF2C\uC5EC \uBC84\uB838\uB2E4!\n\uBB34\uC791\uC704
     \uC0C1\uB300\uC640 \uC790\uB9AC\uB97C \uBC14\uAFBC\uB2E4."
-  icon: {fileID: 21300000, guid: 33e839ea3e455ca4a8b6b90923694aa4, type: 3}
+  icon: {fileID: 21300000, guid: 25b40164df104b5caf0f394d01c79411, type: 3}
   effectType: 8
   amount: 0
   targetTileType: 0
