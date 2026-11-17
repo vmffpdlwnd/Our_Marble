@@ -73,6 +73,8 @@ public class GameManager : Singleton<GameManager>
         subscribedNetwork.OnCardDrawn += HandleCardDrawn;
         subscribedNetwork.OnDestinationChosen += HandleDestinationChosen;
         subscribedNetwork.OnTollDoubleChosen += HandleTollDoubleChosen;
+        subscribedNetwork.OnTollCardChosen += HandleTollCardChosen;
+        subscribedNetwork.OnTakeoverShieldChosen += HandleTakeoverShieldChosen;
         subscribedNetwork.OnDiceRolled += HandleDiceRolled;
         subscribedNetwork.OnPropertiesSold += HandlePropertiesSold;
         subscribedNetwork.OnPropertyAcquired += HandlePropertyAcquired;
@@ -92,6 +94,8 @@ public class GameManager : Singleton<GameManager>
         subscribedNetwork.OnCardDrawn -= HandleCardDrawn;
         subscribedNetwork.OnDestinationChosen -= HandleDestinationChosen;
         subscribedNetwork.OnTollDoubleChosen -= HandleTollDoubleChosen;
+        subscribedNetwork.OnTollCardChosen -= HandleTollCardChosen;
+        subscribedNetwork.OnTakeoverShieldChosen -= HandleTakeoverShieldChosen;
         subscribedNetwork.OnDiceRolled -= HandleDiceRolled;
         subscribedNetwork.OnPropertiesSold -= HandlePropertiesSold;
         subscribedNetwork.OnPropertyAcquired -= HandlePropertyAcquired;
@@ -213,7 +217,7 @@ public class GameManager : Singleton<GameManager>
                 break;
 
             case GameMessageType.BUILT:
-                HandleBuildPrompt(playerId, propertyId, TradeRules.CheckBuild(gameData, player, propertyState, true) == TradeError.None);
+                HandleBuildPrompt(playerId, propertyId, TradeRules.CheckBuild(gameData, player, propertyState, true, useDiscount: true) == TradeError.None);
                 break;
 
             case GameMessageType.PROPERTY_ACQUIRED:
@@ -224,6 +228,16 @@ public class GameManager : Singleton<GameManager>
             case GameMessageType.PROPERTIES_SOLD:
                 if (propertyState.OwnerId == null) break;
                 HandleSellPropertiesPrompt(playerId, propertyState.OwnerId.Value, gameData.Properties.GetToll(propertyState, gameState.PropertyStates));
+                break;
+
+            case GameMessageType.TOLL_CARD_CHOSEN:
+                if (propertyState.OwnerId == null) break;
+                HandleTollCardPrompt(playerId, propertyId, gameData.Properties.GetToll(propertyState, gameState.PropertyStates));
+                break;
+
+            case GameMessageType.TAKEOVER_SHIELD_CHOSEN:
+                if (propertyState.OwnerId == null) break;
+                HandleTakeoverShieldPrompt(propertyState.OwnerId.Value, playerId, propertyId);
                 break;
         }
     }
@@ -444,7 +458,11 @@ public class GameManager : Singleton<GameManager>
     {
         if (IsLocalPlayerTurn())
         {
-            screen.ShowRollDicePopup();
+            // 무인도에 갇혔는데 무인도 탈출권을 들고 있으면, 굴리기 전에 쓸지 먼저 묻는다 (고르면 굴리기 창이 뜬다)
+            if (CardRules.CanUseIslandEscape(gameData, GetPlayerState(gameState.CurrentPlayerId)))
+                screen.ShowIslandEscapeChoice();
+            else
+                screen.ShowRollDicePopup();
         }
 
         // broadcast메시지 수신 대기 상태에 들어갑니다.
@@ -456,16 +474,25 @@ public class GameManager : Singleton<GameManager>
 
     /// <summary>
     /// 화면의 '주사위 굴리기' 버튼을 누르면 이 함수가 호출됩니다.
+    /// useIslandEscape: 무인도에서 탈출권을 쓰기로 골랐으면 true. 호스트가 굴리기 전에 카드를 쓴다.
     /// </summary>
-    public void RollDice()
+    public void RollDice(bool useIslandEscape = false)
     {
         sendAndWaiting = true;
-        GameNetwork.Instance.SendRollDiceRequest();
+        GameNetwork.Instance.SendRollDiceRequest(useIslandEscape);
     }
 
-    public void HandleDiceRolled(long playerId, int dice1, int dice2)
+    public void HandleDiceRolled(long playerId, int dice1, int dice2, bool usedIslandEscape)
     {
         HandleRoutine();
+
+        // 굴리기 전에 무인도 탈출권을 썼으면 호스트와 같은 규칙으로 먼저 적용한다. 영업정지가 풀려 주사위는 평소처럼 움직인다
+        if (usedIslandEscape && CardRules.UseIslandEscape(gameData, GetPlayerState(playerId)))
+        {
+            Log($"[카드:무인도 탈출권] {P(playerId)}: 무인도에서 바로 탈출합니다.");
+            screen.RefreshHeldCards();
+            screen.PlayIslandEscaped(playerId);
+        }
 
         Log($"[주사위] {P(playerId)}: {dice1}+{dice2}={dice1 + dice2}{(dice1 == dice2 ? " (더블!)" : "")}");
         // 화면이 있으면 주사위 결과를 보여 주고, 연출이 끝난 뒤 이어서 진행합니다.
@@ -533,11 +560,16 @@ public class GameManager : Singleton<GameManager>
 
         // 1) GameState는 즉시 갱신 (이동과 월급 지급은 규칙이 한다)
         long before = player.Money;
-        long salary = GameRules.MoveTo(gameState, player, toPosition, shouldReceiveSalary);
+        long salary = GameRules.MoveTo(gameState, gameData, player, toPosition, shouldReceiveSalary);
         if (shouldReceiveSalary)
         {
             screen.NotifyMoneyChanged(playerId, before, player.Money);
             Log($"[월급] {P(playerId)}: 출발 지점을 지나 월급 {Won(salary)} 지급 (현금 {Won(player.Money)})");
+            if (salary > gameState.Config.salaryAmount) // 월급 2배 카드를 자동으로 썼다 (GameRules.MoveTo)
+            {
+                Log($"[카드:월급 2배] {P(playerId)}: 월급을 2배로 받았습니다.");
+                screen.RefreshHeldCards();
+            }
         }
 
         // 2) 말 이동 연출 → 끝나면 도착 처리
@@ -570,11 +602,16 @@ public class GameManager : Singleton<GameManager>
 
         // 1) GameState는 즉시 갱신 (이동과 월급 지급은 규칙이 한다)
         long before = player.Money;
-        long salary = GameRules.MoveTo(gameState, player, toPosition, shouldReceiveSalary);
+        long salary = GameRules.MoveTo(gameState, gameData, player, toPosition, shouldReceiveSalary);
         if (shouldReceiveSalary)
         {
             screen.NotifyMoneyChanged(playerId, before, player.Money);
             Log($"[월급] {P(playerId)}: 출발 지점을 지나 월급 {Won(salary)} 지급 (현금 {Won(player.Money)})");
+            if (salary > gameState.Config.salaryAmount) // 월급 2배 카드를 자동으로 썼다 (GameRules.MoveTo)
+            {
+                Log($"[카드:월급 2배] {P(playerId)}: 월급을 2배로 받았습니다.");
+                screen.RefreshHeldCards();
+            }
         }
 
         // 2) 타일을 따라 이동하는 연출 → 끝나면 도착 처리
@@ -605,7 +642,7 @@ public class GameManager : Singleton<GameManager>
 
         Log($"[직접 이동] {P(playerId)}: {TileName(player.Position)} → {TileName(toPosition)}");
 
-        GameRules.MoveTo(gameState, player, toPosition, false); // 월급 없는 순간이동
+        GameRules.MoveTo(gameState, gameData, player, toPosition, false); // 월급 없는 순간이동
         isMoving = true;
         screen.MoveToTile(playerId, toPosition, () =>
         {
@@ -728,7 +765,8 @@ public class GameManager : Singleton<GameManager>
                     case PropertyArrivalKind.Build: // 본인 소유의 땅인 경우
                     {
                         BuildingLevel currentLevel = propertyState.BuildingLevel;
-                        TradeError buildError = TradeRules.CheckBuild(gameData, player, propertyState, true);
+                        // 건설 할인권을 들고 있으면 할인한 금액으로 지을 수 있는지 본다 (없으면 할인 없음)
+                        TradeError buildError = TradeRules.CheckBuild(gameData, player, propertyState, true, useDiscount: true);
                         switch (buildError)
                         {
                             // 건설 불가 자산 Case 처리
@@ -758,51 +796,101 @@ public class GameManager : Singleton<GameManager>
                         break;
                     }
 
-                    default: // 타인 소유의 땅인 경우 (통행료는 규칙이 이미 이체했습니다)
-                    {
-                        long ownerId = propertyArrival.Owner.PlayerId;
-                        long toll = propertyArrival.Toll;
-                        Log($"  남의 땅: {CityName(propertyId)} (주인 {P(ownerId)}, 통행료 {Won(toll)})");
-
-                        switch (propertyArrival.Kind)
-                        {
-                            case PropertyArrivalKind.TollPaidAcquire: // 통행료 납부하고도 인수할 돈이 있다면
-                            {
-                                screen.ShowTollPaid(playerId, ownerId, toll); // 통행료 이동 연출을 재생합니다.
-
-                                long acquireValue = gameData.Properties.GetAcquireValue(propertyState);
-                                Log($"  인수 가능 (인수가 {Won(acquireValue)})");
-                                HandleAcquirePropertyPrompt(playerId, propertyId, acquireValue); // 인수 선택지 UI를 표시합니다.
-                                break;
-                            }
-
-                            case PropertyArrivalKind.TollPaidEnd: // 통행료는 냈지만 인수할 돈은 없다면
-                            {
-                                screen.ShowTollPaid(playerId, ownerId, toll); // 통행료 이동 연출을 재생합니다.
-
-                                long acquireValue = gameData.Properties.GetAcquireValue(propertyState);
-                                Log($"  인수 불가 (인수가 {Won(acquireValue)}, 현금 {Won(player.Money)})");
-                                ProcessEndTurn();
-                                break;
-                            }
-
-                            case PropertyArrivalKind.Sell: // 통행료 납부 불가지만, 자산을 팔면 납부
-                                Log($"  현금 부족: 자산을 팔아서 통행료를 내야 합니다.");
-                                HandleSellPropertiesPrompt(playerId, ownerId, toll); // 자산 매각 선택지 UI를 표시합니다.
-                                break;
-
-                            case PropertyArrivalKind.Bankrupt: // 전부 팔아도 모자라면 파산
-                                Log($"  현금과 자산을 모두 팔아도 통행료를 낼 수 없습니다. 파산!");
-                                HandleBankruptcy(playerId, ownerId); // 재산 현금화 -> 수납자 지급 -> 파산 처리. GameState를 갱신합니다.
-                                HandleTurnChanged(GetNextPlayerId()); // 강제로 턴을 넘깁니다.
-                                break;
-                        }
+                    default: // 타인 소유의 땅인 경우 (통행료는 규칙이 이미 이체했거나, 통행료 카드를 쓸지 묻는다)
+                        HandleOthersLandArrival(playerId, propertyId, propertyArrival);
                         break;
-                    }
                 }
                 break;
         }
         
+    }
+
+    // 남의 땅에 도착한 뒤(또는 통행료 카드를 고른 뒤) 규칙이 알려 준 결과대로 연출과 다음 단계를 진행합니다. (호스트의 ProcessTollArrival과 같은 흐름)
+    private void HandleOthersLandArrival(long playerId, int propertyId, PropertyArrival propertyArrival)
+    {
+        PlayerState player = GetPlayerState(playerId);
+        PropertyState propertyState = GetPropertyState(propertyId);
+        long ownerId = propertyArrival.Owner.PlayerId;
+        long toll = propertyArrival.Toll;
+        Log($"  남의 땅: {CityName(propertyId)} (주인 {P(ownerId)}, 통행료 {Won(toll)})");
+
+        switch (propertyArrival.Kind)
+        {
+            case PropertyArrivalKind.ChooseTollCard: // 통행료 면제권·반값권을 들고 있으면 내기 전에 쓸지 묻는다
+                HandleTollCardPrompt(playerId, propertyId, toll);
+                break;
+
+            case PropertyArrivalKind.TollPaidAcquire: // 통행료 납부하고도 인수할 돈이 있다면
+            {
+                screen.ShowTollPaid(playerId, ownerId, toll); // 통행료 이동 연출을 재생합니다.
+
+                long acquireValue = gameData.Properties.GetAcquireValue(propertyState);
+                Log($"  인수 가능 (인수가 {Won(acquireValue)})");
+                HandleAcquirePropertyPrompt(playerId, propertyId, acquireValue); // 인수 선택지 UI를 표시합니다.
+                break;
+            }
+
+            case PropertyArrivalKind.TollPaidEnd: // 통행료는 냈지만 인수할 돈은 없다면
+            {
+                screen.ShowTollPaid(playerId, ownerId, toll); // 통행료 이동 연출을 재생합니다.
+
+                long acquireValue = gameData.Properties.GetAcquireValue(propertyState);
+                Log($"  인수 불가 (인수가 {Won(acquireValue)}, 현금 {Won(player.Money)})");
+                ProcessEndTurn();
+                break;
+            }
+
+            case PropertyArrivalKind.Sell: // 통행료 납부 불가지만, 자산을 팔면 납부
+                Log($"  현금 부족: 자산을 팔아서 통행료를 내야 합니다.");
+                HandleSellPropertiesPrompt(playerId, ownerId, toll); // 자산 매각 선택지 UI를 표시합니다.
+                break;
+
+            case PropertyArrivalKind.Bankrupt: // 전부 팔아도 모자라면 파산
+                Log($"  현금과 자산을 모두 팔아도 통행료를 낼 수 없습니다. 파산!");
+                HandleBankruptcy(playerId, ownerId); // 재산 현금화 -> 수납자 지급 -> 파산 처리. GameState를 갱신합니다.
+                HandleTurnChanged(GetNextPlayerId()); // 강제로 턴을 넘깁니다.
+                break;
+        }
+    }
+
+    // 통행료 카드 단계: 내 차례면 쓸지 묻는 창을 띄운다. (단계는 규칙 TradeRules.ArriveAtProperty가 이미 정했다)
+    public void HandleTollCardPrompt(long playerId, int propertyId, long toll)
+    {
+        if (IsLocalPlayerTurn()) screen.ShowTollCardChoice(playerId, toll);
+
+        // broadcast메시지 수신 대기 상태에 들어갑니다.
+        gameState.WaitingType = GameMessageType.TOLL_CARD_CHOSEN;
+    }
+
+    /// <summary>
+    /// 통행료 카드 창에서 고른 결과를 보낸다. card: TollFree 또는 TollHalf, 쓰지 않으면 null.
+    /// </summary>
+    public void ChooseTollCard(CardEffectType? card)
+    {
+        sendAndWaiting = true;
+        GameNetwork.Instance.SendChooseTollCardRequest(card);
+    }
+
+    // 호스트가 알린 통행료 카드 결과를 같은 규칙으로 적용하고 통행료를 낸다. (호스트의 HandleChooseTollCard와 같은 흐름)
+    public void HandleTollCardChosen(long playerId, CardEffectType? card)
+    {
+        HandleRoutine();
+
+        PlayerState player = GetPlayerState(playerId);
+        TileData tile = player != null ? gameData.GetTile(player.Position) : null;
+        if (player == null || tile == null || tile.Type != TileType.PROPERTY)
+        {
+            Debug.LogError($"[GameManager] 통행료 카드 처리 실패: {P(playerId)}가 땅 위에 있지 않습니다.");
+            return;
+        }
+
+        if (CardRules.UseTollCard(gameData, player, card))
+        {
+            Log($"[카드:{(card == CardEffectType.TollFree ? "통행료 면제권" : "통행료 반값권")}] {P(playerId)}: {(card == CardEffectType.TollFree ? "통행료를 내지 않습니다." : "통행료를 절반만 냅니다.")}");
+            screen.RefreshHeldCards();
+        }
+
+        HandleOthersLandArrival(playerId, tile.PropertyId, TradeRules.PayTollOnArrival(gameState, gameData, player, tile.PropertyId));
     }
     #endregion
     #endregion
@@ -875,6 +963,7 @@ public class GameManager : Singleton<GameManager>
         long amount = TradeRules.Purchase(gameData, player, property);
         screen.UpdatePropertyOwner(property);
         screen.UpdatePropertyBuilding(property);
+        screen.PlaySound(Sfx.Buy);
         Log($"[구매] {P(playerId)}: {CityName(propertyId)} 구매 (-{Won(amount)}, 남은 현금 {Won(player.Money)})");
 
         // 자산 구매 연출을 재생합니다.
@@ -901,11 +990,12 @@ public class GameManager : Singleton<GameManager>
 
     /// <summary>
     /// 화면의 '건설하기' 버튼을 누르면 이 함수가 호출됩니다.
+    /// useBuildDiscount: 건설 할인권을 쓰고 짓는다. (호스트가 들고 있을 때만 쓴다)
     /// </summary>
-    public void Build(long playerId, int propertyId, bool isAccept = true)
+    public void Build(long playerId, int propertyId, bool isAccept = true, bool useBuildDiscount = false)
     {
         sendAndWaiting = true;
-        GameNetwork.Instance.SendBuildRequest(propertyId, isAccept);
+        GameNetwork.Instance.SendBuildRequest(propertyId, isAccept, useBuildDiscount);
     }
 
     /// <summary>
@@ -916,7 +1006,7 @@ public class GameManager : Singleton<GameManager>
         Build(playerId, propertyId, false);
     }
 
-    public void HandleBuilt(long playerId, int propertyId, bool isAccept)
+    public void HandleBuilt(long playerId, int propertyId, bool isAccept, bool usedBuildDiscount)
     {
         HandleRoutine();
 
@@ -931,9 +1021,15 @@ public class GameManager : Singleton<GameManager>
         var propertyState = GetPropertyState(propertyId);
         if (playerState == null || propertyState == null) return;
 
-        // GameState를 갱신합니다. (플레이어 현금 차감, 건설 레벨 증가) 규칙(TradeRules.Build)이 합니다.
-        long amount = TradeRules.Build(gameData, playerState, propertyState);
+        // GameState를 갱신합니다. (플레이어 현금 차감, 건설 레벨 증가) 규칙(TradeRules.Build)이 합니다. 할인권을 썼으면 같은 규칙으로 할인합니다.
+        long amount = TradeRules.Build(gameData, playerState, propertyState, usedBuildDiscount);
+        if (usedBuildDiscount)
+        {
+            Log($"[카드:건설 할인권] {P(playerId)}: 건설비 {Won(amount)}만 냈습니다.");
+            screen.RefreshHeldCards();
+        }
         screen.UpdatePropertyBuilding(propertyState);
+        screen.PlaySound(Sfx.Build);
 
         // 건설 연출을 재생합니다.
         OnBuildingBuiltSuccessfully?.Invoke(playerId);
@@ -990,14 +1086,76 @@ public class GameManager : Singleton<GameManager>
         var owner = property != null && property.OwnerId.HasValue ? GetPlayerState(property.OwnerId.Value) : null; //인수당하는 사람
         if (acquirer == null || property == null || owner == null) return;
 
-        // GameState를 갱신합니다. (인수자 현금 차감, 인수당하는 사람 현금 증가, 자산 주인 갱신) 규칙(TradeRules.Acquire)이 합니다.
-        long amount = TradeRules.Acquire(gameData, acquirer, owner, property);
-        screen.UpdatePropertyOwner(property); //소유권 이전
+        // 땅 주인이 인수 방지권을 들고 있으면 인수하기 전에 주인에게 쓸지 묻습니다. (호스트와 같은 규칙)
+        if (CardRules.HasTakeoverShield(gameData, owner))
+        {
+            Log($"[인수 시도] {P(playerId)}: {CityName(propertyId)}, 주인 {P(owner.PlayerId)}이 인수 방지권을 쓸지 고릅니다.");
+            HandleTakeoverShieldPrompt(owner.PlayerId, playerId, propertyId);
+            return;
+        }
 
-        // 인수 연출을 재생합니다.
-        screen.PlayMoneyTransfer(playerId, owner.PlayerId, amount, "인수", "인수 대금");
+        FinishAcquire(acquirer, owner, property);
 
         // 턴을 종료합니다.
+        ProcessEndTurn();
+    }
+
+    // 인수를 마칩니다. GameState 갱신(인수자 현금 차감, 원래 주인 현금 증가, 주인 변경)은 규칙(TradeRules.Acquire)이 하고, 여기서는 연출을 합니다.
+    private void FinishAcquire(PlayerState acquirer, PlayerState owner, PropertyState property)
+    {
+        long amount = TradeRules.Acquire(gameData, acquirer, owner, property);
+        screen.UpdatePropertyOwner(property); //소유권 이전
+        screen.PlaySound(Sfx.Buy);
+
+        // 인수 연출을 재생합니다.
+        screen.PlayMoneyTransfer(acquirer.PlayerId, owner.PlayerId, amount, "인수", "인수 대금");
+    }
+
+    // ────────────────────────── 인수 방지권 ──────────────────────────
+    // 차례인 사람이 아니라 땅 주인에게 묻는 단계입니다. 주인의 화면에만 창이 뜹니다.
+    public void HandleTakeoverShieldPrompt(long ownerId, long acquirerId, int propertyId)
+    {
+        if (ownerId == LocalPlayer.Id) screen.ShowTakeoverShieldChoice(acquirerId, propertyId);
+
+        // broadcast메시지 수신 대기 상태에 들어갑니다.
+        gameState.WaitingType = GameMessageType.TAKEOVER_SHIELD_CHOSEN;
+    }
+
+    /// <summary>
+    /// 인수 방지권 창에서 고른 결과를 보냅니다. (땅 주인이 보냅니다)
+    /// 내 차례의 요청이 아니므로 sendAndWaiting(내 차례의 잠수 판단)은 건드리지 않습니다.
+    /// </summary>
+    public void ChooseTakeoverShield(bool use)
+    {
+        GameNetwork.Instance.SendChooseTakeoverShieldRequest(use);
+    }
+
+    // 호스트가 알린 인수 방지권 결과를 같은 규칙으로 적용합니다. 쓰면 인수가 막히고, 안 쓰면 그대로 인수합니다. 어느 쪽이든 턴이 끝납니다.
+    public void HandleTakeoverShieldChosen(long ownerId, bool used)
+    {
+        HandleRoutine();
+        screen.CloseTakeoverShieldChoice(); // 대신 진행으로 결과가 오면 주인의 화면에 남은 창을 닫는다
+
+        PlayerState acquirer = GetPlayerState(gameState.CurrentPlayerId);
+        PlayerState owner = GetPlayerState(ownerId);
+        TileData tile = acquirer != null ? gameData.GetTile(acquirer.Position) : null;
+        PropertyState property = tile != null && tile.Type == TileType.PROPERTY ? GetPropertyState(tile.PropertyId) : null;
+        if (acquirer == null || owner == null || property == null)
+        {
+            Debug.LogError($"[GameManager] 인수 방지권 처리 실패: 인수하려던 땅을 찾을 수 없습니다.");
+            return;
+        }
+
+        if (used && CardRules.UseTakeoverShield(gameData, owner))
+        {
+            Log($"[카드:인수 방지권] {P(ownerId)}: {P(acquirer.PlayerId)}의 {CityName(property.PropertyId)} 인수를 막았습니다.");
+            screen.RefreshHeldCards();
+        }
+        else
+        {
+            FinishAcquire(acquirer, owner, property);
+        }
+
         ProcessEndTurn();
     }
 
@@ -1228,6 +1386,17 @@ public class GameManager : Singleton<GameManager>
                 screen.NotifyMoneyChanged(playerId, before, player.Money);
                 Log($"[카드:수리비] {P(playerId)}: 건물 {outcome.BuildingCount}채, {Won((long)card.amount * outcome.BuildingCount)} 중 {Won(outcome.PenaltyPaid)} 납부 (현금 {Won(player.Money)})");
                 break;
+        }
+
+        // 보관형: 들었으면 플레이어 칸에 아이콘을 띄운다. 같은 종류를 이미 들고 있어 버렸으면 로그만 남긴다
+        if (outcome.Held == HeldCardResult.Kept)
+        {
+            Log($"[카드:보관] {P(playerId)}: '{card.cardName}'을(를) 들었습니다.");
+            screen.RefreshHeldCards();
+        }
+        else if (outcome.Held == HeldCardResult.Discarded)
+        {
+            Log($"[카드:보관] {P(playerId)}: '{card.cardName}'을(를) 이미 들고 있어 버렸습니다.");
         }
 
         switch (outcome.Kind)

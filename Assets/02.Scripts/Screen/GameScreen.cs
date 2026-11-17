@@ -185,6 +185,34 @@ public class GameScreen
             UIManager.Instance.ShowRollDicePopup();
     }
 
+    /// <summary>내 땅을 남이 인수하려 할 때, 인수 방지권을 쓸지 묻는다. (땅 주인의 화면)</summary>
+    public void ShowTakeoverShieldChoice(long acquirerId, int propertyId)
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.ShowTakeoverShieldChoice(acquirerId, propertyId);
+    }
+
+    /// <summary>인수 방지권 창이 떠 있으면 닫는다. (호스트가 대신 진행해 결과가 먼저 왔을 때)</summary>
+    public void CloseTakeoverShieldChoice()
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.CloseHeldCardQuestion();
+    }
+
+    /// <summary>남의 땅에 도착해 통행료를 내기 전에, 통행료 면제권·반값권을 쓸지 묻는다. toll: 카드를 쓰지 않을 때의 통행료</summary>
+    public void ShowTollCardChoice(long playerId, long toll)
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.ShowTollCardChoice(toll);
+    }
+
+    /// <summary>무인도에서 내 차례가 시작될 때, 무인도 탈출권을 쓸지 묻는 창을 띄운다. 고르면 굴리기 창이 이어서 뜬다.</summary>
+    public void ShowIslandEscapeChoice()
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.ShowIslandEscapeChoice();
+    }
+
     public void ShowChooseTollDoublePopup()
     {
         if (UIManager.Instance != null)
@@ -288,6 +316,16 @@ public class GameScreen
         if (UIManager.Instance != null)
             UIManager.Instance.PlayMoneyTransfer(payerId, receiverId, amount, payerReason, receiverReason);
     }
+
+    /// <summary>들고 있는 보관형 황금열쇠 아이콘을 모든 플레이어 칸에 맞춘다.</summary>
+    public void RefreshHeldCards()
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.RefreshHeldCards();
+    }
+
+    /// <summary>효과음을 낸다. (구매, 건설처럼 규칙이 결과를 낸 순간에 GameManager가 부른다)</summary>
+    public void PlaySound(Sfx sfx) => SoundManager.Play(sfx);
 
     public void PlayIslandEscapeFailed(long playerId, int remainingTurns)
     {

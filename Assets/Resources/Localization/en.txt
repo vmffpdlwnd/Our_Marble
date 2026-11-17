@@ -330,6 +330,18 @@
 배달 경로가 꼬여 버렸다!\n무작위 상대와 자리를 바꾼다.	Your delivery route got mixed up!\nSwap places with a random player.
 주말 대목	Weekend Rush
 주말 대목! 내 땅 하나를 골라\n다음 통행료를 2배로 받는다.	Weekend rush! Choose one of your lands.\nIts next toll is doubled.
+프리패스	Free Pass
+프리패스를 손에 넣었다!\n남의 땅 통행료를 한 번 내지 않는다.	You got a free pass!\nSkip one toll on another player's land.
+반값 쿠폰	Half-Price Coupon
+반값 쿠폰을 손에 넣었다!\n남의 땅 통행료를 한 번 절반만 낸다.	You got a half-price coupon!\nPay half of one toll on another player's land.
+구조 헬기	Rescue Chopper
+구조 헬기를 불러 두었다.\n무인도에 갇히면 바로 탈출한다.	A rescue chopper is on call.\nIf you're stuck on the island, escape at once.
+경영권 방어	Takeover Defense
+변호사와 계약했다.\n내 땅이 인수될 때 한 번 막는다.	You hired a lawyer.\nBlock one takeover of your land.
+공사 할인권	Build Coupon
+단골 건설사가 할인을 약속했다.\n건설할 때 건설비를 절반만 낸다.	Your builder promised a discount.\nPay half the cost when you build.
+성과급	Performance Bonus
+이번 분기 실적 1위!\n다음 월급을 2배로 받는다.	Top sales this quarter!\nYour next salary is doubled.
 황금열쇠 {0}	Golden Key {0}
 땅 {0}	Property {0}
 플레이어 {0}	Player {0}
@@ -467,3 +479,7 @@
 # ── 게임에서 나가기, 파산한 사람의 재접속 ──
 파산해서 이 게임에 다시 들어올 수 없어요	You went bankrupt and can't rejoin this game
 나가면 다시 들어올 수 없어요.\n로비로 돌아갈까요?	You can't come back once you leave.\nReturn to the lobby?
+{0}을(를) 쓸까요?\n통행료 <s>{1}</s> {2}	Use {0}?\nToll <s>{1}</s> {2}
+{0}을(를) 쓸까요?\n건설비 <s>{1}</s> {2}	Use {0}?\nBuild cost <s>{1}</s> {2}
+안 쓰기	Don't use
+{0}님이 {1}을(를) 인수하려고 해요.\n{2}을(를) 쓸까요?	{0} wants to take over {1}.\nUse {2}?

@@ -47,8 +47,9 @@ public class CardDrawView : UIView
     /// <summary>
     /// keepable: 보관 카드면 "보관하기", 즉시 발동이면 "확인".
     /// autoCloseSeconds > 0: 확인 버튼 없이, 카드가 뒤집힌 뒤 그 시간만큼 보여주고 스스로 닫힌 다음 onConfirm을 호출한다. (다른 플레이어가 뽑은 카드)
+    /// viewOnly: 들고 있는 카드를 다시 볼 때. 태그는 keepable대로 두고 버튼만 "확인"으로 한다.
     /// </summary>
-    public void Show(string cardName, string description, Sprite image, bool keepable, Action onConfirm, float autoCloseSeconds = 0f)
+    public void Show(string cardName, string description, Sprite image, bool keepable, Action onConfirm, float autoCloseSeconds = 0f, bool viewOnly = false)
     {
         autoCloseTween?.Kill();
         bool autoClose = autoCloseSeconds > 0f;
@@ -69,7 +70,7 @@ public class CardDrawView : UIView
             typeTagText.text = Loc.T(keepable ? "보관 가능" : "즉시 발동");
             typeTagText.color = keepable ? KeepTagText : InstantTagText;
         }
-        if (confirmLabel != null) confirmLabel.text = Loc.T(keepable ? "보관하기" : "확인");
+        if (confirmLabel != null) confirmLabel.text = Loc.T(keepable && !viewOnly ? "보관하기" : "확인");
         if (confirmButton != null) confirmButton.gameObject.SetActive(!autoClose); // 자동으로 닫히는 카드는 확인 버튼을 숨긴다
         SetOnClick(confirmButton, () => { Close(); onConfirm?.Invoke(); });
 

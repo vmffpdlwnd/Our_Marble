@@ -76,11 +76,12 @@ public class TileInfoView : UIView
 
     /// <summary>
     /// ownerName이 null이면 주인 없는 땅(칩 숨김, 현재 단계 강조 없음).
-    /// tolls: 건물·★·★★·★★★ 단계별 이용료 4개.
+    /// tolls: 건물·★·★★·★★★ 단계별 이용료 4개. (배율을 넣은 실제 금액)
+    /// baseTolls: 같은 단계의 가격표 금액. tolls와 다른 줄은 원래 금액을 취소선으로 같이 보여 준다. null이면 tolls만.
     /// specialDescription이 있으면 특수 칸(별 건설 없음): 별 단계와 이용료 표 대신 "특수 칸" 배지와 효과 설명을 보여준다.
     /// </summary>
     public void Show(string tileName, Sprite image, string ownerName, int ownerColorIndex,
-                     BuildingLevel level, long[] tolls, string specialDescription = null)
+                     BuildingLevel level, long[] tolls, string specialDescription = null, long[] baseTolls = null)
     {
         bool special = specialDescription != null;
         SetActive(stageTrackRoot, !special);
@@ -91,7 +92,7 @@ public class TileInfoView : UIView
         if (effectText != null) effectText.text = specialDescription ?? "";
         // 특수 칸은 별 단계가 없어 이용료가 하나다 (땅 단계 값)
         if (special && specialTollText != null)
-            specialTollText.text = tolls != null && tolls.Length > 0 ? UIPalette.Money(tolls[0]) : "-";
+            specialTollText.text = tolls != null && tolls.Length > 0 ? UIPalette.TollMoney(BaseOf(baseTolls, 0), tolls[0]) : "-";
 
         if (tileImage != null)
         {
@@ -114,7 +115,7 @@ public class TileInfoView : UIView
             bool isCurrent = i == current;
             SetActive(rowHighlights[i], isCurrent);
             if (tollTexts[i] == null) continue;
-            tollTexts[i].text = tolls != null && i < tolls.Length ? UIPalette.Money(tolls[i]) : "-";
+            tollTexts[i].text = tolls != null && i < tolls.Length ? UIPalette.TollMoney(BaseOf(baseTolls, i), tolls[i]) : "-";
             tollTexts[i].color = isCurrent ? UIPalette.Red : UIPalette.Ink;
             tollTexts[i].fontSize = isCurrent ? 22 : 20;
             // 현재 단계는 굵게, 나머지는 얇게
@@ -135,4 +136,7 @@ public class TileInfoView : UIView
         }
         Open();
     }
+
+    // 원래 금액이 없으면 0 (취소선 없이 금액만 보인다)
+    private static long BaseOf(long[] baseTolls, int index) => baseTolls != null && index < baseTolls.Length ? baseTolls[index] : 0;
 }

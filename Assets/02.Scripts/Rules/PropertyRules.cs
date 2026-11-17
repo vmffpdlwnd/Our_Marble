@@ -55,16 +55,23 @@ public class PropertyRules
     /// 기본 통행료 × 1.5 (같은 줄의 관광지를 이 땅 주인이 가짐) × 2 (통행료 2배 카드) = 최대 3배
     /// </summary>
     public long GetToll(PropertyState state, IReadOnlyList<PropertyState> allProperties)
+        => GetToll(state, allProperties, state.BuildingLevel);
+
+    /// <summary>
+    /// 이 땅이 level 단계라면 받을 통행료. 배율(관광지 줄 보너스, 통행료 2배)은 지금 상태 그대로 넣는다.
+    /// 땅 정보 창과 건설 창이 단계별 금액을 보여 줄 때 쓴다. (UIManager.ActualToll)
+    /// </summary>
+    public long GetToll(PropertyState state, IReadOnlyList<PropertyState> allProperties, BuildingLevel level)
     {
         if (!state.OwnerId.HasValue) return 0;
 
         var data = GetData(state.PropertyId);
         if (data == null) return 0;
 
-        long toll = data.GetToll(state.BuildingLevel);
+        long toll = data.GetToll(level);
 
-        // 관광지 줄 보너스: 같은 줄의 관광지(건설 불가 땅)를 이 땅 주인이 가지고 있으면 1.5배 (관광지 자신도 포함)
-        if (OwnsTouristInLine(state.OwnerId.Value, data.BoardIndex, allProperties))
+        // 관광지 줄 보너스: 같은 줄의 관광지(건설 불가 땅)를 이 땅 주인이 가지고 있으면 1.5배. 관광지 자신은 받지 않는다
+        if (data.CanBuild && OwnsTouristInLine(state.OwnerId.Value, data.BoardIndex, allProperties))
             toll = toll * TouristLineRateNumerator / TouristLineRateDenominator;
 
         // 통행료 2배 카드: 고른 사람이 아직 주인이면 다음 통행료 한 번이 2배 (매각, 파산 판단과 봇 계산도 같은 금액을 쓴다)

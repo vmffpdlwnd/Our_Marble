@@ -11,10 +11,14 @@ public class PlayerState
     // 무인도 탈출까지 남은 턴 수
     public int IslandTurnsRemaining { get; set; }
     
-    // 황금열쇠에서 얻어 들고 있는 카드 id (통행료 면제 등 나중에 쓸 자리. 아직 쓰지 않음)
+    // 황금열쇠에서 얻어 들고 있는 보관형 카드 id (얻은 순서대로). 종류마다 1장이고, 쓰거나 파산하면 지운다 (CardRules.HoldCard, TradeRules.MarkBankrupt)
     // GameData.CardIds(덱에 있는 카드 목록)와 구분하려고 이름을 나눴다. 주고받는 JSON 키는 그대로 둔다
     [Newtonsoft.Json.JsonProperty("CardIds")]
     public List<int> HeldCardIds { get; set; }
+
+    // 남의 땅에 도착해 쓰기로 한 통행료 카드 (통행료 면제권 TollFree 또는 반값권 TollHalf). 없으면 null.
+    // 카드를 쓴 뒤 매각을 거쳐 통행료를 낼 때도 같은 할인이 적용되도록, 통행료를 다 낼 때까지 남겨 둔다 (TradeRules.TollToPay)
+    public CardEffectType? TollCardInUse { get; set; }
 
     // 세계여행 칸에 도착해 다음 차례에 목적지를 고를 예정이면 true. 차례가 시작될 때 쓰고 지운다.
     // 칸 위치가 아니라 이 값으로 정해서, 위치 바꾸기처럼 도착 없이 세계여행 칸에 선 경우에는 세계여행을 하지 않는다

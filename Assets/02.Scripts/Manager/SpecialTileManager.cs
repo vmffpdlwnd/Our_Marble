@@ -29,6 +29,7 @@ public class SpecialTileManager : Singleton<SpecialTileManager>
 
     public void PlayIslandArrived(long playerId)
     {
+        SoundManager.Play(Sfx.Island);
         // TODO: 무인도 도착 연출
     }
 

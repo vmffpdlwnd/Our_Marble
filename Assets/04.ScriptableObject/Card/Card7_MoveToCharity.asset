@@ -17,7 +17,7 @@ MonoBehaviour:
   description: "\uCC29\uD55C \uAC00\uAC8C\uB85C \uBF51\uD600 \uD6C4\uC6D0\uAE08\uC774
     \uBAA8\uC600\uB2E4\uACE0 \uD55C\uB2E4.\n\uAE30\uBD80\uAE08 \uC218\uB839 \uCE78\uC73C\uB85C
     \uC774\uB3D9\uD55C\uB2E4."
-  icon: {fileID: 21300000, guid: ecfd30677295e32448e58964581cf14d, type: 3}
+  icon: {fileID: 21300000, guid: efc41caf5de64645bedae24680874e38, type: 3}
   effectType: 2
   amount: 0
   targetTileType: 5

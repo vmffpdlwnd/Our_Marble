@@ -33,6 +33,15 @@ public class HostGameService : IHostRequestReceiver
 
     private bool started; // 첫 GAME_STATE_REQUEST를 받아 첫 차례를 시작했는지
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>[개발용] F1 창에서 고른 다음 황금열쇠 카드 id. 0이면 무작위. 한 번 뽑으면 0으로 돌아간다. (이 PC가 호스트일 때만 의미가 있다)</summary>
+    public static int DebugNextCardId;
+
+    /// <summary>[개발용] F1 창에서 고른 다음 주사위 두 개. 0이면 무작위. 한 번 굴리면 0으로 돌아간다. DebugKeepDice면 지울 때까지 계속 쓴다. (이 PC가 호스트일 때만)</summary>
+    public static int DebugDice1, DebugDice2;
+    public static bool DebugKeepDice;
+#endif
+
     // ───────────── 이 PC의 게임 호스트 ─────────────
 
     private static HostGameService current;
@@ -124,7 +133,16 @@ public class HostGameService : IHostRequestReceiver
 
     // 에디터에서 도메인 리로드 없이 플레이를 다시 시작해도 이전 플레이의 게임이 남지 않게 한다
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => current = null;
+    private static void ResetStatics()
+    {
+        current = null;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // 도메인 리로드 없이 플레이를 다시 시작해도 지난 플레이의 개발용 지정이 남지 않게 한다
+        DebugNextCardId = 0;
+        DebugDice1 = DebugDice2 = 0;
+        DebugKeepDice = false;
+#endif
+    }
 
     // 이 PC에서 플레이하는 사람에게만 전달한다. (봇은 받을 필요가 없다)
     // 서버가 답하던 때처럼 한 프레임 뒤에 전달한다. 게임 씬이 열리는 순간에 바로 전달하면, 씬의 오브젝트들이 Start를 마치기 전에
@@ -240,7 +258,7 @@ public class HostGameService : IHostRequestReceiver
         switch (type)
         {
             case "GAME_STATE_REQUEST": HandleGameStateRequest(senderId); break;
-            case "ROLL_DICE": HandleRollDice(senderId); break;
+            case "ROLL_DICE": HandleRollDice(senderId, JsonConvert.DeserializeObject<RollDiceRequest>(json).useIslandEscape); break;
             case "PURCHASE_PROPERTY": HandlePurchaseProperty(senderId, JsonConvert.DeserializeObject<PropertyDecisionRequest>(json)); break;
             case "BUILD": HandleBuild(senderId, JsonConvert.DeserializeObject<PropertyDecisionRequest>(json)); break;
             case "ACQUIRE_PROPERTY": HandleAcquireProperty(senderId, JsonConvert.DeserializeObject<PropertyDecisionRequest>(json)); break;
@@ -248,6 +266,8 @@ public class HostGameService : IHostRequestReceiver
             case "DRAW_CARD": HandleDrawCard(senderId); break;
             case "CHOOSE_DESTINATION": HandleChooseDestination(senderId, JsonConvert.DeserializeObject<ChooseDestinationRequest>(json)); break;
             case "CHOOSE_TOLL_DOUBLE": HandleChooseTollDouble(senderId, JsonConvert.DeserializeObject<ChooseTollDoubleRequest>(json)); break;
+            case "CHOOSE_TOLL_CARD": HandleChooseTollCard(senderId, JsonConvert.DeserializeObject<ChooseTollCardRequest>(json)); break;
+            case "CHOOSE_TAKEOVER_SHIELD": HandleChooseTakeoverShield(senderId, JsonConvert.DeserializeObject<ChooseTakeoverShieldRequest>(json)); break;
             case "DECLARE_BANKRUPTCY": HandleDeclareBankruptcy(senderId); break;
 
             default:
@@ -345,17 +365,30 @@ public class HostGameService : IHostRequestReceiver
     #region 진행: 주사위, 이동, 도착, 턴 전환, 카드, 세계여행, 종료
     // ───────────── 요청 처리 ─────────────
 
-    private void HandleRollDice(long senderId)
+    // useIslandEscape: 굴리기 전에 무인도 탈출권을 쓴다. 쓸 수 없는 상태면(카드가 없거나 영업정지가 아님) 쓰지 않고 그냥 굴린다
+    private void HandleRollDice(long senderId, bool useIslandEscape = false)
     {
         if (!Validate(senderId, GameMessageType.DICE_ROLLED, out PlayerState player)) return;
 
+        bool usedIslandEscape = useIslandEscape && CardRules.UseIslandEscape(gameData, player);
+        if (usedIslandEscape) Debug.Log($"[HostGameService] 무인도 탈출권 사용: {player.Nickname}");
+
         int dice1 = random.Next(1, 7);
         int dice2 = random.Next(1, 7);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // F1 창에서 주사위를 정해 두었으면 그 눈으로 굴린다. (봇이 굴려도 적용된다)
+        if (DebugDice1 >= 1 && DebugDice1 <= 6 && DebugDice2 >= 1 && DebugDice2 <= 6)
+        {
+            dice1 = DebugDice1;
+            dice2 = DebugDice2;
+            if (!DebugKeepDice) DebugDice1 = DebugDice2 = 0;
+        }
+#endif
         Debug.Log($"[HostGameService] 주사위: {player.Nickname} {dice1}+{dice2}{(dice1 == dice2 ? " (더블)" : "")}");
 
         // 요청 하나가 흐름을 다음 입력 단계까지 끝까지 처리한다. 그 사이에는 입력을 받지 않는다.
         state.WaitingType = null;
-        Broadcast(GameMessageType.DICE_ROLLED, new DiceRolledBroadcast { playerId = senderId, dice1 = dice1, dice2 = dice2 });
+        Broadcast(GameMessageType.DICE_ROLLED, new DiceRolledBroadcast { playerId = senderId, dice1 = dice1, dice2 = dice2, usedIslandEscape = usedIslandEscape });
 
         ApplyDiceResult(player, dice1, dice2);
     }
@@ -373,6 +406,11 @@ public class HostGameService : IHostRequestReceiver
         if (cardIds != null && cardIds.Count > 0)
         {
             cardId = cardIds[random.Next(cardIds.Count)];
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // F1 창에서 다음 카드를 지정했으면 그 카드를 뽑는다. (봇이 뽑아도 적용된다)
+            if (DebugNextCardId != 0 && gameData.FindCard(DebugNextCardId) != null) cardId = DebugNextCardId;
+            DebugNextCardId = 0;
+#endif
             card = gameData.FindCard(cardId);
         }
 
@@ -483,7 +521,7 @@ public class HostGameService : IHostRequestReceiver
     // GameManager.HandlePlayerMoved
     private void MovePlayer(PlayerState player, int to, bool shouldReceiveSalary)
     {
-        long salary = GameRules.MoveTo(state, player, to, shouldReceiveSalary);
+        long salary = GameRules.MoveTo(state, gameData, player, to, shouldReceiveSalary);
 
         if (shouldReceiveSalary)
             Debug.Log($"[HostGameService] 월급: {player.Nickname} +{salary} (현금 {player.Money})");
@@ -494,7 +532,7 @@ public class HostGameService : IHostRequestReceiver
     // GameManager.MovePlayerDirectly (월급 없는 순간이동)
     private void MovePlayerDirectly(PlayerState player, int to)
     {
-        GameRules.MoveTo(state, player, to, false);
+        GameRules.MoveTo(state, gameData, player, to, false);
         ProcessArrival(player, to);
     }
 
@@ -564,6 +602,9 @@ public class HostGameService : IHostRequestReceiver
 
         if (card.effectType == CardEffectType.CollectFromAll || card.effectType == CardEffectType.PayToAll)
             Debug.Log($"[HostGameService] 카드 {card.effectType}: {player.Nickname} 합계 {outcome.Transferred} (현금 {player.Money})");
+
+        if (outcome.Held != HeldCardResult.None)
+            Debug.Log($"[HostGameService] 보관형 {card.effectType}: {player.Nickname} {(outcome.Held == HeldCardResult.Kept ? "들기" : "같은 종류가 있어 버림")} (들고 있는 카드 {player.HeldCardIds.Count}장)");
 
         switch (outcome.Problem)
         {
@@ -695,15 +736,18 @@ public class HostGameService : IHostRequestReceiver
         PropertyState property = GetProperty(request.propertyId);
 
         // 8. 기능별 검증. 거절은 확인할 것이 없다. (건설할 수 없는 땅에서도 거절은 보낼 수 있다)
-        if (RejectTrade(senderId, TradeRules.CheckBuild(gameData, player, property, request.isAccept))) return;
+        // 건설 할인권은 들고 있을 때만 쓴다 (없으면 할인 없이 확인하고 짓는다)
+        bool useDiscount = request.isAccept && request.useBuildDiscount && CardRules.BuildDiscountPercent(gameData, player) > 0;
+        if (RejectTrade(senderId, TradeRules.CheckBuild(gameData, player, property, request.isAccept, useDiscount))) return;
 
         state.WaitingType = null;
         Broadcast(GameMessageType.BUILT,
-            new BuiltBroadcast { playerId = senderId, propertyId = request.propertyId, isAccept = request.isAccept });
+            new BuiltBroadcast { playerId = senderId, propertyId = request.propertyId, isAccept = request.isAccept, usedBuildDiscount = useDiscount });
 
         if (request.isAccept)
         {
-            long cost = TradeRules.Build(gameData, player, property);
+            long cost = TradeRules.Build(gameData, player, property, useDiscount);
+            if (useDiscount) Debug.Log($"[HostGameService] 건설 할인권 사용: {player.Nickname}");
             Debug.Log($"[HostGameService] 건설: {player.Nickname} {request.propertyId}번 땅 → {property.BuildingLevel} (-{cost}, 현금 {player.Money})");
         }
         else
@@ -733,8 +777,16 @@ public class HostGameService : IHostRequestReceiver
         if (request.isAccept)
         {
             PlayerState owner = GetPlayer(property.OwnerId.Value);
-            long amount = TradeRules.Acquire(gameData, player, owner, property);
-            Debug.Log($"[HostGameService] 인수: {player.Nickname} {request.propertyId}번 땅 ← {owner.Nickname} (-{amount}, 현금 {player.Money})");
+
+            // 땅 주인이 인수 방지권을 들고 있으면 인수하기 전에 주인에게 쓸지 묻는다 (받은 쪽도 같은 규칙으로 이 단계에 들어간다)
+            if (CardRules.HasTakeoverShield(gameData, owner))
+            {
+                state.WaitingType = GameMessageType.TAKEOVER_SHIELD_CHOSEN;
+                Debug.Log($"[HostGameService] 인수 시도: {player.Nickname} {request.propertyId}번 땅, 주인 {owner.Nickname}이 인수 방지권을 쓸지 기다립니다.");
+                return;
+            }
+
+            Acquire(player, owner, property);
         }
         else
         {
@@ -742,6 +794,52 @@ public class HostGameService : IHostRequestReceiver
         }
 
         ProcessEndTurn();
+    }
+
+    private void Acquire(PlayerState acquirer, PlayerState owner, PropertyState property)
+    {
+        long amount = TradeRules.Acquire(gameData, acquirer, owner, property);
+        Debug.Log($"[HostGameService] 인수: {acquirer.Nickname} {property.PropertyId}번 땅 ← {owner.Nickname} (-{amount}, 현금 {acquirer.Money})");
+    }
+
+    // GameManager.HandleTakeoverShieldChosen
+    // 인수 방지권 단계(TAKEOVER_SHIELD_CHOSEN)에서 땅 주인의 선택을 받는다. 차례인 사람이 아니라 땅 주인만 보낼 수 있다.
+    // 쓰면 인수가 막혀 턴이 끝나고(인수하려던 사람은 통행료만 낸 상태), 안 쓰면 그대로 인수한다.
+    private void HandleChooseTakeoverShield(long senderId, ChooseTakeoverShieldRequest request)
+    {
+        if (!ValidateTakeoverShield(senderId, out PlayerState owner, out PlayerState acquirer, out PropertyState property)) return;
+
+        bool used = request.use && CardRules.UseTakeoverShield(gameData, owner);
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.TAKEOVER_SHIELD_CHOSEN, new TakeoverShieldChosenBroadcast { playerId = senderId, used = used });
+
+        if (used) Debug.Log($"[HostGameService] 인수 방지권 사용: {owner.Nickname}이 {acquirer.Nickname}의 인수를 막았습니다.");
+        else Acquire(acquirer, owner, property);
+
+        ProcessEndTurn();
+    }
+
+    // 인수 방지권 단계의 요청 확인. 차례인 사람(인수하려는 사람)이 서 있는 땅의 주인만 보낼 수 있다
+    private bool ValidateTakeoverShield(long senderId, out PlayerState owner, out PlayerState acquirer, out PropertyState property)
+    {
+        owner = GetPlayer(senderId);
+        acquirer = GetPlayer(state.CurrentPlayerId);
+        property = WaitingShieldProperty();
+
+        if (state.IsGameOver) { SendError(senderId, "GAME_OVER", "이미 끝난 게임이에요"); return false; }
+        if (owner == null) { SendError(senderId, "NOT_IN_GAME", "이 게임의 참가자가 아니에요"); return false; }
+        if (state.WaitingType != GameMessageType.TAKEOVER_SHIELD_CHOSEN) { SendError(senderId, "INVALID_PHASE", "지금은 보낼 수 없는 요청이에요"); return false; }
+        if (acquirer == null || property == null || property.OwnerId != senderId) { SendError(senderId, "NOT_OWNER", "내 땅이 아니에요"); return false; }
+        return true;
+    }
+
+    // 인수 방지권 단계에서 인수하려는 땅 (차례인 사람이 서 있는 땅). 없으면 null
+    private PropertyState WaitingShieldProperty()
+    {
+        PlayerState acquirer = GetPlayer(state.CurrentPlayerId);
+        TileData tile = acquirer != null ? BoardManager.Instance.GetTileData(acquirer.Position) : null;
+        return tile != null && tile.Type == TileType.PROPERTY ? GetProperty(tile.PropertyId) : null;
     }
 
     // GameManager.HandlePropertiesSold
@@ -806,11 +904,43 @@ public class HostGameService : IHostRequestReceiver
                 return; // 구매 또는 건설 요청을 기다린다
         }
 
-        // 남의 땅
+        ProcessTollArrival(player, propertyId, arrival);
+    }
+
+    // GameManager.HandleTollCardChosen
+    // 남의 땅에서 통행료 카드 단계(TOLL_CARD_CHOSEN)에 있을 때, 쓸 카드(또는 안 씀)를 받고 통행료를 낸다.
+    // 쓸 수 없는 카드를 보내면(들고 있지 않음) 쓰지 않은 것으로 보고 그대로 낸다. (턴이 멈추지 않게)
+    private void HandleChooseTollCard(long senderId, ChooseTollCardRequest request)
+    {
+        if (!Validate(senderId, GameMessageType.TOLL_CARD_CHOSEN, out PlayerState player)) return;
+
+        TileData tile = BoardManager.Instance.GetTileData(player.Position);
+        PropertyState landed = tile != null && tile.Type == TileType.PROPERTY ? GetProperty(tile.PropertyId) : null;
+        if (landed == null || !landed.OwnerId.HasValue || landed.OwnerId.Value == senderId)
+        {
+            SendError(senderId, "NOT_ON_PROPERTY", "통행료를 낼 땅 위에 있지 않아요");
+            return;
+        }
+
+        bool used = CardRules.UseTollCard(gameData, player, request.card);
+        if (used) Debug.Log($"[HostGameService] 통행료 카드 사용: {player.Nickname} {request.card}");
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.TOLL_CARD_CHOSEN, new TollCardChosenBroadcast { playerId = senderId, card = used ? request.card : null });
+
+        ProcessTollArrival(player, landed.PropertyId, TradeRules.PayTollOnArrival(state, gameData, player, landed.PropertyId));
+    }
+
+    // 남의 땅에 도착한 뒤(또는 통행료 카드를 고른 뒤) 규칙이 알려 준 결과대로 이어서 진행한다
+    private void ProcessTollArrival(PlayerState player, int propertyId, PropertyArrival arrival)
+    {
         Debug.Log($"[HostGameService] 남의 땅: {propertyId}번 (주인 {arrival.Owner.Nickname}, 통행료 {arrival.Toll})");
 
         switch (arrival.Kind)
         {
+            case PropertyArrivalKind.ChooseTollCard:
+                break; // 통행료 카드를 쓸지 고르기를 기다린다
+
             case PropertyArrivalKind.TollPaidAcquire:
                 Debug.Log($"[HostGameService] 통행료: {player.Nickname} → {arrival.Owner.Nickname} {arrival.Toll}");
                 break; // 인수 요청을 기다린다
@@ -916,7 +1046,15 @@ public class HostGameService : IHostRequestReceiver
     {
         if (!started || state.IsGameOver || state.WaitingType == null) return;
 
-        PlayerState actor = GetPlayer(state.CurrentPlayerId);
+        // 인수 방지권 단계에서는 차례인 사람이 아니라 땅 주인의 입력을 기다린다 (봇이거나 AFK이면 주인 기준으로 대신 진행)
+        long waitingFor = state.CurrentPlayerId;
+        if (state.WaitingType == GameMessageType.TAKEOVER_SHIELD_CHOSEN)
+        {
+            PropertyState shieldProperty = WaitingShieldProperty();
+            if (shieldProperty != null && shieldProperty.OwnerId.HasValue) waitingFor = shieldProperty.OwnerId.Value;
+        }
+
+        PlayerState actor = GetPlayer(waitingFor);
         if (actor == null || actor.IsBankrupt) return;
 
         // 새 입력 단계가 시작되면 기다린 시간을 0부터 센다
@@ -959,8 +1097,8 @@ public class HostGameService : IHostRequestReceiver
 
         switch (state.WaitingType)
         {
-            case GameMessageType.DICE_ROLLED:
-                HandleRollDice(id);
+            case GameMessageType.DICE_ROLLED: // 봇과 AFK는 무인도 탈출권을 들고 있으면 항상 쓴다
+                HandleRollDice(id, CardRules.CanUseIslandEscape(gameData, actor));
                 break;
 
             case GameMessageType.DESTINATION_CHOSEN:
@@ -976,8 +1114,20 @@ public class HostGameService : IHostRequestReceiver
                 HandlePurchaseProperty(id, Decision("PURCHASE_PROPERTY", propertyId, WantsToPurchase(actor, propertyId)));
                 break;
 
-            case GameMessageType.BUILT:
-                HandleBuild(id, Decision("BUILD", propertyId, WantsToBuild(actor, propertyId)));
+            case GameMessageType.BUILT: // 건설 할인권을 들고 있으면 항상 쓴다
+            {
+                PropertyDecisionRequest build = Decision("BUILD", propertyId, WantsToBuild(actor, propertyId));
+                build.useBuildDiscount = CardRules.BuildDiscountPercent(gameData, actor) > 0;
+                HandleBuild(id, build);
+                break;
+            }
+
+            case GameMessageType.TAKEOVER_SHIELD_CHOSEN: // 땅 주인(봇, AFK)은 인수 방지권을 항상 쓴다
+                HandleChooseTakeoverShield(id, new ChooseTakeoverShieldRequest { type = "CHOOSE_TAKEOVER_SHIELD", use = true });
+                break;
+
+            case GameMessageType.TOLL_CARD_CHOSEN: // 면제권을 먼저, 없으면 반값권을 쓴다
+                HandleChooseTollCard(id, new ChooseTollCardRequest { type = "CHOOSE_TOLL_CARD", card = CardRules.PickTollCard(gameData, actor) });
                 break;
 
             case GameMessageType.PROPERTY_ACQUIRED:
@@ -1019,6 +1169,7 @@ public class HostGameService : IHostRequestReceiver
         if (property.OwnerId != actor.PlayerId || property.BuildingLevel >= BuildingLevel.Hotel) return false;
 
         long cost = PropertyManager.Instance.GetBuildCost(propertyId, property.BuildingLevel + 1);
+        cost = CardRules.DiscountedBuildCost(cost, CardRules.BuildDiscountPercent(gameData, actor)); // 할인권이 있으면 할인한 금액으로 판단한다
         return actor.Money >= cost && Strategy.ShouldBuild(state, actor.PlayerId, propertyId, cost);
     }
 

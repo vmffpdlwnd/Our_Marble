@@ -19,6 +19,7 @@ public enum SelectionKind
     Sell,              // 매각
     Destination,       // 세계여행 목적지
     IslandEscape,      // 무인도 탈출 방법
+    HeldCard,          // 보관형 황금열쇠를 쓸지 (통행료 카드, 건설 할인권)
 }
 
 public class UIManager : MonoBehaviour
@@ -175,6 +176,7 @@ public class UIManager : MonoBehaviour
             view.SetBankrupt(player.IsBankrupt); // 새로 파산했으면 도장 연출
         }
         UpdateRanks(); // 등수가 달라진 카드만 뒤집힌다
+        RefreshHeldCards(); // 들고 있는 황금열쇠 아이콘
 
         // 차례: 화면에 강조된 카드와 서버의 현재 차례가 다르면 차례 표시를 바꾼다
         int turnIndex = IndexOf(state.CurrentPlayerId);
@@ -361,19 +363,57 @@ public class UIManager : MonoBehaviour
     // 주사위 굴리기 버튼이 있는 창을 띄워주는 함수입니다.
     // 굴리기 버튼을 누르면 GameManager.RollDice() 를 호출합니다.
     // 현재 차례 플레이어가 무인도에 갇혀 있으면 남은 턴도 함께 보여줍니다.
-    public void ShowRollDicePopup()
+    // useIslandEscape: 무인도 탈출권을 쓰기로 골랐으면 true. 남은 영업정지 턴을 보여 주지 않고, 굴릴 때 카드를 쓰겠다고 함께 보낸다
+    public void ShowRollDicePopup(bool useIslandEscape = false)
     {
         if (diceRoll == null) return;
 
         PlayerState player = CurrentPlayer;
-        int islandTurns = player != null ? player.IslandTurnsRemaining : 0;
+        int islandTurns = player != null && !useIslandEscape ? player.IslandTurnsRemaining : 0;
         diceRoll.Show(power =>
         {
             // 버튼을 누르는 즉시 결과를 요청하고, 결과(ShowDiceResult)가 올 때까지 주사위는 구르는 상태로 둡니다.
             // 나중에는 Game.RollDice() 대신 서버 요청을 보내고, 응답을 받을 때 ShowDiceResult를 부르면 됩니다.
             if (diceResult != null) diceResult.StartRolling();
-            if (Game != null) Game.RollDice();
+            if (Game != null) Game.RollDice(useIslandEscape);
         }, islandTurns);
+    }
+
+    // 무인도에서 내 차례가 시작될 때 무인도 탈출권을 쓸지 묻는다. (GameManager.HandleRollDicePrompt)
+    // "주사위 더블"을 고르면 평소처럼 더블을 노리고, "카드 사용"을 고르면 굴릴 때 카드를 쓴다.
+    // 이 창과 이어지는 굴리기 창은 제한시간 하나를 나눠 쓴다. (호스트는 차례 하나를 한 번만 기다리므로, 굴리기 창이 시간을 새로 받으면 호스트가 먼저 움직인다)
+    // 시간이 지나 이 창이 닫히면 아무것도 보내지 않고, 호스트가 대신 진행한다. (대신 진행은 카드를 쓴다)
+    public void ShowIslandEscapeChoice()
+    {
+        if (islandEscape == null) { ShowRollDicePopup(); return; }
+
+        PlayerState player = CurrentPlayer;
+        CardData card = FindHeldCard(player, CardEffectType.IslandEscape);
+        if (card == null) { ShowRollDicePopup(); return; }
+
+        int turns = Mathf.Max(1, player.IslandTurnsRemaining);
+        islandEscape.ShowHeldCardChoice(turns, Loc.T(card.cardName),
+            () => ContinueToRoll(false),
+            () => ContinueToRoll(true));
+    }
+
+    // 플레이어가 들고 있는 이 종류의 보관형 카드. 없으면 null (카드 데이터는 덱에서 찾는다)
+    private CardData FindHeldCard(PlayerState player, CardEffectType type)
+    {
+        if (player == null || player.HeldCardIds == null || cardDeck == null) return null;
+        foreach (int id in player.HeldCardIds)
+        {
+            CardData card = cardDeck.FindById(id);
+            if (card != null && card.effectType == type) return card;
+        }
+        return null;
+    }
+
+    // 무인도 탈출 창에서 고른 뒤 굴리기 창을 띄운다. 남은 제한시간을 굴리기 창이 이어받는다
+    private void ContinueToRoll(bool useIslandEscape)
+    {
+        carryTimerRemaining = timerWindow == islandEscape ? timerRemaining : -1f;
+        ShowRollDicePopup(useIslandEscape);
     }
 
     // 빈 땅을 사거나 사지 않는 버튼이 있는 창을 띄워주는 함수입니다.
@@ -464,7 +504,8 @@ public class UIManager : MonoBehaviour
                 new PurchasePopupView.Option
                 {
                     TargetLevel = BuildingLevel.Land,
-                    Toll = data.GetToll(state.BuildingLevel),
+                    Toll = ActualToll(data, state, state.BuildingLevel), // 관광지는 줄 보너스를 받지 않지만, 통행료 2배는 받는다
+                    BaseToll = data.GetToll(state.BuildingLevel),
                     Locked = true,
                     LockReason = "보유 중",
                     ShowInfoWhenNone = true,
@@ -484,7 +525,7 @@ public class UIManager : MonoBehaviour
         for (int i = (int)BuildingLevel.Land; i <= (int)BuildingLevel.Hotel; i++)
         {
             var level = (BuildingLevel)i;
-            var option = new PurchasePopupView.Option { TargetLevel = level, Toll = data.GetToll(level) };
+            var option = new PurchasePopupView.Option { TargetLevel = level, Toll = ActualToll(data, state, level), BaseToll = data.GetToll(level) };
 
             if (i <= current)
             {
@@ -504,6 +545,13 @@ public class UIManager : MonoBehaviour
                 pending += data.GetBuildCost(level);
                 option.Cost = pending;
 
+                // 할인 없이는 모자라고 건설 할인권으로만 지을 수 있으면, 다음 단계 건설비를 할인한 금액으로 보여 준다 (ConfirmBuild가 묻지 않고 쓴다)
+                if (i == current + 1 && player != null && player.Money < pending)
+                {
+                    CardData discount = FindHeldCard(player, CardEffectType.BuildDiscount);
+                    if (discount != null) option.Cost = CardRules.DiscountedBuildCost(pending, discount.amount);
+                }
+
                 if (i > current + 1)
                 {
                     option.Locked = true;
@@ -520,9 +568,102 @@ public class UIManager : MonoBehaviour
         }
 
         purchase.Show(TileName(propertyId), TileImageOf(propertyId), options, player != null ? player.Money : 0,
-            level => { if (Game != null) Game.Build(playerId, propertyId); },
+            level => ConfirmBuild(playerId, propertyId),
             () => { if (Game != null) Game.DeclineBuild(playerId, propertyId); },
             OwnerLabel(state));
+    }
+
+    // 건설 창에서 건설을 눌렀을 때. 건설 할인권을 들고 있으면 쓸지 묻는다.
+    // 할인 없이는 돈이 모자라면(할인해야만 지을 수 있으면) 묻지 않고 쓴다.
+    private void ConfirmBuild(long playerId, int propertyId)
+    {
+        if (Game == null) return;
+
+        PlayerState player = GetPlayer(playerId);
+        PropertyState state = GetProperty(propertyId);
+        CardData card = FindHeldCard(player, CardEffectType.BuildDiscount);
+        if (card == null || state == null || exitConfirm == null)
+        {
+            Game.Build(playerId, propertyId);
+            return;
+        }
+
+        long cost = PropertyManager.Instance.GetBuildCost(propertyId, state.BuildingLevel + 1);
+        long discounted = CardRules.DiscountedBuildCost(cost, card.amount);
+        if (player.Money < cost)
+        {
+            Game.Build(playerId, propertyId, true, true);
+            return;
+        }
+
+        AskUseHeldCard("{0}을(를) 쓸까요?\n건설비 <s>{1}</s> {2}",
+            new object[] { Loc.T(card.cardName), UIPalette.Money(cost), UIPalette.Money(discounted) },
+            () => Game.Build(playerId, propertyId, true, true),
+            () => Game.Build(playerId, propertyId, true, false));
+    }
+
+    // 남의 땅에 도착해 통행료를 내기 전에 통행료 카드를 쓸지 묻는다. (GameManager.HandleTollCardPrompt)
+    // 면제권과 반값권을 둘 다 들고 있으면 면제권부터 묻고, 안 쓰면 반값권을 묻는다. (둘 다 안 쓰면 그대로 낸다)
+    public void ShowTollCardChoice(long toll)
+    {
+        if (Game == null) return;
+
+        PlayerState player = CurrentPlayer;
+        CardData free = FindHeldCard(player, CardEffectType.TollFree);
+        CardData half = FindHeldCard(player, CardEffectType.TollHalf);
+        if (exitConfirm == null || (free == null && half == null))
+        {
+            Game.ChooseTollCard(null);
+            return;
+        }
+
+        const string message = "{0}을(를) 쓸까요?\n통행료 <s>{1}</s> {2}";
+        Action askHalf = () => AskUseHeldCard(message,
+            new object[] { Loc.T(half.cardName), UIPalette.Money(toll), UIPalette.Money(CardRules.ApplyTollCard(toll, CardEffectType.TollHalf)) },
+            () => Game.ChooseTollCard(CardEffectType.TollHalf),
+            () => Game.ChooseTollCard(null));
+
+        if (free == null) { askHalf(); return; }
+
+        AskUseHeldCard(message,
+            new object[] { Loc.T(free.cardName), UIPalette.Money(toll), UIPalette.Money(0) },
+            () => Game.ChooseTollCard(CardEffectType.TollFree),
+            half != null ? askHalf : () => Game.ChooseTollCard(null));
+    }
+
+    // 내 땅을 남이 인수하려 할 때 인수 방지권을 쓸지 묻는다. (GameManager.HandleTakeoverShieldPrompt, 땅 주인의 화면)
+    public void ShowTakeoverShieldChoice(long acquirerId, int propertyId)
+    {
+        if (Game == null) return;
+
+        CardData card = FindHeldCard(GetPlayer(LocalPlayerId), CardEffectType.TakeoverShield);
+        if (exitConfirm == null || card == null)
+        {
+            Game.ChooseTakeoverShield(false);
+            return;
+        }
+
+        AskUseHeldCard("{0}님이 {1}을(를) 인수하려고 해요.\n{2}을(를) 쓸까요?",
+            new object[] { NameOf(acquirerId), TileName(propertyId), Loc.T(card.cardName) },
+            () => Game.ChooseTakeoverShield(true),
+            () => Game.ChooseTakeoverShield(false));
+    }
+
+    /// <summary>보관형 카드를 묻는 창이 떠 있으면 시간 종료 처리 없이 닫는다.</summary>
+    public void CloseHeldCardQuestion()
+    {
+        if (exitConfirm == null || timerWindow != exitConfirm || timerKind != SelectionKind.HeldCard) return;
+        StopSelectionTimer();
+        exitConfirm.Close();
+    }
+
+    // 보관형 카드를 쓸지 묻는 창 (확인 창을 같이 쓴다). 바로 앞 창(건설 창, 앞의 카드 질문)의 남은 제한시간을 이어받는다.
+    // 시간이 지나면 창이 닫히고 아무것도 보내지 않는다. 호스트가 대신 진행하고, 대신 진행은 카드를 쓴다.
+    private void AskUseHeldCard(string message, object[] args, Action onUse, Action onSkip)
+    {
+        carryTimerRemaining = timerWindow != null ? timerRemaining : -1f;
+        exitConfirm.Show(onUse, message, "카드 사용", "안 쓰기", onSkip, args);
+        BeginSelectionTimer(exitConfirm, SelectionKind.HeldCard);
     }
 
     // 특수 칸(별 건설 없음)의 효과 설명. PropertyEffectDescription이 없거나 비어 있으면 기본 안내
@@ -599,6 +740,7 @@ public class UIManager : MonoBehaviour
     {
         TileData tile = BoardManager.Instance.GetTileData(tileIndex);
         if (tile == null || tile.Type != TileType.PROPERTY) return;
+        SoundManager.Play(Sfx.TileClick);
         ShowTileInfoPopup(tile.PropertyId);
     }
 
@@ -725,9 +867,16 @@ public class UIManager : MonoBehaviour
         SetTurn(index, NameOf(playerId), PortraitOf(playerId));
         if (topBar != null) topBar.SetRound(DisplayRound(), maxRound);
         if (playerId != LocalPlayerId && diceRoll != null) diceRoll.SetInteractable(false);
+
+        // 내 차례가 새로 시작될 때만 알림 소리 (화면 동기화로 같은 차례를 다시 표시할 때는 내지 않는다)
+        if (playerId == LocalPlayerId && lastTurnPlayerId != playerId) SoundManager.Play(Sfx.TurnStart);
+        lastTurnPlayerId = playerId;
+
         // 다른 사람 차례가 되면 내 제한시간은 끝난다. (내 차례를 다시 표시하는 경우, 예: 화면 동기화는 진행 중인 제한시간을 끊지 않는다)
         if (playerId != LocalPlayerId) StopSelectionTimer();
     }
+
+    private long lastTurnPlayerId; // 마지막으로 차례를 표시한 사람 (차례 알림 소리를 한 번만 내기 위해)
 
     // 호스트가 내 요청을 거절했을 때 부릅니다. 결과를 기다리며 구르던 주사위를 멈춥니다.
     public void CancelDiceRolling() { if (diceResult != null) diceResult.CancelRolling(); }
@@ -746,6 +895,7 @@ public class UIManager : MonoBehaviour
         }
 
         bool mine = State != null && State.CurrentPlayerId == LocalPlayerId;
+        SoundManager.Play(Sfx.Dice);
         diceResult.Show(dice1, dice2, () =>
         {
             if (mine && diceRoll != null) diceRoll.ResolveIslandRoll(dice1 == dice2);
@@ -873,6 +1023,49 @@ public class UIManager : MonoBehaviour
             view.SetBankrupt(player.IsBankrupt, animate);
         }
         UpdateRanks();
+        RefreshHeldCards(); // 파산하면 들고 있던 카드가 사라진다
+    }
+
+    /// <summary>
+    /// 모든 플레이어 칸의 보관형 황금열쇠 아이콘을 GameState(HeldCardIds)에 맞춘다. 얻은 순서대로 보인다.
+    /// 아이콘은 카드 에셋의 icon이고, 덱(cardDeck)에서 id로 찾는다. 찾지 못한 카드는 건너뛴다.
+    /// 아이콘을 누르면 ShowHeldCardPopup으로 카드를 크게 보여 준다.
+    /// </summary>
+    public void RefreshHeldCards()
+    {
+        GameState state = State;
+        if (state == null) return;
+
+        var cards = new List<CardData>();
+        for (int i = 0; i < state.PlayerStates.Count; i++)
+        {
+            PlayerInfoView view = GetPlayerInfo(i);
+            if (view == null) continue;
+
+            cards.Clear();
+            List<int> held = state.PlayerStates[i].HeldCardIds;
+            if (held != null)
+            {
+                foreach (int id in held)
+                {
+                    CardData card = cardDeck != null ? cardDeck.FindById(id) : null;
+                    if (card != null) cards.Add(card);
+                }
+            }
+            view.SetHeldCards(cards, ShowHeldCardPopup);
+        }
+    }
+
+    /// <summary>
+    /// 플레이어 칸의 보관 카드 아이콘을 눌렀을 때, 카드 창으로 그 카드의 그림, 이름, 설명을 보여 준다. 효과는 없다.
+    /// 황금열쇠를 뽑아 카드 창이 이미 떠 있으면 띄우지 않는다. (뽑은 카드의 확인 동작을 덮어쓰면 게임이 멈춘다)
+    /// </summary>
+    public void ShowHeldCardPopup(int cardId)
+    {
+        CardData card = cardDeck != null ? cardDeck.FindById(cardId) : null;
+        if (cardDraw == null || card == null || cardDraw.IsOpen) return;
+
+        cardDraw.Show(Loc.T(card.cardName), Loc.T(card.description), card.icon, true, null, viewOnly: true);
     }
 
     // 돈이 바뀐 것을 카드에 반영하고, 바뀐 만큼 돈 변화 표시를 띄웁니다. (EconomyManager.OnMoneyChanged)
@@ -963,6 +1156,7 @@ public class UIManager : MonoBehaviour
     {
         if (shortfall > 0) bankruptShortfall[playerId] = shortfall;
         lastBankruptEffectAt = Time.unscaledTime;
+        SoundManager.Play(Sfx.Fail);
 
         // GameState(IsBankrupt)가 이미 갱신된 뒤 호출되므로, 전체 갱신 한 번이면 됩니다.
         // 방금 파산한 플레이어의 카드만 파산 표시가 꺼짐 → 켜짐으로 바뀌면서 도장 연출이 재생됩니다.
@@ -1039,6 +1233,7 @@ public class UIManager : MonoBehaviour
 
     // 땅 정보 창을 띄웁니다. 보드의 땅을 눌렀을 때 OnBoardTileClicked가 부릅니다.
     // 주인, 지금 단계, 단계별 통행료(현재 단계만 굵게)를 보여줍니다.
+    // 통행료는 배율(관광지 줄 보너스, 통행료 2배)을 넣은 실제 금액이고, 가격표와 다른 단계는 원래 금액을 취소선으로 같이 보여 줍니다.
     public void ShowTileInfoPopup(int propertyId)
     {
         if (tileInfo == null) return;
@@ -1047,14 +1242,26 @@ public class UIManager : MonoBehaviour
         PropertyState state = GetProperty(propertyId);
         if (data == null) return;
 
+        var baseTolls = new long[4];
         var tolls = new long[4];
-        for (int i = 0; i < tolls.Length; i++) tolls[i] = data.GetToll((BuildingLevel)i);
+        for (int i = 0; i < tolls.Length; i++)
+        {
+            baseTolls[i] = data.GetToll((BuildingLevel)i);
+            tolls[i] = ActualToll(data, state, (BuildingLevel)i);
+        }
 
         bool owned = state != null && state.OwnerId.HasValue;
         long ownerId = owned ? state.OwnerId.Value : 0;
         tileInfo.Show(Loc.T(data.CityName), TileImageOf(propertyId), owned ? NameOf(ownerId) : null, ColorIndexOf(ownerId),
             state != null ? state.BuildingLevel : BuildingLevel.Land, tolls,
-            data.CanBuild ? null : SpecialDescription(propertyId));
+            data.CanBuild ? null : SpecialDescription(propertyId), baseTolls);
+    }
+
+    // 이 땅이 level 단계라면 받을 통행료. 주인이 있으면 배율(관광지 줄 보너스, 통행료 2배)을 넣고(PropertyRules.GetToll), 없으면 가격표 금액
+    private long ActualToll(PropertyData data, PropertyState state, BuildingLevel level)
+    {
+        if (state == null || !state.OwnerId.HasValue) return data.GetToll(level);
+        return PropertyManager.Instance.Rules.GetToll(state, State?.PropertyStates, level);
     }
 
     // 황금열쇠 카드를 뽑는 연출입니다. GameManager.HandleCardDrawn이 카드 효과(ExecuteCardEffect)를 실행하기 전에 부릅니다.
@@ -1073,9 +1280,11 @@ public class UIManager : MonoBehaviour
         string cardName = card != null ? Loc.T(card.cardName) : Loc.T("황금열쇠 {0}", cardId);
         string description = card != null ? Loc.T(card.description) : "";
         Sprite icon = card != null ? card.icon : null;
+        bool keepable = card != null && CardRules.IsHeldType(card.effectType); // 보관형이면 "보관 가능" 태그와 "보관하기" 버튼
 
         bool autoClose = forceAutoClose || playerId != LocalPlayerId; // 내 카드가 아니면 자동으로 닫힌다
-        cardDraw.Show(cardName, description, icon, false, () =>
+        SoundManager.Play(Sfx.CardFlip);
+        cardDraw.Show(cardName, description, icon, keepable, () =>
         {
             SetNextMoneyReason(playerId, "황금열쇠"); // 카드로 돈이 바뀌면 사유가 '황금열쇠'로 뜬다
             onConfirm?.Invoke();
@@ -1090,7 +1299,7 @@ public class UIManager : MonoBehaviour
         CardData card = cardDeck != null ? cardDeck.FindById(cardId) : null;
         if (cardDraw == null || card == null) return false;
 
-        cardDraw.Show(Loc.T(card.cardName), Loc.T(card.description), card.icon, false, null);
+        cardDraw.Show(Loc.T(card.cardName), Loc.T(card.description), card.icon, CardRules.IsHeldType(card.effectType), null);
         return true;
     }
 
@@ -1115,6 +1324,10 @@ public class UIManager : MonoBehaviour
         // 더 이상 굴릴 주사위도, 진행 중인 차례도 없다
         StopSelectionTimer();
         if (diceRoll != null) { diceRoll.SetInteractable(false); diceRoll.Close(); }
+
+        // 배경음을 줄이고 결과 소리를 낸다 (배경음은 다음 씬에서 되돌아간다)
+        SoundManager.DuckBgmForResult();
+        SoundManager.Play(Sfx.Win);
         if (diceResult != null) diceResult.Close();
         if (currentTurn != null) currentTurn.Close();
 
@@ -1396,6 +1609,8 @@ public class UIManager : MonoBehaviour
     private TurnTimerView timerChip;   // 그 창 안에 들어 있는 시간 표시 칩. 없으면 null
     private SelectionKind timerKind;
     private float timerRemaining, timerTotal;
+    private float carryTimerRemaining = -1f; // 다음 창이 이어받을 남은 시간. 없으면 0 이하
+    private const float TimerTickSeconds = 5f; // 남은 시간이 이 초 이하면 째깍 소리 (제한시간 칩이 빨개지는 때와 같다)
     private int timerEpoch;            // 제한시간을 새로 시작할 때마다 늘려서, 지난 시간 종료 처리가 새로 열린 창을 닫지 않게 한다
 
     // 잠수 중이면(GameManager.isAfk) 짧은 제한시간, 아니면 방 설정의 제한시간보다 먼저 닫히는 시간 (시간 규칙: TimeRules)
@@ -1412,13 +1627,21 @@ public class UIManager : MonoBehaviour
         timerWindow = window;
         timerKind = kind;
         timerTotal = timerRemaining = CurrentSelectSeconds;
+        // 바로 앞 창에서 쓰고 남은 시간을 이어받는다 (무인도 탈출 창 → 굴리기 창)
+        if (carryTimerRemaining > 0f) timerRemaining = Mathf.Min(carryTimerRemaining, timerTotal);
+        carryTimerRemaining = -1f;
         timerChip = window.GetComponentInChildren<TurnTimerView>(true);
-        if (timerChip != null) timerChip.Begin(timerTotal);
+        if (timerChip != null)
+        {
+            timerChip.Begin(timerTotal);
+            timerChip.SetRemaining(timerRemaining, timerTotal);
+        }
     }
 
     /// <summary>세고 있던 제한시간을 시간 종료 처리 없이 멈추고 표시를 숨긴다.</summary>
     private void StopSelectionTimer()
     {
+        SoundManager.StopTimerTick();
         timerWindow = null;
         if (timerChip != null) timerChip.Hide();
         timerChip = null;
@@ -1438,6 +1661,7 @@ public class UIManager : MonoBehaviour
         if (timerRemaining > 0f)
         {
             if (timerChip != null) timerChip.SetRemaining(timerRemaining, timerTotal);
+            if (timerRemaining <= TimerTickSeconds) SoundManager.StartTimerTick(); // 막바지에는 째깍 소리 (이미 나고 있으면 그대로)
             return;
         }
         OnSelectionTimeout();

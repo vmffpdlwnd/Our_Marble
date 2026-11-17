@@ -167,15 +167,21 @@ public static class GameRules
     }
 
     // GameManager.HandlePlayerMoved, MovePlayerDirectly
-    /// <summary>플레이어를 to 칸으로 옮긴다. receiveSalary이면 월급을 주고 그 금액을 돌려준다. (월급 없는 순간이동은 false)</summary>
-    public static long MoveTo(GameState state, PlayerState player, int to, bool receiveSalary)
+    /// <summary>
+    /// 플레이어를 to 칸으로 옮긴다. receiveSalary이면 월급을 주고 그 금액을 돌려준다. (월급 없는 순간이동은 false)
+    /// 월급 2배 카드(보관형)를 들고 있으면 묻지 않고 자동으로 써서 2배를 준다. (CardRules.UseSalaryDouble)
+    /// </summary>
+    public static long MoveTo(GameState state, GameData data, PlayerState player, int to, bool receiveSalary)
     {
         player.Position = to;
 
         if (!receiveSalary) return 0;
 
-        player.Money += state.Config.salaryAmount;
-        return state.Config.salaryAmount;
+        long salary = state.Config.salaryAmount;
+        if (CardRules.UseSalaryDouble(data, player)) salary *= 2;
+
+        player.Money += salary;
+        return salary;
     }
 
     // ───────────── 게임 종료 ─────────────

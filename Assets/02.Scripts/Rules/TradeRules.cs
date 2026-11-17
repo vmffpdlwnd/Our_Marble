@@ -23,6 +23,7 @@ public enum PropertyArrivalKind
     MissingData,      // 땅 데이터가 없음. 턴을 종료해야 한다
     Purchase,         // 빈 땅: 구매 대기
     Build,            // 내 땅: 건설 대기
+    ChooseTollCard,   // 통행료 면제권·반값권을 들고 있어, 쓸지 고르기를 기다린다 (통행료는 아직 내지 않음)
     TollPaidAcquire,  // 통행료를 냈고, 인수할 돈이 있어 인수 대기
     TollPaidEnd,      // 통행료를 냈고, 인수할 돈은 없음. 턴을 종료해야 한다
     Sell,             // 현금이 모자라 땅을 팔아야 함: 매각 대기
@@ -92,7 +93,8 @@ public static class TradeRules
 
     // GameManager.HandleBuilt
     // 거절은 확인할 것이 없다. (건설할 수 없는 땅에서도 거절은 보낼 수 있다)
-    public static TradeError CheckBuild(GameData data, PlayerState player, PropertyState property, bool isAccept)
+    // useDiscount: 건설 할인권을 쓰고 짓는다. 들고 있지 않으면 할인 없이 확인한다
+    public static TradeError CheckBuild(GameData data, PlayerState player, PropertyState property, bool isAccept, bool useDiscount = false)
     {
         if (!isAccept) return TradeError.None;
 
@@ -103,15 +105,20 @@ public static class TradeRules
         if (property.BuildingLevel >= BuildingLevel.Hotel) return TradeError.MaxLevel;
 
         long cost = data.Properties.GetBuildCost(property.PropertyId, property.BuildingLevel + 1);
+        if (useDiscount) cost = CardRules.DiscountedBuildCost(cost, CardRules.BuildDiscountPercent(data, player));
         if (player.Money < cost) return TradeError.NotEnoughMoney;
 
         return TradeError.None;
     }
 
-    /// <summary>건물을 한 단계 올린다. 낸 건설비를 돌려준다.</summary>
-    public static long Build(GameData data, PlayerState player, PropertyState property)
+    /// <summary>
+    /// 건물을 한 단계 올린다. 낸 건설비를 돌려준다.
+    /// useDiscount이고 건설 할인권을 들고 있으면 카드를 내고 할인한 금액만 낸다.
+    /// </summary>
+    public static long Build(GameData data, PlayerState player, PropertyState property, bool useDiscount = false)
     {
         long cost = data.Properties.GetBuildCost(property.PropertyId, property.BuildingLevel + 1);
+        if (useDiscount) cost = CardRules.DiscountedBuildCost(cost, CardRules.UseBuildDiscount(data, player));
 
         player.Money -= cost;
         property.BuildingLevel = property.BuildingLevel + 1;
@@ -167,7 +174,7 @@ public static class TradeRules
 
         plan.Receiver = GameRules.FindPlayer(state, landed.OwnerId.Value);
         plan.Landed = landed;
-        plan.Toll = data.Properties.GetToll(landed, state.PropertyStates);
+        plan.Toll = TollToPay(state, data, player, landed); // 통행료 카드를 썼으면 그 할인이 들어간 금액
 
         if (propertyIds.Distinct().Count() != propertyIds.Count)
         {
@@ -210,6 +217,7 @@ public static class TradeRules
         player.Money = player.Money + plan.TotalAmount - plan.Toll;
         plan.Receiver.Money += plan.Toll;
         if (plan.Landed != null) plan.Landed.TollDoubleOwnerId = null; // 통행료를 받았으니 2배 표시는 사라진다
+        player.TollCardInUse = null; // 통행료를 다 냈다
     }
 
     // ───────────── 땅에 도착 ─────────────
@@ -242,14 +250,40 @@ public static class TradeRules
             return new PropertyArrival { Kind = PropertyArrivalKind.Build };
         }
 
-        // 남의 땅: 통행료를 낸다
+        // 남의 땅: 통행료 면제권·반값권을 들고 있으면 통행료를 내기 전에 쓸지 묻는다
         PlayerState owner = GameRules.FindPlayer(state, property.OwnerId.Value);
-        long toll = data.Properties.GetToll(property, state.PropertyStates);
+        long baseToll = data.Properties.GetToll(property, state.PropertyStates);
+        if (baseToll > 0 && CardRules.HasTollCard(data, player))
+        {
+            state.WaitingType = GameMessageType.TOLL_CARD_CHOSEN;
+            return new PropertyArrival { Kind = PropertyArrivalKind.ChooseTollCard, Owner = owner, Toll = baseToll };
+        }
+
+        return PayTollOnArrival(state, data, player, propertyId);
+    }
+
+    // 낼 통행료: 배율이 들어간 통행료(PropertyRules.GetToll)에 쓰기로 한 통행료 카드를 적용한 금액
+    private static long TollToPay(GameState state, GameData data, PlayerState player, PropertyState property)
+    {
+        return CardRules.ApplyTollCard(data.Properties.GetToll(property, state.PropertyStates), player.TollCardInUse);
+    }
+
+    // ArriveAtProperty, 그리고 통행료 카드를 고른 뒤(GameManager.HandleTollCardChosen)에 부른다
+    /// <summary>
+    /// 남의 땅에서 통행료를 낸다. 쓰기로 한 통행료 카드(PlayerState.TollCardInUse)가 있으면 그 할인을 넣는다.
+    /// 낼 수 있으면 이체하고 인수 대기나 턴 종료를, 모자라면 매각 대기나 파산을 돌려준다.
+    /// </summary>
+    public static PropertyArrival PayTollOnArrival(GameState state, GameData data, PlayerState player, int propertyId)
+    {
+        PropertyState property = FindProperty(state, propertyId);
+        PlayerState owner = GameRules.FindPlayer(state, property.OwnerId.Value);
+        long toll = TollToPay(state, data, player, property);
 
         if (player.Money >= toll)
         {
             PayToll(player, owner, toll);
-            property.TollDoubleOwnerId = null; // 통행료를 받았으니 2배 표시는 사라진다
+            if (toll > 0) property.TollDoubleOwnerId = null; // 통행료를 받았으니 2배 표시는 사라진다 (면제권으로 0원이면 남는다)
+            player.TollCardInUse = null; // 통행료를 다 냈다
 
             // 통행료를 내고도 인수할 돈이 있으면 인수를 선택할 수 있다
             long acquireValue = data.Properties.GetAcquireValue(property);
@@ -270,6 +304,7 @@ public static class TradeRules
         }
 
         // 전부 팔아도 모자라면 파산한다.
+        player.TollCardInUse = null;
         return new PropertyArrival { Kind = PropertyArrivalKind.Bankrupt, Owner = owner, Toll = toll };
     }
 
@@ -310,6 +345,7 @@ public static class TradeRules
 
         payer.FinalRank = state.PlayerStates.Count(p => !p.IsBankrupt);
         payer.IsBankrupt = true;
+        payer.HeldCardIds?.Clear(); // 들고 있던 보관형 황금열쇠는 사라진다 (통행료 파산과 파산 신청 모두)
 
         return state.PlayerStates.Count(p => !p.IsBankrupt) <= 1 ? BankruptResult.LastPlayerLeft : BankruptResult.Bankrupted;
     }
