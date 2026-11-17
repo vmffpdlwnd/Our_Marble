@@ -465,7 +465,8 @@ public class UIManager : MonoBehaviour
                 new PurchasePopupView.Option
                 {
                     TargetLevel = BuildingLevel.Land,
-                    Toll = data.GetToll(state.BuildingLevel),
+                    Toll = ActualToll(data, state, state.BuildingLevel), // 관광지 자신도 줄 보너스를 받는다
+                    BaseToll = data.GetToll(state.BuildingLevel),
                     Locked = true,
                     LockReason = "보유 중",
                     ShowInfoWhenNone = true,
@@ -485,7 +486,7 @@ public class UIManager : MonoBehaviour
         for (int i = (int)BuildingLevel.Land; i <= (int)BuildingLevel.Hotel; i++)
         {
             var level = (BuildingLevel)i;
-            var option = new PurchasePopupView.Option { TargetLevel = level, Toll = data.GetToll(level) };
+            var option = new PurchasePopupView.Option { TargetLevel = level, Toll = ActualToll(data, state, level), BaseToll = data.GetToll(level) };
 
             if (i <= current)
             {
@@ -880,30 +881,43 @@ public class UIManager : MonoBehaviour
     /// <summary>
     /// 모든 플레이어 칸의 보관형 황금열쇠 아이콘을 GameState(HeldCardIds)에 맞춘다. 얻은 순서대로 보인다.
     /// 아이콘은 카드 에셋의 icon이고, 덱(cardDeck)에서 id로 찾는다. 찾지 못한 카드는 건너뛴다.
+    /// 아이콘을 누르면 ShowHeldCardPopup으로 카드를 크게 보여 준다.
     /// </summary>
     public void RefreshHeldCards()
     {
         GameState state = State;
         if (state == null) return;
 
-        var icons = new List<Sprite>();
+        var cards = new List<CardData>();
         for (int i = 0; i < state.PlayerStates.Count; i++)
         {
             PlayerInfoView view = GetPlayerInfo(i);
             if (view == null) continue;
 
-            icons.Clear();
+            cards.Clear();
             List<int> held = state.PlayerStates[i].HeldCardIds;
             if (held != null)
             {
                 foreach (int id in held)
                 {
                     CardData card = cardDeck != null ? cardDeck.FindById(id) : null;
-                    if (card != null) icons.Add(card.icon);
+                    if (card != null) cards.Add(card);
                 }
             }
-            view.SetHeldCards(icons);
+            view.SetHeldCards(cards, ShowHeldCardPopup);
         }
+    }
+
+    /// <summary>
+    /// 플레이어 칸의 보관 카드 아이콘을 눌렀을 때, 카드 창으로 그 카드의 그림, 이름, 설명을 보여 준다. 효과는 없다.
+    /// 황금열쇠를 뽑아 카드 창이 이미 떠 있으면 띄우지 않는다. (뽑은 카드의 확인 동작을 덮어쓰면 게임이 멈춘다)
+    /// </summary>
+    public void ShowHeldCardPopup(int cardId)
+    {
+        CardData card = cardDeck != null ? cardDeck.FindById(cardId) : null;
+        if (cardDraw == null || card == null || cardDraw.IsOpen) return;
+
+        cardDraw.Show(Loc.T(card.cardName), Loc.T(card.description), card.icon, true, null, viewOnly: true);
     }
 
     // 돈이 바뀐 것을 카드에 반영하고, 바뀐 만큼 돈 변화 표시를 띄웁니다. (EconomyManager.OnMoneyChanged)
@@ -1070,6 +1084,7 @@ public class UIManager : MonoBehaviour
 
     // 땅 정보 창을 띄웁니다. 보드의 땅을 눌렀을 때 OnBoardTileClicked가 부릅니다.
     // 주인, 지금 단계, 단계별 통행료(현재 단계만 굵게)를 보여줍니다.
+    // 통행료는 배율(관광지 줄 보너스, 통행료 2배)을 넣은 실제 금액이고, 가격표와 다른 단계는 원래 금액을 취소선으로 같이 보여 줍니다.
     public void ShowTileInfoPopup(int propertyId)
     {
         if (tileInfo == null) return;
@@ -1078,14 +1093,26 @@ public class UIManager : MonoBehaviour
         PropertyState state = GetProperty(propertyId);
         if (data == null) return;
 
+        var baseTolls = new long[4];
         var tolls = new long[4];
-        for (int i = 0; i < tolls.Length; i++) tolls[i] = data.GetToll((BuildingLevel)i);
+        for (int i = 0; i < tolls.Length; i++)
+        {
+            baseTolls[i] = data.GetToll((BuildingLevel)i);
+            tolls[i] = ActualToll(data, state, (BuildingLevel)i);
+        }
 
         bool owned = state != null && state.OwnerId.HasValue;
         long ownerId = owned ? state.OwnerId.Value : 0;
         tileInfo.Show(Loc.T(data.CityName), TileImageOf(propertyId), owned ? NameOf(ownerId) : null, ColorIndexOf(ownerId),
             state != null ? state.BuildingLevel : BuildingLevel.Land, tolls,
-            data.CanBuild ? null : SpecialDescription(propertyId));
+            data.CanBuild ? null : SpecialDescription(propertyId), baseTolls);
+    }
+
+    // 이 땅이 level 단계라면 받을 통행료. 주인이 있으면 배율(관광지 줄 보너스, 통행료 2배)을 넣고(PropertyRules.GetToll), 없으면 가격표 금액
+    private long ActualToll(PropertyData data, PropertyState state, BuildingLevel level)
+    {
+        if (state == null || !state.OwnerId.HasValue) return data.GetToll(level);
+        return PropertyManager.Instance.Rules.GetToll(state, State?.PropertyStates, level);
     }
 
     // 황금열쇠 카드를 뽑는 연출입니다. GameManager.HandleCardDrawn이 카드 효과(ExecuteCardEffect)를 실행하기 전에 부릅니다.

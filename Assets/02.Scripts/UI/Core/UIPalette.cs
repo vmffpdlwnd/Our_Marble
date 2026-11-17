@@ -56,6 +56,16 @@ public static class UIPalette
     /// <summary>1,234,000</summary>
     public static string Money(long amount) => amount.ToString("N0");
 
+    /// <summary>
+    /// 통행료 글. 배율(관광지 줄 보너스, 통행료 2배)로 바뀌었으면 원래 금액을 작고 흐린 취소선으로 앞에 붙인다.
+    /// 예: "<s>10,000</s> 15,000". 바뀌지 않았으면 금액만.
+    /// </summary>
+    public static string TollMoney(long baseToll, long toll)
+    {
+        if (baseToll <= 0 || baseToll == toll) return Money(toll);
+        return $"<size=70%><color={Hex(InkSub)}><s>{Money(baseToll)}</s></color></size> {Money(toll)}";
+    }
+
     /// <summary>+1,234,000 / -1,234,000</summary>
     public static string SignedMoney(long amount) => (amount >= 0 ? "+" : "-") + System.Math.Abs(amount).ToString("N0");
 

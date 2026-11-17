@@ -33,6 +33,11 @@ public class HostGameService : IHostRequestReceiver
 
     private bool started; // 첫 GAME_STATE_REQUEST를 받아 첫 차례를 시작했는지
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>[개발용] F1 창에서 고른 다음 황금열쇠 카드 id. 0이면 무작위. 한 번 뽑으면 0으로 돌아간다. (이 PC가 호스트일 때만 의미가 있다)</summary>
+    public static int DebugNextCardId;
+#endif
+
     // ───────────── 이 PC의 게임 호스트 ─────────────
 
     private static HostGameService current;
@@ -373,6 +378,11 @@ public class HostGameService : IHostRequestReceiver
         if (cardIds != null && cardIds.Count > 0)
         {
             cardId = cardIds[random.Next(cardIds.Count)];
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // F1 창에서 다음 카드를 지정했으면 그 카드를 뽑는다. (봇이 뽑아도 적용된다)
+            if (DebugNextCardId != 0 && gameData.FindCard(DebugNextCardId) != null) cardId = DebugNextCardId;
+            DebugNextCardId = 0;
+#endif
             card = gameData.FindCard(cardId);
         }
 

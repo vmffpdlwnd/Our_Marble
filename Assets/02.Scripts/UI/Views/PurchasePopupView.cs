@@ -21,6 +21,7 @@ public class PurchasePopupView : UIView
         public BuildingLevel TargetLevel;
         public long Cost;
         public long Toll;
+        public long BaseToll; // 가격표 통행료. Toll과 다르면(배율이 붙으면) 원래 금액을 취소선으로 같이 보여 준다. 0이면 Toll만
         public bool Locked;
         public string LockReason;   // 잠겼을 때 카드에 표시. 예) "2바퀴부터", "보유 중"
         public bool ShowInfoWhenNone; // 아무것도 선택되지 않은 상태(금액 부족 등)에서도 이 카드의 이용료·비용을 보여준다
@@ -195,7 +196,7 @@ public class PurchasePopupView : UIView
         Option? info = null;
         foreach (var o in options)
             if (o.HasValue && o.Value.ShowInfoWhenNone) { info = o; break; }
-        if (tollText != null) tollText.text = info.HasValue ? UIPalette.Money(info.Value.Toll) : "-";
+        if (tollText != null) tollText.text = info.HasValue ? UIPalette.TollMoney(info.Value.BaseToll, info.Value.Toll) : "-";
         // 비용이 없는 카드(이미 최고 단계 등)는 "-"
         if (costText != null) costText.text = info.HasValue && info.Value.Cost > 0 ? UIPalette.Money(info.Value.Cost) : "-";
         if (buyButton != null) buyButton.interactable = false;
@@ -236,7 +237,7 @@ public class PurchasePopupView : UIView
         // 별이면 목표 바로 아래 단계까지 채우고 목표 별을 강조
         stageTrack.Set(isStar ? (BuildingLevel)(target - 1) : BuildingLevel.Land, isStar);
 
-        if (tollText != null) tollText.text = UIPalette.Money(selected.Toll);
+        if (tollText != null) tollText.text = UIPalette.TollMoney(selected.BaseToll, selected.Toll);
         if (costText != null) costText.text = UIPalette.Money(selected.Cost);
         if (buyButton != null) buyButton.interactable = !selected.Locked && cash >= selected.Cost;
         UpdateCashColor(selected.Cost);

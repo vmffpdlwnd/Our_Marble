@@ -9,15 +9,14 @@ using UnityEngine;
 ///
 /// 게임은 호스트가 진행하므로, 이 창은 내 화면의 GameState만 바꾸는 버튼을 두지 않는다. (호스트와 상태가 어긋나 [StateCheck] 에러가 난다)
 /// 남겨 둔 것은 읽기만 하거나 실제 경로(GameManager → 호스트 → 알림)로 요청을 보내는 것뿐이다.
-/// - 연출 속도
+/// - 연출 속도 (0.5~4배)
 /// - 방 정보, 플레이어 상태(현금, 땅, 파산) 보기
-/// - 호스트 교체(방장 승계 연습)
-/// - 파산 신청 보내기
-/// - 황금열쇠 카드 앞면 보기 (효과 없이 화면만)
+/// - 황금열쇠 카드 앞면 보기 (효과 없이 화면만), 다음에 뽑힐 카드 지정 (이 PC가 호스트일 때만. 호스트가 뽑는 카드를 바꾼다)
 /// </summary>
 public class UIDebugPanel : MonoBehaviour
 {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private const float MinSpeed = 0.5f, MaxSpeed = 4f; // 연출 속도 범위 (DOTween 연출에만 적용된다)
     private float speed = 1f;
     private bool expanded = true;
     private bool placed;
@@ -90,7 +89,7 @@ public class UIDebugPanel : MonoBehaviour
         }
 
         GUILayout.Label($"연출 속도 x{speed:0.00}");
-        float next = GUILayout.HorizontalSlider(speed, 0.1f, 1f);
+        float next = GUILayout.HorizontalSlider(speed, MinSpeed, MaxSpeed);
         if (!Mathf.Approximately(next, speed)) { speed = next; DOTween.timeScale = speed; }
         GUILayout.Space(6);
 
@@ -98,8 +97,6 @@ public class UIDebugPanel : MonoBehaviour
 
         DrawRoomSection();
         DrawPlayerSection();
-        DrawHostSwapSection();
-        DrawBankruptSection();
         DrawCardPreviewSection();
 
         GUILayout.EndScrollView();
@@ -146,66 +143,12 @@ public class UIDebugPanel : MonoBehaviour
         GUILayout.Label(State.IsGameOver ? "(게임 종료 상태)" : $"대기 단계: {(State.WaitingType.HasValue ? State.WaitingType.Value.ToString() : "연출 중")}");
     }
 
-    // ───────────── 호스트 교체 (방장 승계 연습) ─────────────
-
-    // 방장이 바뀌는 상황을 이 PC에서 흉내 낸다. 로비 호스트와 게임 호스트를 버리고, 내 화면이 가진 방 정보와 게임 상태로 새 호스트를 시작한다.
-    // 누른 뒤에도 게임이 그대로 이어지면(봇이 움직이고, 요청이 처리되고, [StateCheck] 에러가 없으면) 이어받기가 제대로 동작하는 것이다.
-    private void DrawHostSwapSection()
-    {
-        Header("호스트 교체 (방장 승계 연습)");
-
-        var room = LobbyManager.CurrentRoom;
-        var host = HostGameService.Current;
-
-        // 호스트의 상태와 같은 지점에 있을 때만 이어받을 수 있다. (연출이 끝나고 입력을 기다리는 때)
-        bool settled = room != null && host != null && State != null
-            && State.WaitingType != null && !State.IsGameOver
-            && GameNetwork.Instance.ProcessedBroadcastCount == host.BroadcastCountForDebug;
-
-        GUI.enabled = settled;
-        if (GUILayout.Button("내 상태로 호스트 다시 시작")) SwapHost(room);
-        GUI.enabled = true;
-
-        if (!settled) GUILayout.Label("연출이 끝나고 입력을 기다리는 때에만 누를 수 있어요.");
-    }
-
-    private void SwapHost(RoomSnapshot room)
-    {
-        int processed = GameNetwork.Instance.ProcessedBroadcastCount;
-
-        LocalLobbyHost.Reset();                  // 로비 호스트: 방 정보를 모두 버리고
-        LocalLobbyHost.Instance.RestoreRoom(room); // 내가 가진 방 정보로 다시 만든다
-
-        // 게임 호스트: 내 화면의 게임 상태를 복사해서 새로 시작한다
-        // (이 클래스에 LocalPlayer라는 멤버가 있어서, 정적 클래스 LocalPlayer는 global::로 구분한다)
-        HostGameService.TakeOver(State, room.roomId, global::LocalPlayer.Id, processed);
-
-        Log("호스트를 내 상태로 다시 시작했습니다");
-    }
-
-    // ───────────── 파산 신청 ─────────────
-
-    private void DrawBankruptSection()
-    {
-        Header("파산 신청");
-        GUILayout.Label("실제 요청을 호스트에 보냅니다. 내 차례에 입력을 기다릴 때만 처리됩니다.");
-
-        bool canDeclare = !State.IsGameOver && State.WaitingType != null && State.CurrentPlayerId == Players[LocalPlayer].PlayerId;
-        GUI.enabled = canDeclare;
-        if (GUILayout.Button("파산 신청 보내기 (GameManager.DeclareBankruptcy)"))
-        {
-            Game.DeclareBankruptcy();
-            Log("파산 신청을 보냈습니다");
-        }
-        GUI.enabled = true;
-    }
-
     // ───────────── 황금열쇠 카드 보기 ─────────────
 
     private void DrawCardPreviewSection()
     {
-        Header("황금열쇠 카드 보기");
-        GUILayout.Label("카드 앞면만 띄웁니다. 효과는 쓰지 않고 게임 상태도 바꾸지 않습니다.");
+        Header("황금열쇠 카드");
+        GUILayout.Label("보기: 카드 앞면만 띄웁니다. (효과 없음)\n다음으로: 다음에 누가 뽑든 이 카드가 나옵니다. (한 번)");
 
         CardDeckData deck = CardManager.Instance.DeckData;
         if (deck == null)
@@ -214,13 +157,36 @@ public class UIDebugPanel : MonoBehaviour
             return;
         }
 
+        // 카드는 호스트가 뽑으므로, 지정은 이 PC가 호스트일 때만 된다
+        bool isHost = HostGameService.Current != null;
+        int next = HostGameService.DebugNextCardId;
+        if (!isHost) GUILayout.Label("이 PC는 호스트가 아니라서 다음 카드를 지정할 수 없어요.");
+        else if (next != 0)
+        {
+            GUILayout.BeginHorizontal();
+            RichLabel($"<b>다음 카드: {next}번</b>");
+            if (GUILayout.Button("지정 취소", GUILayout.Width(90))) { HostGameService.DebugNextCardId = 0; Log("다음 카드 지정을 취소했습니다"); }
+            GUILayout.EndHorizontal();
+        }
+
         foreach (var entry in deck.entries)
         {
             if (entry.card == null) continue;
 
             int cardId = entry.card.id;
-            if (GUILayout.Button($"{cardId}. {entry.card.cardName}"))
+            string kind = CardRules.IsHeldType(entry.card.effectType) ? " (보관)" : "";
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"{cardId}. {entry.card.cardName}{kind}");
+            if (GUILayout.Button("보기", GUILayout.Width(60)))
                 Log(UI.PreviewCardDraw(cardId) ? $"카드 {cardId} 미리 보기" : $"카드 {cardId}를 띄우지 못했습니다");
+            GUI.enabled = isHost && next != cardId;
+            if (GUILayout.Button("다음으로", GUILayout.Width(80)))
+            {
+                HostGameService.DebugNextCardId = cardId;
+                Log($"다음 황금열쇠를 {cardId}번으로 지정했습니다");
+            }
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
         }
     }
 

@@ -15,7 +15,7 @@ MonoBehaviour:
   id: 15
   cardName: "\uBC18\uAC12 \uCFE0\uD3F0"
   description: "\uBC18\uAC12 \uCFE0\uD3F0\uC744 \uC190\uC5D0 \uB123\uC5C8\uB2E4!\n\uB0A8\uC758 \uB545 \uD1B5\uD589\uB8CC\uB97C \uD55C \uBC88 \uC808\uBC18\uB9CC \uB0B8\uB2E4."
-  icon: {fileID: 21300000, guid: ecfd30677295e32448e58964581cf14d, type: 3}
+  icon: {fileID: 21300000, guid: e711390999cc4779976eb16f949b797c, type: 3}
   effectType: 11
   amount: 0
   targetTileType: 0

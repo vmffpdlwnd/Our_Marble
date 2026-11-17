@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using DG.Tweening;
@@ -249,18 +250,19 @@ public class PlayerInfoView : UIView
     private bool hasRootRest;
 
     /// <summary>
-    /// 들고 있는 보관형 황금열쇠 아이콘을 icons 순서대로 보여 준다. 빈 목록이면 모두 숨긴다.
+    /// 들고 있는 보관형 황금열쇠 아이콘을 cards 순서대로 보여 준다. 빈 목록이면 모두 숨긴다.
+    /// 아이콘을 누르면 onClick(카드 id)을 부른다. (UIManager가 카드 창으로 이름과 설명을 보여 준다)
     /// 아이콘 오브젝트는 처음 필요할 때 만들고, 남는 것은 지우지 않고 꺼 둔다. (카드를 쓰고 얻을 때마다 새로 만들지 않게)
-    /// 크기는 HeldCards 자리의 높이에 맞춘 정사각형이다.
+    /// 높이는 HeldCards 자리의 높이이고, 너비는 그림 비율을 따른다.
     /// </summary>
-    public void SetHeldCards(IReadOnlyList<Sprite> icons)
+    public void SetHeldCards(IReadOnlyList<CardData> cards, Action<int> onClick)
     {
         // 자리를 나중에 만든 씬에서 Bind를 다시 하지 않아도 되게, 연결이 비어 있으면 이름으로 한 번 찾는다
         if (heldCards == null) heldCards = transform.Find("Card/HeldCards") as RectTransform;
         if (heldCards == null)
         {
             // 자리가 없으면 아이콘이 조용히 안 보이므로 한 번 알린다. (이름 끝의 띄어쓰기처럼 눈에 안 띄는 차이로 못 찾는 경우가 있었다)
-            if (!warnedNoHeldCards && icons.Count > 0)
+            if (!warnedNoHeldCards && cards.Count > 0)
             {
                 warnedNoHeldCards = true;
                 Debug.LogWarning($"[PlayerInfoView] '{name}/Card/HeldCards' 오브젝트 없음. 들고 있는 황금열쇠 아이콘을 보여 줄 수 없습니다. (이름 앞뒤 띄어쓰기 확인)", this);
@@ -268,32 +270,48 @@ public class PlayerInfoView : UIView
             return;
         }
 
-        float size = heldCards.rect.height > 0f ? heldCards.rect.height : 24f;
-        for (int i = 0; i < icons.Count; i++)
+        heldCardClicked = onClick;
+        float height = heldCards.rect.height > 0f ? heldCards.rect.height : 32f;
+        for (int i = 0; i < cards.Count; i++)
         {
-            Image icon = i < heldCardIcons.Count ? heldCardIcons[i] : CreateHeldCardIcon(size);
-            icon.sprite = icons[i];
-            icon.gameObject.SetActive(icons[i] != null); // 아이콘이 없는 카드는 자리를 차지하지 않게 숨긴다
+            Sprite sprite = cards[i] != null ? cards[i].icon : null;
+            if (i >= heldCardIcons.Count) CreateHeldCardIcon();
+
+            Image icon = heldCardIcons[i];
+            heldCardShownIds[i] = cards[i] != null ? cards[i].id : 0;
+            icon.sprite = sprite;
+            float aspect = sprite != null && sprite.rect.height > 0f ? sprite.rect.width / sprite.rect.height : 1f;
+            ((RectTransform)icon.transform).sizeDelta = new Vector2(height * aspect, height);
+            icon.gameObject.SetActive(sprite != null); // 그림이 없는 카드는 자리를 차지하지 않게 숨긴다
         }
-        for (int i = icons.Count; i < heldCardIcons.Count; i++)
+        for (int i = cards.Count; i < heldCardIcons.Count; i++)
             heldCardIcons[i].gameObject.SetActive(false);
     }
 
     private readonly List<Image> heldCardIcons = new List<Image>();
+    private readonly List<int> heldCardShownIds = new List<int>(); // 아이콘 자리마다 지금 보여 주는 카드 id
+    private Action<int> heldCardClicked;
     private bool warnedNoHeldCards; // 자리가 없다는 경고는 한 번만 띄운다
 
-    private Image CreateHeldCardIcon(float size)
+    private void CreateHeldCardIcon()
     {
-        var go = new GameObject($"HeldCard_{heldCardIcons.Count}", typeof(RectTransform), typeof(Image));
-        var rect = (RectTransform)go.transform;
-        rect.SetParent(heldCards, false);
-        rect.sizeDelta = new Vector2(size, size);
+        int index = heldCardIcons.Count;
+        var go = new GameObject($"HeldCard_{index}", typeof(RectTransform), typeof(Image), typeof(Button));
+        ((RectTransform)go.transform).SetParent(heldCards, false);
 
         var image = go.GetComponent<Image>();
         image.preserveAspect = true;
-        image.raycastTarget = false; // 아이콘이 카드 아래의 클릭을 막지 않게
+        image.raycastTarget = true; // 눌러서 카드를 볼 수 있게
+
+        // 누르면 이 자리의 카드 id를 넘긴다. (자리는 재사용되므로 id는 누를 때 읽는다)
+        go.GetComponent<Button>().onClick.AddListener(() =>
+        {
+            int id = heldCardShownIds[index];
+            if (id != 0) heldCardClicked?.Invoke(id);
+        });
+
         heldCardIcons.Add(image);
-        return image;
+        heldCardShownIds.Add(0);
     }
 
     /// <summary>카드 옆에 "사유 +금액"을 띄웠다가 사라지게 한다. amount가 음수면 손실.</summary>
