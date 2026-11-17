@@ -21,10 +21,10 @@ public class LobbyManager : MonoBehaviour
     #region 상수
 
     // mapId → 맵 이름. 서버의 mapId와 같은 순서여야 한다
-    private static readonly string[] Maps = { "클래식 월드", "도시 탐험", "해변 마을" };
+    private static readonly string[] Maps = { "클래식 월드", "도시 탐험", "프랜차이즈 거리" };
 
     // 지금 고를 수 있는 맵 (Maps와 같은 순서). 아직 만들지 않은 맵은 false로 두면 어느 화면에서도 선택되지 않는다.
-    private static readonly bool[] MapAvailable = { false, true, false };
+    private static readonly bool[] MapAvailable = { false, true, true };
 
     private static int FirstAvailableMap()
     {
@@ -62,7 +62,7 @@ public class LobbyManager : MonoBehaviour
     [Tooltip("선택한 방 행의 두꺼운 테두리 (UI_RoundedStroke_Thick).")]
     [SerializeField] private Sprite selectedStrokeSprite;
 
-    [Tooltip("맵 초상화. mapId 순서(클래식 월드, 도시 탐험, 해변 마을).")]
+    [Tooltip("맵 초상화. mapId 순서(클래식 월드, 도시 탐험, 프랜차이즈 거리).")]
     [SerializeField] private Sprite[] mapSprites = new Sprite[3];
 
     [Header("서버")]
@@ -705,7 +705,7 @@ public class LobbyManager : MonoBehaviour
         SyncAll();
     }
 
-    public void HandleGameStarted(string roomId)
+    public void HandleGameStarted(string roomId, int mapId)
     {
         //if (CurrentRoom == null || CurrentRoom.roomId != roomId) return;
 
@@ -717,8 +717,8 @@ public class LobbyManager : MonoBehaviour
         pending = Pending.Start;
         ShowLoading(true);
 
-        Debug.Log($"[Lobby] 게임 씬으로 이동 (방 {roomId})");
-        if (!SceneFlow.ToGame())
+        Debug.Log($"[Lobby] 게임 씬으로 이동 (방 {roomId}, 맵 {mapId})");
+        if (!SceneFlow.ToGame(mapId))
         {
             EndRequest();
             ShowToast("게임 화면을 불러오지 못했어요");

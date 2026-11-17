@@ -1,0 +1,112 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8d260bd8ed244e4e9aac43d60c952f51, type: 3}
+  m_Name: FranchiseBoardInfo
+  m_EditorClassIdentifier: Assembly-CSharp::BoardInfo
+  mapId: 2
+  tiles:
+  - index: 0
+    type: 0
+    propertyId: 0
+  - index: 1
+    type: 1
+    propertyId: 201
+  - index: 2
+    type: 2
+    propertyId: 0
+  - index: 3
+    type: 1
+    propertyId: 203
+  - index: 4
+    type: 1
+    propertyId: 204
+  - index: 5
+    type: 1
+    propertyId: 205
+  - index: 6
+    type: 1
+    propertyId: 206
+  - index: 7
+    type: 1
+    propertyId: 207
+  - index: 8
+    type: 3
+    propertyId: 0
+  - index: 9
+    type: 1
+    propertyId: 209
+  - index: 10
+    type: 1
+    propertyId: 210
+  - index: 11
+    type: 2
+    propertyId: 0
+  - index: 12
+    type: 1
+    propertyId: 212
+  - index: 13
+    type: 1
+    propertyId: 213
+  - index: 14
+    type: 1
+    propertyId: 214
+  - index: 15
+    type: 1
+    propertyId: 215
+  - index: 16
+    type: 5
+    propertyId: 0
+  - index: 17
+    type: 1
+    propertyId: 217
+  - index: 18
+    type: 1
+    propertyId: 218
+  - index: 19
+    type: 1
+    propertyId: 219
+  - index: 20
+    type: 2
+    propertyId: 0
+  - index: 21
+    type: 1
+    propertyId: 221
+  - index: 22
+    type: 1
+    propertyId: 222
+  - index: 23
+    type: 1
+    propertyId: 223
+  - index: 24
+    type: 6
+    propertyId: 0
+  - index: 25
+    type: 1
+    propertyId: 225
+  - index: 26
+    type: 1
+    propertyId: 226
+  - index: 27
+    type: 1
+    propertyId: 227
+  - index: 28
+    type: 2
+    propertyId: 0
+  - index: 29
+    type: 1
+    propertyId: 229
+  - index: 30
+    type: 4
+    propertyId: 0
+  - index: 31
+    type: 1
+    propertyId: 231

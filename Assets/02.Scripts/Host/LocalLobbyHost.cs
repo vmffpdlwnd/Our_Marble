@@ -256,7 +256,7 @@ public class LocalLobbyHost : IHostRequestReceiver
         Debug.Log($"[LocalLobbyHost] 게임 시작: {room.Id} ({room.Members.Count}명)");
 
         BroadcastRoomUpdated(room);
-        Broadcast(room, LobbyMessageType.GAME_STARTED, new GameStartedBroadcast { type = "GAME_STARTED", roomId = room.Id });
+        Broadcast(room, LobbyMessageType.GAME_STARTED, new GameStartedBroadcast { type = "GAME_STARTED", roomId = room.Id, mapId = room.Config.mapId });
     }
 
     private void HandleChat(long senderId, ChatSendRequest request)
@@ -333,7 +333,7 @@ public class LocalLobbyHost : IHostRequestReceiver
         Debug.Log($"[LocalLobbyHost] 게임 중인 방으로 돌아옴: {room.Id} ({NicknameOf(playerId)})");
         Send(playerId, LobbyMessageType.ROOM_ENTERED, new RoomEnteredResponse { type = "ROOM_ENTERED" });
         Send(playerId, LobbyMessageType.ROOM_UPDATED, new RoomUpdatedBroadcast { type = "ROOM_UPDATED", room = ToSnapshot(room) });
-        Send(playerId, LobbyMessageType.GAME_STARTED, new GameStartedBroadcast { type = "GAME_STARTED", roomId = room.Id });
+        Send(playerId, LobbyMessageType.GAME_STARTED, new GameStartedBroadcast { type = "GAME_STARTED", roomId = room.Id, mapId = room.Config.mapId });
         return true;
     }
 

@@ -206,6 +206,213 @@
       "landPrice": 350000,
       "buildCosts": [150000, 300000, 450000],
       "tolls": [32000, 160000, 480000, 1440000]
+    },
+    {
+      "id": 201,
+      "boardIndex": 1,
+      "cityName": "노노치킨",
+      "canBuild": true,
+      "landPrice": 50000,
+      "buildCosts": [50000, 100000, 150000],
+      "tolls": [2000, 10000, 30000, 90000]
+    },
+    {
+      "id": 203,
+      "boardIndex": 3,
+      "cityName": "교교치킨",
+      "canBuild": true,
+      "landPrice": 80000,
+      "buildCosts": [50000, 100000, 150000],
+      "tolls": [4000, 20000, 60000, 180000]
+    },
+    {
+      "id": 204,
+      "boardIndex": 4,
+      "cityName": "기가커피",
+      "canBuild": false,
+      "landPrice": 200000,
+      "buildCosts": [0, 0, 0],
+      "tolls": [300000, 0, 0, 0]
+    },
+    {
+      "id": 205,
+      "boardIndex": 5,
+      "cityName": "굽지마치킨",
+      "canBuild": true,
+      "landPrice": 50000,
+      "buildCosts": [50000, 100000, 150000],
+      "tolls": [2000, 10000, 30000, 90000]
+    },
+    {
+      "id": 206,
+      "boardIndex": 6,
+      "cityName": "BBG치킨",
+      "canBuild": true,
+      "landPrice": 100000,
+      "buildCosts": [50000, 100000, 150000],
+      "tolls": [6000, 30000, 90000, 270000]
+    },
+    {
+      "id": 207,
+      "boardIndex": 7,
+      "cityName": "시댁치킨",
+      "canBuild": true,
+      "landPrice": 120000,
+      "buildCosts": [100000, 200000, 300000],
+      "tolls": [8000, 40000, 120000, 360000]
+    },
+    {
+      "id": 209,
+      "boardIndex": 9,
+      "cityName": "도미솔피자",
+      "canBuild": true,
+      "landPrice": 100000,
+      "buildCosts": [50000, 100000, 150000],
+      "tolls": [6000, 30000, 90000, 270000]
+    },
+    {
+      "id": 210,
+      "boardIndex": 10,
+      "cityName": "피자헉",
+      "canBuild": true,
+      "landPrice": 120000,
+      "buildCosts": [100000, 200000, 300000],
+      "tolls": [8000, 40000, 120000, 360000]
+    },
+    {
+      "id": 212,
+      "boardIndex": 12,
+      "cityName": "마마존스",
+      "canBuild": true,
+      "landPrice": 150000,
+      "buildCosts": [100000, 200000, 300000],
+      "tolls": [10000, 50000, 150000, 450000]
+    },
+    {
+      "id": 213,
+      "boardIndex": 13,
+      "cityName": "열심당",
+      "canBuild": false,
+      "landPrice": 200000,
+      "buildCosts": [0, 0, 0],
+      "tolls": [300000, 0, 0, 0]
+    },
+    {
+      "id": 214,
+      "boardIndex": 14,
+      "cityName": "미세스피자",
+      "canBuild": true,
+      "landPrice": 150000,
+      "buildCosts": [100000, 200000, 300000],
+      "tolls": [10000, 50000, 150000, 450000]
+    },
+    {
+      "id": 215,
+      "boardIndex": 15,
+      "cityName": "피자학원",
+      "canBuild": true,
+      "landPrice": 180000,
+      "buildCosts": [100000, 200000, 300000],
+      "tolls": [12000, 60000, 180000, 540000]
+    },
+    {
+      "id": 217,
+      "boardIndex": 17,
+      "cityName": "맥도날두",
+      "canBuild": true,
+      "landPrice": 180000,
+      "buildCosts": [100000, 200000, 300000],
+      "tolls": [12000, 60000, 180000, 540000]
+    },
+    {
+      "id": 218,
+      "boardIndex": 18,
+      "cityName": "원썸카페",
+      "canBuild": false,
+      "landPrice": 200000,
+      "buildCosts": [0, 0, 0],
+      "tolls": [300000, 0, 0, 0]
+    },
+    {
+      "id": 219,
+      "boardIndex": 19,
+      "cityName": "버거퀸",
+      "canBuild": true,
+      "landPrice": 200000,
+      "buildCosts": [100000, 200000, 300000],
+      "tolls": [14000, 70000, 210000, 630000]
+    },
+    {
+      "id": 221,
+      "boardIndex": 21,
+      "cityName": "놋데리아",
+      "canBuild": true,
+      "landPrice": 200000,
+      "buildCosts": [100000, 200000, 300000],
+      "tolls": [14000, 70000, 210000, 630000]
+    },
+    {
+      "id": 222,
+      "boardIndex": 22,
+      "cityName": "파파스터치",
+      "canBuild": true,
+      "landPrice": 220000,
+      "buildCosts": [150000, 300000, 450000],
+      "tolls": [16000, 80000, 240000, 720000]
+    },
+    {
+      "id": 223,
+      "boardIndex": 23,
+      "cityName": "쉐이크쉭",
+      "canBuild": true,
+      "landPrice": 250000,
+      "buildCosts": [150000, 300000, 450000],
+      "tolls": [20000, 100000, 300000, 900000]
+    },
+    {
+      "id": 225,
+      "boardIndex": 25,
+      "cityName": "런던바게뜨",
+      "canBuild": false,
+      "landPrice": 200000,
+      "buildCosts": [0, 0, 0],
+      "tolls": [300000, 0, 0, 0]
+    },
+    {
+      "id": 226,
+      "boardIndex": 26,
+      "cityName": "베스킨32",
+      "canBuild": true,
+      "landPrice": 250000,
+      "buildCosts": [150000, 300000, 450000],
+      "tolls": [20000, 100000, 300000, 900000]
+    },
+    {
+      "id": 227,
+      "boardIndex": 27,
+      "cityName": "던져도너츠",
+      "canBuild": true,
+      "landPrice": 300000,
+      "buildCosts": [150000, 300000, 450000],
+      "tolls": [26000, 130000, 390000, 1170000]
+    },
+    {
+      "id": 229,
+      "boardIndex": 29,
+      "cityName": "컵컵케이크",
+      "canBuild": true,
+      "landPrice": 300000,
+      "buildCosts": [150000, 300000, 450000],
+      "tolls": [26000, 130000, 390000, 1170000]
+    },
+    {
+      "id": 231,
+      "boardIndex": 31,
+      "cityName": "설빵",
+      "canBuild": true,
+      "landPrice": 350000,
+      "buildCosts": [150000, 300000, 450000],
+      "tolls": [32000, 160000, 480000, 1440000]
     }
   ]
 }

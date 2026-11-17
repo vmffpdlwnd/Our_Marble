@@ -139,7 +139,7 @@
 맵 {0}	Map {0}
 클래식 월드	Classic World
 도시 탐험	City Explorer
-해변 마을	Beach Town
+프랜차이즈 거리	Franchise Street
 이름 없는 방	Unnamed room
 {0}의 방	{0}'s room
 {0}승 {1}패 <size=80%><color=#8C90A8>({2}%)</color></size>	{0}W {1}L <size=80%><color=#8C90A8>({2}%)</color></size>
@@ -292,6 +292,31 @@
 파리	Paris
 뉴욕	New York
 서울	Seoul
+
+# ── 게임 화면: 2맵 가게 이름 (가상 프랜차이즈) ──
+노노치킨	Nono Chicken
+교교치킨	Gyogyo Chicken
+기가커피	Giga Coffee
+굽지마치킨	Gupjima Chicken
+BBG치킨	BBG Chicken
+시댁치킨	In-Law Chicken
+도미솔피자	Domisol Pizza
+피자헉	Pizza Huk
+마마존스	Mama Jones
+열심당	Yeolsimdang
+미세스피자	Mrs. Pizza
+피자학원	Pizza School
+맥도날두	McDonaldu
+원썸카페	Onesome Cafe
+버거퀸	Burger Queen
+놋데리아	Notteria
+파파스터치	Papa's Touch
+쉐이크쉭	Shake Shik
+런던바게뜨	London Baguette
+베스킨32	Beskin 32
+던져도너츠	Toss Donuts
+컵컵케이크	Cupcup Cake
+설빵	Seolbbang
 
 # ── 게임 화면: 칸 이름과 카드 ──
 출발	Start
@@ -468,6 +493,21 @@
 # ── 보드 칸 이름 (자리가 좁아서 짧게. 키는 "칸:" + 한국어 문장) ──
 칸:황금열쇠	Key
 칸:기부금 수령	Charity
+칸:노노치킨	Nono
+칸:교교치킨	Gyogyo
+칸:기가커피	Giga
+칸:굽지마치킨	Gupjima
+칸:BBG치킨	BBG
+칸:시댁치킨	In-Law
+칸:도미솔피자	Domisol
+칸:열심당	Yeolsim
+칸:피자학원	P. School
+칸:원썸카페	Onesome
+칸:버거퀸	B. Queen
+칸:파파스터치	Papa's
+칸:런던바게뜨	Baguette
+칸:던져도너츠	Toss
+칸:컵컵케이크	Cupcup
 
 # ── 차례 표시 (영어는 이름과 붙여 쓴다) ──
 {0}님의 차례	{0}'s turn

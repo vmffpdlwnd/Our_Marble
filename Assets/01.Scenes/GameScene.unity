@@ -5077,7 +5077,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BoardManager
   boardController: {fileID: 839385234}
-  boardData: {fileID: 11400000, guid: d05d5df88b4bc65488273ca45c54509a, type: 2}
+  defaultBoard: {fileID: 11400000, guid: d05d5df88b4bc65488273ca45c54509a, type: 2}
+  otherBoards:
+  - {fileID: 11400000, guid: 8f00ea72164d4cb68d9c6a354a26d67e, type: 2}
 --- !u!4 &2127056688
 Transform:
   m_ObjectHideFlags: 0

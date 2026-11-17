@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class BoardManager : Singleton<BoardManager>
 {
@@ -8,13 +9,21 @@ public class BoardManager : Singleton<BoardManager>
     protected override bool PersistAcrossScenes => false;
 
     [SerializeField] private BoardController boardController;
-    [SerializeField] private BoardData boardData;
+
+    [Tooltip("맵을 못 찾을 때 쓰는 기본 보드. (1맵 DefaultBoardInfo)")]
+    [FormerlySerializedAs("boardData")]
+    [SerializeField] private BoardData defaultBoard;
+
+    [Tooltip("기본 보드 말고 고를 수 있는 보드. 방의 mapId와 BoardData의 mapId가 같은 것을 쓴다. (2맵 FranchiseBoardInfo)")]
+    [SerializeField] private BoardData[] otherBoards;
+
+    private BoardData boardData; // 이번 게임에 고른 보드. 처음 쓸 때 SelectBoard로 정한다
 
     public BoardController BoardController => boardController;
-    public BoardData BoardData => boardData;
+    public BoardData BoardData => boardData != null ? boardData : boardData = SelectBoard();
     
     /// <summary>보드의 전체 칸 수. (BoardData 기준)</summary>
-    public int TileCount => boardData != null ? boardData.Tiles.Count : 0;
+    public int TileCount => BoardData != null ? BoardData.Tiles.Count : 0;
     
     private Dictionary<int, TileData> tilesByIndex;
 
@@ -38,7 +47,7 @@ public class BoardManager : Singleton<BoardManager>
 
     public void RefreshBoard()
     {
-        for (int i = 0; i < boardData.Tiles.Count; i++)
+        for (int i = 0; i < BoardData.Tiles.Count; i++)
         {
             TileData tileData = tilesByIndex[i];
 
@@ -84,9 +93,33 @@ public class BoardManager : Singleton<BoardManager>
         boardController.InitializeBoardTiles();
     }
 
+    /// <summary>
+    /// 방의 맵 번호(SceneFlow.GameMapId)와 같은 mapId의 보드를 고른다. 못 찾으면 기본 보드.
+    /// 호스트, 참가자, 이어하기 모두 게임 시작 알림의 mapId로 게임 씬에 들어오므로 같은 보드가 골라진다.
+    /// 방장이 바뀌어도 새 방장은 이미 고른 보드로 이어받는다.
+    /// </summary>
+    private BoardData SelectBoard()
+    {
+        int mapId = SceneFlow.GameMapId;
+        if (defaultBoard != null && defaultBoard.MapId == mapId) return defaultBoard;
+
+        if (otherBoards != null)
+        {
+            foreach (BoardData board in otherBoards)
+            {
+                if (board != null && board.MapId == mapId) return board;
+            }
+        }
+
+        // 에디터에서 게임 씬을 바로 플레이하면 맵 번호가 0이다
+        if (mapId != 0) Debug.LogWarning($"[BoardManager] mapId {mapId}의 보드가 없어 기본 보드를 씁니다.", this);
+        return defaultBoard;
+    }
+
     private void RebuildLookup()
     {
         tilesByIndex = new Dictionary<int, TileData>();
+        BoardData boardData = BoardData;
 
         if (boardData == null)
         {
