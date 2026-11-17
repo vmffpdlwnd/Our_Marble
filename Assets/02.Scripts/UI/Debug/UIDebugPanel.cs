@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using DG.Tweening;
 using UnityEngine;
 
 /// <summary>
@@ -9,7 +8,6 @@ using UnityEngine;
 ///
 /// 게임은 호스트가 진행하므로, 이 창은 내 화면의 GameState만 바꾸는 버튼을 두지 않는다. (호스트와 상태가 어긋나 [StateCheck] 에러가 난다)
 /// 남겨 둔 것은 읽기만 하거나 실제 경로(GameManager → 호스트 → 알림)로 요청을 보내는 것뿐이다.
-/// - 연출 속도 (0.5~4배)
 /// - 방 정보, 플레이어 상태(현금, 땅, 파산) 보기
 /// - 다음 주사위 정하기 (이 PC가 호스트일 때만. 호스트가 굴리는 눈을 바꾼다. 한 번 또는 계속)
 /// - 황금열쇠 카드 앞면 보기 (효과 없이 화면만), 다음에 뽑힐 카드 지정 (이 PC가 호스트일 때만. 호스트가 뽑는 카드를 바꾼다)
@@ -17,8 +15,6 @@ using UnityEngine;
 public class UIDebugPanel : MonoBehaviour
 {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-    private const float MinSpeed = 0.5f, MaxSpeed = 4f; // 연출 속도 범위 (DOTween 연출에만 적용된다)
-    private float speed = 1f;
     private bool expanded = true;
     private bool placed;
     private bool ready;
@@ -42,11 +38,6 @@ public class UIDebugPanel : MonoBehaviour
         // 서버에서 게임 상태(GAME_STATE_SYNC)를 받기 전에는 플레이어 목록이 비어 있다. 받을 때까지 기다린다.
         while (State == null || State.PlayerStates == null || State.PlayerStates.Count == 0) yield return null;
         ready = true;
-    }
-
-    private void OnDisable()
-    {
-        DOTween.timeScale = 1f;
     }
 
     private void OnGUI()
@@ -88,11 +79,6 @@ public class UIDebugPanel : MonoBehaviour
             GUI.DragWindow();
             return;
         }
-
-        GUILayout.Label($"연출 속도 x{speed:0.00}");
-        float next = GUILayout.HorizontalSlider(speed, MinSpeed, MaxSpeed);
-        if (!Mathf.Approximately(next, speed)) { speed = next; DOTween.timeScale = speed; }
-        GUILayout.Space(6);
 
         scroll = GUILayout.BeginScrollView(scroll, false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
 

@@ -32,7 +32,7 @@ public enum Sfx
 /// - UI 버튼과 스위치를 누르는 소리, 내 현금이 바뀌는 소리는 따로 부르지 않아도 여기서 알아서 낸다.
 /// - 볼륨은 설정 창 값(SettingsView.BgmVolume, SfxVolume)을 따르고, 바꾸면 바로 반영한다. (SettingsView.SoundChanged)
 /// - 웹 빌드는 브라우저가 첫 클릭 전에는 소리를 막는다. 재생은 시작해 두고, 첫 클릭 뒤부터 들린다.
-/// 시간은 모두 Time.unscaled로 센다. (F1 연출 속도가 DOTween 시간을 바꿔도 소리 길이는 그대로)
+/// 시간은 모두 Time.unscaled로 센다. (DOTween 시간 배율이 바뀌어도 소리 길이는 그대로)
 /// </summary>
 public class SoundManager : MonoBehaviour
 {
