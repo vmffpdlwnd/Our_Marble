@@ -109,7 +109,7 @@ public class GameNetwork : Singleton<GameNetwork>
                 BuiltBroadcast builtBroadcast =
                     JsonConvert.DeserializeObject<BuiltBroadcast>(json);
 
-                OnBuilt?.Invoke(builtBroadcast.playerId, builtBroadcast.propertyId, builtBroadcast.isAccept);
+                OnBuilt?.Invoke(builtBroadcast.playerId, builtBroadcast.propertyId, builtBroadcast.isAccept, builtBroadcast.usedBuildDiscount);
                 break;
             }
             case GameMessageType.CARD_DRAWN:
@@ -134,6 +134,14 @@ public class GameNetwork : Singleton<GameNetwork>
                     JsonConvert.DeserializeObject<TollDoubleChosenBroadcast>(json);
 
                 OnTollDoubleChosen?.Invoke(tollDoubleChosenBroadcast.playerId, tollDoubleChosenBroadcast.propertyId);
+                break;
+            }
+            case GameMessageType.TOLL_CARD_CHOSEN:
+            {
+                TollCardChosenBroadcast tollCardChosenBroadcast =
+                    JsonConvert.DeserializeObject<TollCardChosenBroadcast>(json);
+
+                OnTollCardChosen?.Invoke(tollCardChosenBroadcast.playerId, tollCardChosenBroadcast.card);
                 break;
             }
             case GameMessageType.DICE_ROLLED:
@@ -195,10 +203,11 @@ public class GameNetwork : Singleton<GameNetwork>
     }
 
     // GameNetwork는 GameManager의 존재를 몰라도 되게 하기 위해서, GameManager의 함수를 직접 호출하는 대신, 이벤트 방식을 사용할것이다.
-    public event Action<long, int, bool> OnBuilt; // GameManager의 OnEnable에서  GameNetwork.Instance.OnDiceRolled += HandleDiceRolled; 하면 된다.
+    public event Action<long, int, bool, bool> OnBuilt; // 지은 사람, 땅 id, 지었는지, 건설 할인권을 썼는지. GameManager의 OnEnable에서 GameNetwork.Instance.OnDiceRolled += HandleDiceRolled; 하면 된다.
     public event Action<long, int, long> OnCardDrawn; // 뽑은 사람, 카드 id, 위치 바꾸기 상대(없으면 0)
     public event Action<long, int> OnDestinationChosen;
     public event Action<long, int> OnTollDoubleChosen; // 고른 사람, 통행료 2배를 붙인 땅 id
+    public event Action<long, CardEffectType?> OnTollCardChosen; // 통행료를 낼 사람, 쓴 통행료 카드(없으면 null)
     public event Action<long, int, int, bool> OnDiceRolled; // 굴린 사람, 주사위 둘, 무인도 탈출권을 썼는지
     public event Action<long, List<int>> OnPropertiesSold;
     public event Action<long, int, bool> OnPropertyAcquired;
@@ -206,13 +215,14 @@ public class GameNetwork : Singleton<GameNetwork>
     public event Action<long> OnBankruptcyDeclared; // 차례인 사람이 스스로 파산했다 (playerId)
     public event Action<string, string> OnGameError; // 호스트가 내 요청을 거절했다 (code, message)
    
-    public void SendBuildRequest(int propertyId, bool isAccept)
+    public void SendBuildRequest(int propertyId, bool isAccept, bool useBuildDiscount = false)
     {
         PropertyDecisionRequest message = new PropertyDecisionRequest
         {
             type = "BUILD",
             propertyId = propertyId,
-            isAccept = isAccept
+            isAccept = isAccept,
+            useBuildDiscount = useBuildDiscount
         };
 
         string json = JsonConvert.SerializeObject(message);
@@ -242,6 +252,18 @@ public class GameNetwork : Singleton<GameNetwork>
         SendGameMessage(json);
     }
     
+    public void SendChooseTollCardRequest(CardEffectType? card)
+    {
+        ChooseTollCardRequest message = new ChooseTollCardRequest
+        {
+            type = "CHOOSE_TOLL_CARD",
+            card = card
+        };
+
+        string json = JsonConvert.SerializeObject(message);
+        SendGameMessage(json);
+    }
+
     public void SendChooseTollDoubleRequest(int propertyId)
     {
         ChooseTollDoubleRequest message = new ChooseTollDoubleRequest

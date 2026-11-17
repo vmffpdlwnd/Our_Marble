@@ -19,6 +19,7 @@ public enum SelectionKind
     Sell,              // 매각
     Destination,       // 세계여행 목적지
     IslandEscape,      // 무인도 탈출 방법
+    HeldCard,          // 보관형 황금열쇠를 쓸지 (통행료 카드, 건설 할인권)
 }
 
 public class UIManager : MonoBehaviour
@@ -544,6 +545,13 @@ public class UIManager : MonoBehaviour
                 pending += data.GetBuildCost(level);
                 option.Cost = pending;
 
+                // 할인 없이는 모자라고 건설 할인권으로만 지을 수 있으면, 다음 단계 건설비를 할인한 금액으로 보여 준다 (ConfirmBuild가 묻지 않고 쓴다)
+                if (i == current + 1 && player != null && player.Money < pending)
+                {
+                    CardData discount = FindHeldCard(player, CardEffectType.BuildDiscount);
+                    if (discount != null) option.Cost = CardRules.DiscountedBuildCost(pending, discount.amount);
+                }
+
                 if (i > current + 1)
                 {
                     option.Locked = true;
@@ -560,9 +568,76 @@ public class UIManager : MonoBehaviour
         }
 
         purchase.Show(TileName(propertyId), TileImageOf(propertyId), options, player != null ? player.Money : 0,
-            level => { if (Game != null) Game.Build(playerId, propertyId); },
+            level => ConfirmBuild(playerId, propertyId),
             () => { if (Game != null) Game.DeclineBuild(playerId, propertyId); },
             OwnerLabel(state));
+    }
+
+    // 건설 창에서 건설을 눌렀을 때. 건설 할인권을 들고 있으면 쓸지 묻는다.
+    // 할인 없이는 돈이 모자라면(할인해야만 지을 수 있으면) 묻지 않고 쓴다.
+    private void ConfirmBuild(long playerId, int propertyId)
+    {
+        if (Game == null) return;
+
+        PlayerState player = GetPlayer(playerId);
+        PropertyState state = GetProperty(propertyId);
+        CardData card = FindHeldCard(player, CardEffectType.BuildDiscount);
+        if (card == null || state == null || exitConfirm == null)
+        {
+            Game.Build(playerId, propertyId);
+            return;
+        }
+
+        long cost = PropertyManager.Instance.GetBuildCost(propertyId, state.BuildingLevel + 1);
+        long discounted = CardRules.DiscountedBuildCost(cost, card.amount);
+        if (player.Money < cost)
+        {
+            Game.Build(playerId, propertyId, true, true);
+            return;
+        }
+
+        AskUseHeldCard("{0}을(를) 쓸까요?\n건설비 <s>{1}</s> {2}",
+            new object[] { Loc.T(card.cardName), UIPalette.Money(cost), UIPalette.Money(discounted) },
+            () => Game.Build(playerId, propertyId, true, true),
+            () => Game.Build(playerId, propertyId, true, false));
+    }
+
+    // 남의 땅에 도착해 통행료를 내기 전에 통행료 카드를 쓸지 묻는다. (GameManager.HandleTollCardPrompt)
+    // 면제권과 반값권을 둘 다 들고 있으면 면제권부터 묻고, 안 쓰면 반값권을 묻는다. (둘 다 안 쓰면 그대로 낸다)
+    public void ShowTollCardChoice(long toll)
+    {
+        if (Game == null) return;
+
+        PlayerState player = CurrentPlayer;
+        CardData free = FindHeldCard(player, CardEffectType.TollFree);
+        CardData half = FindHeldCard(player, CardEffectType.TollHalf);
+        if (exitConfirm == null || (free == null && half == null))
+        {
+            Game.ChooseTollCard(null);
+            return;
+        }
+
+        const string message = "{0}을(를) 쓸까요?\n통행료 <s>{1}</s> {2}";
+        Action askHalf = () => AskUseHeldCard(message,
+            new object[] { Loc.T(half.cardName), UIPalette.Money(toll), UIPalette.Money(CardRules.ApplyTollCard(toll, CardEffectType.TollHalf)) },
+            () => Game.ChooseTollCard(CardEffectType.TollHalf),
+            () => Game.ChooseTollCard(null));
+
+        if (free == null) { askHalf(); return; }
+
+        AskUseHeldCard(message,
+            new object[] { Loc.T(free.cardName), UIPalette.Money(toll), UIPalette.Money(0) },
+            () => Game.ChooseTollCard(CardEffectType.TollFree),
+            half != null ? askHalf : () => Game.ChooseTollCard(null));
+    }
+
+    // 보관형 카드를 쓸지 묻는 창 (확인 창을 같이 쓴다). 바로 앞 창(건설 창, 앞의 카드 질문)의 남은 제한시간을 이어받는다.
+    // 시간이 지나면 창이 닫히고 아무것도 보내지 않는다. 호스트가 대신 진행하고, 대신 진행은 카드를 쓴다.
+    private void AskUseHeldCard(string message, object[] args, Action onUse, Action onSkip)
+    {
+        carryTimerRemaining = timerWindow != null ? timerRemaining : -1f;
+        exitConfirm.Show(onUse, message, "카드 사용", "안 쓰기", onSkip, args);
+        BeginSelectionTimer(exitConfirm, SelectionKind.HeldCard);
     }
 
     // 특수 칸(별 건설 없음)의 효과 설명. PropertyEffectDescription이 없거나 비어 있으면 기본 안내

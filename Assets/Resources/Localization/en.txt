@@ -479,3 +479,6 @@
 # ── 게임에서 나가기, 파산한 사람의 재접속 ──
 파산해서 이 게임에 다시 들어올 수 없어요	You went bankrupt and can't rejoin this game
 나가면 다시 들어올 수 없어요.\n로비로 돌아갈까요?	You can't come back once you leave.\nReturn to the lobby?
+{0}을(를) 쓸까요?\n통행료 <s>{1}</s> {2}	Use {0}?\nToll <s>{1}</s> {2}
+{0}을(를) 쓸까요?\n건설비 <s>{1}</s> {2}	Use {0}?\nBuild cost <s>{1}</s> {2}
+안 쓰기	Don't use

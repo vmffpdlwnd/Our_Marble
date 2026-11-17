@@ -276,6 +276,73 @@ public static class CardRules
         return true;
     }
 
+    /// <summary>월급 2배 카드를 들고 있으면 쓴다(묻지 않음). 썼으면 true. 월급을 줄 때 GameRules.MoveTo가 부른다.</summary>
+    public static bool UseSalaryDouble(GameData data, PlayerState player)
+    {
+        if (data == null || player == null || FindHeldCard(data, player, CardEffectType.SalaryDouble) == null) return false;
+        ConsumeHeldCard(data, player, CardEffectType.SalaryDouble);
+        return true;
+    }
+
+    // ── 건설 할인권 ──
+
+    /// <summary>들고 있는 건설 할인권의 할인 비율(퍼센트, 카드의 amount). 없으면 0.</summary>
+    public static int BuildDiscountPercent(GameData data, PlayerState player)
+    {
+        CardData card = data != null && player != null ? FindHeldCard(data, player, CardEffectType.BuildDiscount) : null;
+        return card != null ? (int)System.Math.Min(100, System.Math.Max(0, card.amount)) : 0;
+    }
+
+    /// <summary>할인한 건설비. percent가 0이면 그대로.</summary>
+    public static long DiscountedBuildCost(long cost, int percent) => cost * (100 - percent) / 100;
+
+    /// <summary>건설 할인권을 쓴다. 들고 있으면 카드를 내고 할인 비율을 돌려준다. 없으면 0.</summary>
+    public static int UseBuildDiscount(GameData data, PlayerState player)
+    {
+        int percent = BuildDiscountPercent(data, player);
+        if (percent > 0) ConsumeHeldCard(data, player, CardEffectType.BuildDiscount);
+        return percent;
+    }
+
+    // ── 통행료 면제권, 반값권 ──
+
+    /// <summary>통행료 면제권이나 반값권을 하나라도 들고 있는지. (남의 땅에 도착했을 때 쓸지 묻는다)</summary>
+    public static bool HasTollCard(GameData data, PlayerState player)
+    {
+        return FindHeldCard(data, player, CardEffectType.TollFree) != null || FindHeldCard(data, player, CardEffectType.TollHalf) != null;
+    }
+
+    /// <summary>
+    /// 통행료 카드를 쓴다. card가 면제권이나 반값권이고 들고 있으면 카드를 내고, 통행료를 다 낼 때까지 PlayerState.TollCardInUse에 적어 둔다.
+    /// 쓰지 않거나(null) 들고 있지 않으면 아무것도 바꾸지 않고 false.
+    /// </summary>
+    public static bool UseTollCard(GameData data, PlayerState player, CardEffectType? card)
+    {
+        if (player == null || !card.HasValue) return false;
+        if (card.Value != CardEffectType.TollFree && card.Value != CardEffectType.TollHalf) return false;
+        if (FindHeldCard(data, player, card.Value) == null) return false;
+
+        ConsumeHeldCard(data, player, card.Value);
+        player.TollCardInUse = card.Value;
+        return true;
+    }
+
+    /// <summary>봇과 AFK가 쓸 통행료 카드. 면제권을 먼저, 없으면 반값권. 둘 다 없으면 null.</summary>
+    public static CardEffectType? PickTollCard(GameData data, PlayerState player)
+    {
+        if (FindHeldCard(data, player, CardEffectType.TollFree) != null) return CardEffectType.TollFree;
+        if (FindHeldCard(data, player, CardEffectType.TollHalf) != null) return CardEffectType.TollHalf;
+        return null;
+    }
+
+    /// <summary>통행료 카드를 적용한 금액. 면제권은 0, 반값권은 절반, 없으면 그대로.</summary>
+    public static long ApplyTollCard(long toll, CardEffectType? card)
+    {
+        if (card == CardEffectType.TollFree) return 0;
+        if (card == CardEffectType.TollHalf) return toll / 2;
+        return toll;
+    }
+
     // 들고 있던 이 종류의 카드를 낸다 (보관형은 모두 1회용)
     private static void ConsumeHeldCard(GameData data, PlayerState player, CardEffectType type)
     {

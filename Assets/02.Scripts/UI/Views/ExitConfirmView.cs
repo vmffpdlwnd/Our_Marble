@@ -3,7 +3,10 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>나가기 확인 팝업. 게임에서는 로비로, 로비에서는 방 밖이나 로그인 화면으로 나갈지 묻는다. 문구는 부르는 쪽이 정한다. Canvas_ExitConfirm에 붙는다.</summary>
+/// <summary>
+/// 확인 팝업. 게임에서는 로비로, 로비에서는 방 밖이나 로그인 화면으로 나갈지 묻는다. 문구는 부르는 쪽이 정한다. Canvas_ExitConfirm에 붙는다.
+/// 게임 중에는 보관형 황금열쇠를 쓸지 묻는 데도 같이 쓴다. (UIManager.AskUseHeldCard)
+/// </summary>
 public class ExitConfirmView : UIView
 {
     public override string PanelPath => "ExitConfirmPopup/Window";
@@ -28,7 +31,10 @@ public class ExitConfirmView : UIView
     /// <param name="message">안내 문장. 비우면 프리팹에 적힌 문장을 쓴다.</param>
     /// <param name="confirmLabel">확인 버튼 글자. 비우면 프리팹에 적힌 글자(나가기)를 쓴다.</param>
     /// <param name="cancelLabel">취소 버튼 글자. 비우면 프리팹에 적힌 글자를 쓴다.</param>
-    public void Show(Action onConfirm, string message = null, string confirmLabel = null, string cancelLabel = null)
+    /// <param name="onCancel">취소를 눌렀을 때. 창을 닫은 뒤 호출된다. 비우면 닫기만 한다.</param>
+    /// <param name="messageArgs">message에 {0}, {1}… 자리가 있으면 채울 값. 번역은 자리가 있는 원문으로 찾는다.</param>
+    public void Show(Action onConfirm, string message = null, string confirmLabel = null, string cancelLabel = null,
+                     Action onCancel = null, object[] messageArgs = null)
     {
         // 이미 만들어진 프리팹에는 이 칸이 연결돼 있지 않을 수 있어 처음 쓸 때 찾는다
         if (messageText == null) messageText = Find<TMP_Text>("ExitConfirmPopup/Window/MessageText");
@@ -42,11 +48,11 @@ public class ExitConfirmView : UIView
             defaultsCached = true;
         }
         // 이 창은 여러 곳에서 같이 쓰므로, 부를 때마다 문구를 새로 정한다 (이전에 바꾼 문구가 남지 않게)
-        Loc.Bind(messageText, message ?? defaultMessage);
+        Loc.Bind(messageText, message ?? defaultMessage, messageArgs ?? Array.Empty<object>());
         Loc.Bind(confirmText, confirmLabel ?? defaultConfirmLabel);
         Loc.Bind(cancelText, cancelLabel ?? defaultCancelLabel);
         SetOnClick(confirmButton, () => { Close(); onConfirm?.Invoke(); });
-        SetOnClick(cancelButton, Close);
+        SetOnClick(cancelButton, () => { Close(); onCancel?.Invoke(); });
         Open();
     }
 

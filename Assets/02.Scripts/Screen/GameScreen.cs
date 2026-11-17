@@ -185,6 +185,13 @@ public class GameScreen
             UIManager.Instance.ShowRollDicePopup();
     }
 
+    /// <summary>남의 땅에 도착해 통행료를 내기 전에, 통행료 면제권·반값권을 쓸지 묻는다. toll: 카드를 쓰지 않을 때의 통행료</summary>
+    public void ShowTollCardChoice(long playerId, long toll)
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.ShowTollCardChoice(toll);
+    }
+
     /// <summary>무인도에서 내 차례가 시작될 때, 무인도 탈출권을 쓸지 묻는 창을 띄운다. 고르면 굴리기 창이 이어서 뜬다.</summary>
     public void ShowIslandEscapeChoice()
     {

@@ -28,6 +28,9 @@ public enum GameMessageType
 
     [EnumMember(Value = "AWAITING_TOLL_DOUBLE")] // 통행료 2배 카드: 내 땅 하나를 고르기를 기다린다
     TOLL_DOUBLE_CHOSEN,
+
+    [EnumMember(Value = "AWAITING_TOLL_CARD")] // 남의 땅에 도착: 통행료 면제권·반값권을 쓸지 고르기를 기다린다
+    TOLL_CARD_CHOSEN,
       
     // 파산 신청 알림. 기다리는 단계(phase)가 아니라서 EnumMember가 없다. (어느 입력 단계에서나 올 수 있다)
     BANKRUPTCY_DECLARED,

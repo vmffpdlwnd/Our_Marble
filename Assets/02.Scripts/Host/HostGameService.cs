@@ -266,6 +266,7 @@ public class HostGameService : IHostRequestReceiver
             case "DRAW_CARD": HandleDrawCard(senderId); break;
             case "CHOOSE_DESTINATION": HandleChooseDestination(senderId, JsonConvert.DeserializeObject<ChooseDestinationRequest>(json)); break;
             case "CHOOSE_TOLL_DOUBLE": HandleChooseTollDouble(senderId, JsonConvert.DeserializeObject<ChooseTollDoubleRequest>(json)); break;
+            case "CHOOSE_TOLL_CARD": HandleChooseTollCard(senderId, JsonConvert.DeserializeObject<ChooseTollCardRequest>(json)); break;
             case "DECLARE_BANKRUPTCY": HandleDeclareBankruptcy(senderId); break;
 
             default:
@@ -519,7 +520,7 @@ public class HostGameService : IHostRequestReceiver
     // GameManager.HandlePlayerMoved
     private void MovePlayer(PlayerState player, int to, bool shouldReceiveSalary)
     {
-        long salary = GameRules.MoveTo(state, player, to, shouldReceiveSalary);
+        long salary = GameRules.MoveTo(state, gameData, player, to, shouldReceiveSalary);
 
         if (shouldReceiveSalary)
             Debug.Log($"[HostGameService] 월급: {player.Nickname} +{salary} (현금 {player.Money})");
@@ -530,7 +531,7 @@ public class HostGameService : IHostRequestReceiver
     // GameManager.MovePlayerDirectly (월급 없는 순간이동)
     private void MovePlayerDirectly(PlayerState player, int to)
     {
-        GameRules.MoveTo(state, player, to, false);
+        GameRules.MoveTo(state, gameData, player, to, false);
         ProcessArrival(player, to);
     }
 
@@ -734,15 +735,18 @@ public class HostGameService : IHostRequestReceiver
         PropertyState property = GetProperty(request.propertyId);
 
         // 8. 기능별 검증. 거절은 확인할 것이 없다. (건설할 수 없는 땅에서도 거절은 보낼 수 있다)
-        if (RejectTrade(senderId, TradeRules.CheckBuild(gameData, player, property, request.isAccept))) return;
+        // 건설 할인권은 들고 있을 때만 쓴다 (없으면 할인 없이 확인하고 짓는다)
+        bool useDiscount = request.isAccept && request.useBuildDiscount && CardRules.BuildDiscountPercent(gameData, player) > 0;
+        if (RejectTrade(senderId, TradeRules.CheckBuild(gameData, player, property, request.isAccept, useDiscount))) return;
 
         state.WaitingType = null;
         Broadcast(GameMessageType.BUILT,
-            new BuiltBroadcast { playerId = senderId, propertyId = request.propertyId, isAccept = request.isAccept });
+            new BuiltBroadcast { playerId = senderId, propertyId = request.propertyId, isAccept = request.isAccept, usedBuildDiscount = useDiscount });
 
         if (request.isAccept)
         {
-            long cost = TradeRules.Build(gameData, player, property);
+            long cost = TradeRules.Build(gameData, player, property, useDiscount);
+            if (useDiscount) Debug.Log($"[HostGameService] 건설 할인권 사용: {player.Nickname}");
             Debug.Log($"[HostGameService] 건설: {player.Nickname} {request.propertyId}번 땅 → {property.BuildingLevel} (-{cost}, 현금 {player.Money})");
         }
         else
@@ -845,11 +849,43 @@ public class HostGameService : IHostRequestReceiver
                 return; // 구매 또는 건설 요청을 기다린다
         }
 
-        // 남의 땅
+        ProcessTollArrival(player, propertyId, arrival);
+    }
+
+    // GameManager.HandleTollCardChosen
+    // 남의 땅에서 통행료 카드 단계(TOLL_CARD_CHOSEN)에 있을 때, 쓸 카드(또는 안 씀)를 받고 통행료를 낸다.
+    // 쓸 수 없는 카드를 보내면(들고 있지 않음) 쓰지 않은 것으로 보고 그대로 낸다. (턴이 멈추지 않게)
+    private void HandleChooseTollCard(long senderId, ChooseTollCardRequest request)
+    {
+        if (!Validate(senderId, GameMessageType.TOLL_CARD_CHOSEN, out PlayerState player)) return;
+
+        TileData tile = BoardManager.Instance.GetTileData(player.Position);
+        PropertyState landed = tile != null && tile.Type == TileType.PROPERTY ? GetProperty(tile.PropertyId) : null;
+        if (landed == null || !landed.OwnerId.HasValue || landed.OwnerId.Value == senderId)
+        {
+            SendError(senderId, "NOT_ON_PROPERTY", "통행료를 낼 땅 위에 있지 않아요");
+            return;
+        }
+
+        bool used = CardRules.UseTollCard(gameData, player, request.card);
+        if (used) Debug.Log($"[HostGameService] 통행료 카드 사용: {player.Nickname} {request.card}");
+
+        state.WaitingType = null;
+        Broadcast(GameMessageType.TOLL_CARD_CHOSEN, new TollCardChosenBroadcast { playerId = senderId, card = used ? request.card : null });
+
+        ProcessTollArrival(player, landed.PropertyId, TradeRules.PayTollOnArrival(state, gameData, player, landed.PropertyId));
+    }
+
+    // 남의 땅에 도착한 뒤(또는 통행료 카드를 고른 뒤) 규칙이 알려 준 결과대로 이어서 진행한다
+    private void ProcessTollArrival(PlayerState player, int propertyId, PropertyArrival arrival)
+    {
         Debug.Log($"[HostGameService] 남의 땅: {propertyId}번 (주인 {arrival.Owner.Nickname}, 통행료 {arrival.Toll})");
 
         switch (arrival.Kind)
         {
+            case PropertyArrivalKind.ChooseTollCard:
+                break; // 통행료 카드를 쓸지 고르기를 기다린다
+
             case PropertyArrivalKind.TollPaidAcquire:
                 Debug.Log($"[HostGameService] 통행료: {player.Nickname} → {arrival.Owner.Nickname} {arrival.Toll}");
                 break; // 인수 요청을 기다린다
@@ -1015,8 +1051,16 @@ public class HostGameService : IHostRequestReceiver
                 HandlePurchaseProperty(id, Decision("PURCHASE_PROPERTY", propertyId, WantsToPurchase(actor, propertyId)));
                 break;
 
-            case GameMessageType.BUILT:
-                HandleBuild(id, Decision("BUILD", propertyId, WantsToBuild(actor, propertyId)));
+            case GameMessageType.BUILT: // 건설 할인권을 들고 있으면 항상 쓴다
+            {
+                PropertyDecisionRequest build = Decision("BUILD", propertyId, WantsToBuild(actor, propertyId));
+                build.useBuildDiscount = CardRules.BuildDiscountPercent(gameData, actor) > 0;
+                HandleBuild(id, build);
+                break;
+            }
+
+            case GameMessageType.TOLL_CARD_CHOSEN: // 면제권을 먼저, 없으면 반값권을 쓴다
+                HandleChooseTollCard(id, new ChooseTollCardRequest { type = "CHOOSE_TOLL_CARD", card = CardRules.PickTollCard(gameData, actor) });
                 break;
 
             case GameMessageType.PROPERTY_ACQUIRED:
@@ -1058,6 +1102,7 @@ public class HostGameService : IHostRequestReceiver
         if (property.OwnerId != actor.PlayerId || property.BuildingLevel >= BuildingLevel.Hotel) return false;
 
         long cost = PropertyManager.Instance.GetBuildCost(propertyId, property.BuildingLevel + 1);
+        cost = CardRules.DiscountedBuildCost(cost, CardRules.BuildDiscountPercent(gameData, actor)); // 할인권이 있으면 할인한 금액으로 판단한다
         return actor.Money >= cost && Strategy.ShouldBuild(state, actor.PlayerId, propertyId, cost);
     }
 
