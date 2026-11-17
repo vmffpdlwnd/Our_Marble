@@ -12863,7 +12863,7 @@ MonoBehaviour:
   mapSprites:
   - {fileID: 21300000, guid: 0bf210341f14cb04da0b4d4bbe3519f6, type: 3}
   - {fileID: 21300000, guid: 0eeb556fbf4d3f747af36793ac66e712, type: 3}
-  - {fileID: 21300000, guid: ae52c0c2d78ff794bbfc16c483dc463d, type: 3}
+  - {fileID: 1807569293917606541, guid: 67cc6f95fadaf5649a76960abec00737, type: 3}
   requestTimeout: 10
   refreshCooldown: 10
 --- !u!1 &773407561
