@@ -141,7 +141,7 @@ public class GameNetwork : Singleton<GameNetwork>
                 DiceRolledBroadcast diceRolledBroadcast =
                     JsonConvert.DeserializeObject<DiceRolledBroadcast>(json);
                 
-                OnDiceRolled?.Invoke(diceRolledBroadcast.playerId, diceRolledBroadcast.dice1, diceRolledBroadcast.dice2);
+                OnDiceRolled?.Invoke(diceRolledBroadcast.playerId, diceRolledBroadcast.dice1, diceRolledBroadcast.dice2, diceRolledBroadcast.usedIslandEscape);
                 break;
             }
             case GameMessageType.PROPERTIES_SOLD:
@@ -199,7 +199,7 @@ public class GameNetwork : Singleton<GameNetwork>
     public event Action<long, int, long> OnCardDrawn; // 뽑은 사람, 카드 id, 위치 바꾸기 상대(없으면 0)
     public event Action<long, int> OnDestinationChosen;
     public event Action<long, int> OnTollDoubleChosen; // 고른 사람, 통행료 2배를 붙인 땅 id
-    public event Action<long, int, int> OnDiceRolled;
+    public event Action<long, int, int, bool> OnDiceRolled; // 굴린 사람, 주사위 둘, 무인도 탈출권을 썼는지
     public event Action<long, List<int>> OnPropertiesSold;
     public event Action<long, int, bool> OnPropertyAcquired;
     public event Action<long, int, bool> OnPropertyPurchased;
@@ -254,11 +254,12 @@ public class GameNetwork : Singleton<GameNetwork>
         SendGameMessage(json);
     }
 
-    public void SendRollDiceRequest()
+    public void SendRollDiceRequest(bool useIslandEscape = false)
     {
         RollDiceRequest message = new RollDiceRequest
         {
-            type = "ROLL_DICE"
+            type = "ROLL_DICE",
+            useIslandEscape = useIslandEscape
         };
 
         string json = JsonConvert.SerializeObject(message);

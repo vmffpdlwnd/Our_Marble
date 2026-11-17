@@ -245,7 +245,7 @@ public class HostGameService : IHostRequestReceiver
         switch (type)
         {
             case "GAME_STATE_REQUEST": HandleGameStateRequest(senderId); break;
-            case "ROLL_DICE": HandleRollDice(senderId); break;
+            case "ROLL_DICE": HandleRollDice(senderId, JsonConvert.DeserializeObject<RollDiceRequest>(json).useIslandEscape); break;
             case "PURCHASE_PROPERTY": HandlePurchaseProperty(senderId, JsonConvert.DeserializeObject<PropertyDecisionRequest>(json)); break;
             case "BUILD": HandleBuild(senderId, JsonConvert.DeserializeObject<PropertyDecisionRequest>(json)); break;
             case "ACQUIRE_PROPERTY": HandleAcquireProperty(senderId, JsonConvert.DeserializeObject<PropertyDecisionRequest>(json)); break;
@@ -350,9 +350,13 @@ public class HostGameService : IHostRequestReceiver
     #region 진행: 주사위, 이동, 도착, 턴 전환, 카드, 세계여행, 종료
     // ───────────── 요청 처리 ─────────────
 
-    private void HandleRollDice(long senderId)
+    // useIslandEscape: 굴리기 전에 무인도 탈출권을 쓴다. 쓸 수 없는 상태면(카드가 없거나 영업정지가 아님) 쓰지 않고 그냥 굴린다
+    private void HandleRollDice(long senderId, bool useIslandEscape = false)
     {
         if (!Validate(senderId, GameMessageType.DICE_ROLLED, out PlayerState player)) return;
+
+        bool usedIslandEscape = useIslandEscape && CardRules.UseIslandEscape(gameData, player);
+        if (usedIslandEscape) Debug.Log($"[HostGameService] 무인도 탈출권 사용: {player.Nickname}");
 
         int dice1 = random.Next(1, 7);
         int dice2 = random.Next(1, 7);
@@ -360,7 +364,7 @@ public class HostGameService : IHostRequestReceiver
 
         // 요청 하나가 흐름을 다음 입력 단계까지 끝까지 처리한다. 그 사이에는 입력을 받지 않는다.
         state.WaitingType = null;
-        Broadcast(GameMessageType.DICE_ROLLED, new DiceRolledBroadcast { playerId = senderId, dice1 = dice1, dice2 = dice2 });
+        Broadcast(GameMessageType.DICE_ROLLED, new DiceRolledBroadcast { playerId = senderId, dice1 = dice1, dice2 = dice2, usedIslandEscape = usedIslandEscape });
 
         ApplyDiceResult(player, dice1, dice2);
     }
@@ -972,8 +976,8 @@ public class HostGameService : IHostRequestReceiver
 
         switch (state.WaitingType)
         {
-            case GameMessageType.DICE_ROLLED:
-                HandleRollDice(id);
+            case GameMessageType.DICE_ROLLED: // 봇과 AFK는 무인도 탈출권을 들고 있으면 항상 쓴다
+                HandleRollDice(id, CardRules.CanUseIslandEscape(gameData, actor));
                 break;
 
             case GameMessageType.DESTINATION_CHOSEN:

@@ -444,7 +444,11 @@ public class GameManager : Singleton<GameManager>
     {
         if (IsLocalPlayerTurn())
         {
-            screen.ShowRollDicePopup();
+            // 무인도에 갇혔는데 무인도 탈출권을 들고 있으면, 굴리기 전에 쓸지 먼저 묻는다 (고르면 굴리기 창이 뜬다)
+            if (CardRules.CanUseIslandEscape(gameData, GetPlayerState(gameState.CurrentPlayerId)))
+                screen.ShowIslandEscapeChoice();
+            else
+                screen.ShowRollDicePopup();
         }
 
         // broadcast메시지 수신 대기 상태에 들어갑니다.
@@ -456,16 +460,25 @@ public class GameManager : Singleton<GameManager>
 
     /// <summary>
     /// 화면의 '주사위 굴리기' 버튼을 누르면 이 함수가 호출됩니다.
+    /// useIslandEscape: 무인도에서 탈출권을 쓰기로 골랐으면 true. 호스트가 굴리기 전에 카드를 쓴다.
     /// </summary>
-    public void RollDice()
+    public void RollDice(bool useIslandEscape = false)
     {
         sendAndWaiting = true;
-        GameNetwork.Instance.SendRollDiceRequest();
+        GameNetwork.Instance.SendRollDiceRequest(useIslandEscape);
     }
 
-    public void HandleDiceRolled(long playerId, int dice1, int dice2)
+    public void HandleDiceRolled(long playerId, int dice1, int dice2, bool usedIslandEscape)
     {
         HandleRoutine();
+
+        // 굴리기 전에 무인도 탈출권을 썼으면 호스트와 같은 규칙으로 먼저 적용한다. 영업정지가 풀려 주사위는 평소처럼 움직인다
+        if (usedIslandEscape && CardRules.UseIslandEscape(gameData, GetPlayerState(playerId)))
+        {
+            Log($"[카드:무인도 탈출권] {P(playerId)}: 무인도에서 바로 탈출합니다.");
+            screen.RefreshHeldCards();
+            screen.PlayIslandEscaped(playerId);
+        }
 
         Log($"[주사위] {P(playerId)}: {dice1}+{dice2}={dice1 + dice2}{(dice1 == dice2 ? " (더블!)" : "")}");
         // 화면이 있으면 주사위 결과를 보여 주고, 연출이 끝난 뒤 이어서 진행합니다.

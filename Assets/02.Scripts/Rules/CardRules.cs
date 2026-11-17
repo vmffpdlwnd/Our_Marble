@@ -254,6 +254,35 @@ public static class CardRules
         return HeldCardResult.Kept;
     }
 
+    // ───────────── 보관형 쓰기 ─────────────
+    // 쓰는 일은 호스트와 클라이언트가 같은 함수로 한다. 호스트가 알림에 "썼다"를 실어 보내면 받은 쪽도 같은 함수를 부른다.
+
+    /// <summary>무인도 탈출권을 지금 쓸 수 있는지. 들고 있고, 무인도에서 영업정지 중이어야 한다. (내 차례가 시작될 때 묻는다)</summary>
+    public static bool CanUseIslandEscape(GameData data, PlayerState player)
+    {
+        return player != null && player.IslandTurnsRemaining > 0 && FindHeldCard(data, player, CardEffectType.IslandEscape) != null;
+    }
+
+    /// <summary>
+    /// 무인도 탈출권을 쓴다. 카드를 내고 영업정지를 풀어서, 이어지는 주사위는 평소처럼 움직인다. (더블이면 한 번 더 굴린다)
+    /// 쓸 수 없으면 아무것도 바꾸지 않고 false를 돌려준다.
+    /// </summary>
+    public static bool UseIslandEscape(GameData data, PlayerState player)
+    {
+        if (!CanUseIslandEscape(data, player)) return false;
+
+        ConsumeHeldCard(data, player, CardEffectType.IslandEscape);
+        player.IslandTurnsRemaining = 0;
+        return true;
+    }
+
+    // 들고 있던 이 종류의 카드를 낸다 (보관형은 모두 1회용)
+    private static void ConsumeHeldCard(GameData data, PlayerState player, CardEffectType type)
+    {
+        CardData held = FindHeldCard(data, player, type);
+        if (held != null) player.HeldCardIds.Remove(held.id);
+    }
+
     /// <summary>들고 있는 카드 중 이 종류의 카드. 없으면 null.</summary>
     public static CardData FindHeldCard(GameData data, PlayerState player, CardEffectType type)
     {

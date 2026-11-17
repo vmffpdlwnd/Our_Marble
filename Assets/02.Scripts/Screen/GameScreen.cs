@@ -185,6 +185,13 @@ public class GameScreen
             UIManager.Instance.ShowRollDicePopup();
     }
 
+    /// <summary>무인도에서 내 차례가 시작될 때, 무인도 탈출권을 쓸지 묻는 창을 띄운다. 고르면 굴리기 창이 이어서 뜬다.</summary>
+    public void ShowIslandEscapeChoice()
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.ShowIslandEscapeChoice();
+    }
+
     public void ShowChooseTollDoublePopup()
     {
         if (UIManager.Instance != null)

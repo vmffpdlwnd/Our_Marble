@@ -41,8 +41,25 @@ public class IslandEscapeView : UIView
         if (cardSubText != null) cardSubText.text = hasCard ? Loc.T("무인도 탈출권 <b>{0}장</b>", escapeCardCount) : Loc.T("보유한 카드 없음");
         if (cardButton != null) cardButton.interactable = hasCard;
 
+        SetActive(payButton != null ? payButton.gameObject : null, true);
         SetOnClick(doubleButton, () => { Close(); onDouble?.Invoke(); });
         SetOnClick(payButton, () => { Close(); onPay?.Invoke(); });
+        SetOnClick(cardButton, () => { Close(); onUseCard?.Invoke(); });
+        Open();
+    }
+
+    /// <summary>
+    /// 보관형 무인도 탈출권을 쓸지 묻는다. 비용 지불 규칙은 없어서 그 버튼은 숨기고, 더블 노리기와 카드 사용 둘만 보여 준다.
+    /// cardName: 카드 이름 (번역된 글). 카드 사용 버튼 아래에 보인다.
+    /// </summary>
+    public void ShowHeldCardChoice(int turnsRemaining, string cardName, Action onDouble, Action onUseCard)
+    {
+        if (turnText != null) turnText.text = turnsRemaining.ToString();
+        if (cardSubText != null) cardSubText.text = cardName;
+        if (cardButton != null) cardButton.interactable = true;
+
+        SetActive(payButton != null ? payButton.gameObject : null, false);
+        SetOnClick(doubleButton, () => { Close(); onDouble?.Invoke(); });
         SetOnClick(cardButton, () => { Close(); onUseCard?.Invoke(); });
         Open();
     }

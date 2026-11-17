@@ -362,19 +362,57 @@ public class UIManager : MonoBehaviour
     // 주사위 굴리기 버튼이 있는 창을 띄워주는 함수입니다.
     // 굴리기 버튼을 누르면 GameManager.RollDice() 를 호출합니다.
     // 현재 차례 플레이어가 무인도에 갇혀 있으면 남은 턴도 함께 보여줍니다.
-    public void ShowRollDicePopup()
+    // useIslandEscape: 무인도 탈출권을 쓰기로 골랐으면 true. 남은 영업정지 턴을 보여 주지 않고, 굴릴 때 카드를 쓰겠다고 함께 보낸다
+    public void ShowRollDicePopup(bool useIslandEscape = false)
     {
         if (diceRoll == null) return;
 
         PlayerState player = CurrentPlayer;
-        int islandTurns = player != null ? player.IslandTurnsRemaining : 0;
+        int islandTurns = player != null && !useIslandEscape ? player.IslandTurnsRemaining : 0;
         diceRoll.Show(power =>
         {
             // 버튼을 누르는 즉시 결과를 요청하고, 결과(ShowDiceResult)가 올 때까지 주사위는 구르는 상태로 둡니다.
             // 나중에는 Game.RollDice() 대신 서버 요청을 보내고, 응답을 받을 때 ShowDiceResult를 부르면 됩니다.
             if (diceResult != null) diceResult.StartRolling();
-            if (Game != null) Game.RollDice();
+            if (Game != null) Game.RollDice(useIslandEscape);
         }, islandTurns);
+    }
+
+    // 무인도에서 내 차례가 시작될 때 무인도 탈출권을 쓸지 묻는다. (GameManager.HandleRollDicePrompt)
+    // "주사위 더블"을 고르면 평소처럼 더블을 노리고, "카드 사용"을 고르면 굴릴 때 카드를 쓴다.
+    // 이 창과 이어지는 굴리기 창은 제한시간 하나를 나눠 쓴다. (호스트는 차례 하나를 한 번만 기다리므로, 굴리기 창이 시간을 새로 받으면 호스트가 먼저 움직인다)
+    // 시간이 지나 이 창이 닫히면 아무것도 보내지 않고, 호스트가 대신 진행한다. (대신 진행은 카드를 쓴다)
+    public void ShowIslandEscapeChoice()
+    {
+        if (islandEscape == null) { ShowRollDicePopup(); return; }
+
+        PlayerState player = CurrentPlayer;
+        CardData card = FindHeldCard(player, CardEffectType.IslandEscape);
+        if (card == null) { ShowRollDicePopup(); return; }
+
+        int turns = Mathf.Max(1, player.IslandTurnsRemaining);
+        islandEscape.ShowHeldCardChoice(turns, Loc.T(card.cardName),
+            () => ContinueToRoll(false),
+            () => ContinueToRoll(true));
+    }
+
+    // 플레이어가 들고 있는 이 종류의 보관형 카드. 없으면 null (카드 데이터는 덱에서 찾는다)
+    private CardData FindHeldCard(PlayerState player, CardEffectType type)
+    {
+        if (player == null || player.HeldCardIds == null || cardDeck == null) return null;
+        foreach (int id in player.HeldCardIds)
+        {
+            CardData card = cardDeck.FindById(id);
+            if (card != null && card.effectType == type) return card;
+        }
+        return null;
+    }
+
+    // 무인도 탈출 창에서 고른 뒤 굴리기 창을 띄운다. 남은 제한시간을 굴리기 창이 이어받는다
+    private void ContinueToRoll(bool useIslandEscape)
+    {
+        carryTimerRemaining = timerWindow == islandEscape ? timerRemaining : -1f;
+        ShowRollDicePopup(useIslandEscape);
     }
 
     // 빈 땅을 사거나 사지 않는 버튼이 있는 창을 띄워주는 함수입니다.
@@ -1470,6 +1508,7 @@ public class UIManager : MonoBehaviour
     private TurnTimerView timerChip;   // 그 창 안에 들어 있는 시간 표시 칩. 없으면 null
     private SelectionKind timerKind;
     private float timerRemaining, timerTotal;
+    private float carryTimerRemaining = -1f; // 다음 창이 이어받을 남은 시간. 없으면 0 이하
     private const float TimerTickSeconds = 5f; // 남은 시간이 이 초 이하면 째깍 소리 (제한시간 칩이 빨개지는 때와 같다)
     private int timerEpoch;            // 제한시간을 새로 시작할 때마다 늘려서, 지난 시간 종료 처리가 새로 열린 창을 닫지 않게 한다
 
@@ -1487,8 +1526,15 @@ public class UIManager : MonoBehaviour
         timerWindow = window;
         timerKind = kind;
         timerTotal = timerRemaining = CurrentSelectSeconds;
+        // 바로 앞 창에서 쓰고 남은 시간을 이어받는다 (무인도 탈출 창 → 굴리기 창)
+        if (carryTimerRemaining > 0f) timerRemaining = Mathf.Min(carryTimerRemaining, timerTotal);
+        carryTimerRemaining = -1f;
         timerChip = window.GetComponentInChildren<TurnTimerView>(true);
-        if (timerChip != null) timerChip.Begin(timerTotal);
+        if (timerChip != null)
+        {
+            timerChip.Begin(timerTotal);
+            timerChip.SetRemaining(timerRemaining, timerTotal);
+        }
     }
 
     /// <summary>세고 있던 제한시간을 시간 종료 처리 없이 멈추고 표시를 숨긴다.</summary>
