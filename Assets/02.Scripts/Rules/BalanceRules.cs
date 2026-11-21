@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 /// <summary>
 /// 주사위 결과로 도착하는 칸의 좋고 나쁨. 순위 보정에서 두 번 굴린 결과를 비교할 때 쓴다. (값이 클수록 좋다)
 /// </summary>
@@ -24,12 +26,63 @@ public class RollPreview
 }
 
 /// <summary>
-/// 순위 보정 규칙 (v1.3). 1등 패널티와 꼴찌 보너스에서 주사위를 두 번 굴려 한쪽을 고를 때의 판정을 맡는다.
+/// 지금의 순위 보정 상태. 1등과 꼴찌는 살아 있는 사람 중 RankingRules 순서로 한 명씩 정해진다.
+/// 꺼져 있어도 1등과 꼴찌는 채워 둔다. (F1 개발용 창이 보여 준다) 패널티와 보너스를 줄지는 IsLeader, IsLast로 묻는다.
+/// </summary>
+public class RankBalance
+{
+    public PlayerState Leader; // 1등. 살아 있는 사람이 2명 미만이면 null
+    public PlayerState Last;   // 꼴찌. 살아 있는 사람이 2명 미만이면 null
+    public long LeaderAsset;   // 1등의 총자산 (현금 + 가진 땅의 투자금)
+    public long LastAsset;     // 꼴찌의 총자산
+    public bool Active;        // 1등과 꼴찌의 차이가 커서 패널티와 보너스를 켜는지
+
+    /// <summary>켜져 있고 이 사람이 1등인가 (1등 패널티 대상)</summary>
+    public bool IsLeader(long playerId) => Active && Leader != null && Leader.PlayerId == playerId;
+
+    /// <summary>켜져 있고 이 사람이 꼴찌인가 (꼴찌 보너스 대상)</summary>
+    public bool IsLast(long playerId) => Active && Last != null && Last.PlayerId == playerId;
+}
+
+/// <summary>
+/// 순위 보정 규칙 (v1.3). 순위 보정을 켜는 조건(1등과 꼴찌의 보유액 차이)과,
+/// 1등 패널티와 꼴찌 보너스에서 주사위를 두 번 굴려 한쪽을 고를 때의 판정을 맡는다.
 /// 숫자 크기가 아니라 결과로 판단한다: 1순위 도착 칸, 2순위 더블 여부. (기획서 "순위 보정과 뉴비 옵션")
 /// 판정은 호스트만 하고, 고른 주사위만 알림으로 보내므로 클라이언트와 어긋나지 않는다. 화면을 모른다.
 /// </summary>
 public static class BalanceRules
 {
+    // ───────────── 켜는 조건 ─────────────
+
+    /// <summary>
+    /// 꼴찌 총자산이 1등의 이 비율(%) 미만이면 순위 보정을 켠다. 인원과 상관없이 같은 값이다. (2인 게임도)
+    /// 차이가 작을 때까지 켜면 앞선 사람이 이유 없이 손해를 보므로, 벌어졌을 때만 켠다. 값은 플레이해 보고 고친다.
+    /// </summary>
+    public const int ActivePercent = 70;
+
+    /// <summary>
+    /// 지금의 1등, 꼴찌와 순위 보정을 켜는지 계산한다. 상태는 바꾸지 않는다.
+    /// 순위는 결과 창의 등수와 같은 기준(RankingRules)이라 1등과 꼴찌는 한 명씩만 정해진다. 파산한 사람은 뺀다.
+    /// 사람, 봇, AFK 모두 같은 규칙을 받는다. 턴마다 자산이 바뀌므로 쓰는 순간에 다시 부른다.
+    /// </summary>
+    public static RankBalance GetRankBalance(GameState state, PropertyRules propertyRules)
+    {
+        var balance = new RankBalance();
+
+        List<PlayerState> ranked = RankingRules.Rank(state.PlayerStates, state.PropertyStates, propertyRules);
+        ranked.RemoveAll(p => p.IsBankrupt);
+        if (ranked.Count < 2) return balance;
+
+        balance.Leader = ranked[0];
+        balance.Last = ranked[ranked.Count - 1];
+        balance.LeaderAsset = propertyRules.GetTotalAsset(balance.Leader.PlayerId, balance.Leader.Money, state.PropertyStates);
+        balance.LastAsset = propertyRules.GetTotalAsset(balance.Last.PlayerId, balance.Last.Money, state.PropertyStates);
+
+        // 1등의 총자산이 0 이하면 비율을 잴 수 없으므로 켜지 않는다
+        balance.Active = balance.LeaderAsset > 0 && balance.LastAsset * 100 < balance.LeaderAsset * ActivePercent;
+        return balance;
+    }
+
     // ───────────── 주사위 결과 판정 ─────────────
 
     /// <summary>

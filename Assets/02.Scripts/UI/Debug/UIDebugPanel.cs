@@ -9,6 +9,7 @@ using UnityEngine;
 /// 게임은 호스트가 진행하므로, 이 창은 내 화면의 GameState만 바꾸는 버튼을 두지 않는다. (호스트와 상태가 어긋나 [StateCheck] 에러가 난다)
 /// 남겨 둔 것은 읽기만 하거나 실제 경로(GameManager → 호스트 → 알림)로 요청을 보내는 것뿐이다.
 /// - 방 정보, 플레이어 상태(현금, 땅, 파산) 보기
+/// - 순위 보정 보기 (1등, 꼴찌, 켜짐 여부. 규칙 BalanceRules.GetRankBalance로 내 화면의 상태를 계산한다)
 /// - 다음 주사위 정하기 (이 PC가 호스트일 때만. 호스트가 굴리는 눈을 바꾼다. 한 번 또는 계속)
 /// - 황금열쇠 카드 앞면 보기 (효과 없이 화면만), 다음에 뽑힐 카드 지정 (이 PC가 호스트일 때만. 호스트가 뽑는 카드를 바꾼다)
 /// </summary>
@@ -84,6 +85,7 @@ public class UIDebugPanel : MonoBehaviour
 
         DrawRoomSection();
         DrawPlayerSection();
+        DrawRankBalanceSection();
         DrawDiceSection();
         DrawCardPreviewSection();
 
@@ -129,6 +131,28 @@ public class UIDebugPanel : MonoBehaviour
             GUILayout.Label($"{turn}{p.Nickname}{me}: 현금 {p.Money:N0} / 땅 {lands}개 (매각가 {sellValue:N0}) / {status}");
         }
         GUILayout.Label(State.IsGameOver ? "(게임 종료 상태)" : $"대기 단계: {(State.WaitingType.HasValue ? State.WaitingType.Value.ToString() : "연출 중")}");
+    }
+
+    // ───────────── 순위 보정 (읽기만) ─────────────
+
+    // 호스트와 같은 규칙(BalanceRules.GetRankBalance)으로 내 화면의 GameState를 계산해 보여 준다.
+    // 내 화면의 상태로 계산하므로 연출 중에는 호스트보다 늦을 수 있다
+    private void DrawRankBalanceSection()
+    {
+        Header("순위 보정");
+        RankBalance balance = BalanceRules.GetRankBalance(State, PropertyManager.Instance.Rules);
+        if (balance.Leader == null)
+        {
+            GUILayout.Label("꺼짐 (살아 있는 플레이어가 2명 미만)");
+            return;
+        }
+
+        long percent = balance.LeaderAsset > 0 ? balance.LastAsset * 100 / balance.LeaderAsset : 0;
+        RichLabel(balance.Active
+            ? $"<b>켜짐</b>: 꼴찌가 1등의 {percent}% (기준 {BalanceRules.ActivePercent}% 미만)"
+            : $"꺼짐: 꼴찌가 1등의 {percent}% ({BalanceRules.ActivePercent}% 미만이면 켜짐)");
+        GUILayout.Label($"1등: {balance.Leader.Nickname} 총자산 {balance.LeaderAsset:N0}");
+        GUILayout.Label($"꼴찌: {balance.Last.Nickname} 총자산 {balance.LastAsset:N0}");
     }
 
     // ───────────── 황금열쇠 카드 보기 ─────────────
