@@ -373,8 +373,21 @@ public class HostGameService : IHostRequestReceiver
         bool usedIslandEscape = useIslandEscape && CardRules.UseIslandEscape(gameData, player);
         if (usedIslandEscape) Debug.Log($"[HostGameService] 무인도 탈출권 사용: {player.Nickname}");
 
-        int dice1 = random.Next(1, 7);
-        int dice2 = random.Next(1, 7);
+        int dice1, dice2;
+        // 순위 보정(v1.3): 1등이면 두 번 굴려 나쁜 결과를 쓴다. 고른 주사위만 알림으로 보내므로 클라이언트는 평소처럼 받는다
+        RankBalance balance = BalanceRules.GetRankBalance(state, gameData.Properties);
+        if (balance.IsLeader(player.PlayerId))
+        {
+            RollPreview picked = BalanceRules.RollForLeader(state, gameData, player, () => random.Next(1, 7));
+            dice1 = picked.Dice1;
+            dice2 = picked.Dice2;
+            Debug.Log($"[HostGameService] 1등 패널티: {player.Nickname} 두 번 굴려 나쁜 쪽을 씀");
+        }
+        else
+        {
+            dice1 = random.Next(1, 7);
+            dice2 = random.Next(1, 7);
+        }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         // F1 창에서 주사위를 정해 두었으면 그 눈으로 굴린다. (봇이 굴려도 적용된다)
         if (DebugDice1 >= 1 && DebugDice1 <= 6 && DebugDice2 >= 1 && DebugDice2 <= 6)

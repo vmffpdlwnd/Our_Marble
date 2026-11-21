@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 /// <summary>
@@ -97,8 +98,7 @@ public static class BalanceRules
         bool isDouble = dice1 == dice2;
         int doubleCount = isDouble ? state.ConsecutiveDoubleCount + 1 : 0;
 
-        TileData currentTile = data.GetTile(player.Position);
-        bool islandLocked = currentTile != null && currentTile.Type == TileType.ISLAND && player.IslandTurnsRemaining > 0;
+        bool islandLocked = IsIslandLocked(data, player);
 
         // 무인도에서 더블이 아니면 이동 없이 턴이 넘어간다
         if (islandLocked && !isDouble)
@@ -139,6 +139,13 @@ public static class BalanceRules
         return preview;
     }
 
+    // 무인도 칸에서 영업정지 중인가. (GameRules.ApplyDice의 onIslandTile && islandTurnsRemaining)
+    private static bool IsIslandLocked(GameData data, PlayerState player)
+    {
+        TileData currentTile = data.GetTile(player.Position);
+        return currentTile != null && currentTile.Type == TileType.ISLAND && player.IslandTurnsRemaining > 0;
+    }
+
     /// <summary>
     /// 두 결과를 비교한다. a가 좋으면 양수, b가 좋으면 음수, 같으면 0.
     ///   1. 도착 칸 등급 (좋음 > 보통 > 나쁨)
@@ -169,6 +176,32 @@ public static class BalanceRules
     public static RollPreview PickWorse(RollPreview first, RollPreview second)
     {
         return CompareRoll(second, first) < 0 ? second : first;
+    }
+
+    // ───────────── 1등 패널티 ─────────────
+
+    // 무인도 탈출 굴림에서 둘 다 더블이라 다시 굴리는 최대 횟수. (둘 다 더블일 확률은 1/36이라 거의 닿지 않지만 무한히 돌지 않게 막는다)
+    private const int IslandRerollLimit = 10;
+
+    /// <summary>
+    /// 1등 패널티: 주사위를 두 번 굴려 나쁜 결과(PickWorse)를 고른다. rollDie는 주사위 하나(1~6)를 굴리는 호스트의 난수다.
+    /// 무인도 영업정지 중이면 결과 비교 대신 더블이 아닌 쪽(탈출 실패)을 쓰고, 둘 다 더블이면 다시 두 번 굴린다.
+    /// (결과 비교로는 탈출한 더블이 남의 땅에 서면 탈출 실패와 같은 나쁨이 되어, 탈출이 골라질 수 있기 때문이다)
+    /// 무인도 탈출권은 굴리기 전에 이미 써서 영업정지가 풀린 상태로 부르므로, 탈출권을 쓰면 평소처럼 결과를 비교한다.
+    /// </summary>
+    public static RollPreview RollForLeader(GameState state, GameData data, PlayerState player, Func<int> rollDie)
+    {
+        RollPreview first = PreviewRoll(state, data, player, rollDie(), rollDie());
+        RollPreview second = PreviewRoll(state, data, player, rollDie(), rollDie());
+
+        if (!IsIslandLocked(data, player)) return PickWorse(first, second);
+
+        for (int i = 0; i < IslandRerollLimit && first.IsDouble && second.IsDouble; i++)
+        {
+            first = PreviewRoll(state, data, player, rollDie(), rollDie());
+            second = PreviewRoll(state, data, player, rollDie(), rollDie());
+        }
+        return !first.IsDouble ? first : second;
     }
 
     // 도착 칸의 등급. 남의 땅이면 통행료도 알려 준다. (ArrivalRules.ArriveAtTile, TradeRules.ArriveAtProperty와 같은 칸 구분)
