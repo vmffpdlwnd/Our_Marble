@@ -414,7 +414,7 @@ public class HostGameService : IHostRequestReceiver
     }
 
     // GameManager.HandleCardDrawn
-    // 황금열쇠 칸에 도착해 카드 단계(CARD_DRAWN)에 있을 때, 카드를 뽑는다. 카드는 매번 전체 중 무작위다.
+    // 황금열쇠 칸에 도착해 카드 단계(CARD_DRAWN)에 있을 때, 카드를 뽑는다. 카드는 매번 전체 중 무작위이고, 순위 보정이 켜져 있으면 1등과 꼴찌의 가중치가 다르다.
     private void HandleDrawCard(long senderId)
     {
         if (!Validate(senderId, GameMessageType.CARD_DRAWN, out PlayerState player)) return;
@@ -425,7 +425,9 @@ public class HostGameService : IHostRequestReceiver
         int cardId = 0;
         if (cardIds != null && cardIds.Count > 0)
         {
-            cardId = cardIds[random.Next(cardIds.Count)];
+            // 순위 보정(v1.3): 1등은 나쁜 카드가, 꼴찌는 좋은 카드가 잘 나오고 꼴찌에게는 무인도 카드가 나오지 않는다
+            RankBalance balance = BalanceRules.GetRankBalance(state, gameData.Properties);
+            cardId = BalanceRules.PickCardId(gameData, balance, player.PlayerId, random.Next);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             // F1 창에서 다음 카드를 지정했으면 그 카드를 뽑는다. (봇이 뽑아도 적용된다)
             if (DebugNextCardId != 0 && gameData.FindCard(DebugNextCardId) != null) cardId = DebugNextCardId;
