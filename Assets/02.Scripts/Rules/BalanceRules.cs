@@ -204,6 +204,24 @@ public static class BalanceRules
         return !first.IsDouble ? first : second;
     }
 
+    // ───────────── 꼴찌 보너스 ─────────────
+
+    /// <summary>
+    /// 꼴찌 보너스: 주사위를 두 번 굴려 좋은 결과(PickBetter)를 고른다. rollDie는 주사위 하나(1~6)를 굴리는 호스트의 난수다.
+    /// 결과가 같으면 더블을 고르므로 더블 확률도 오른다. (한 번 굴림 약 17% → 약 31%. 뉴비의 더블 확률 증가는 따로 겹친다)
+    /// 무인도 영업정지 중이면 1등 패널티와 반대로 더블인 쪽(탈출)을 쓴다. 둘 다 더블이 아니면 비교할 것 없이 먼저 굴린 쪽(탈출 실패)이다.
+    /// </summary>
+    public static RollPreview RollForLast(GameState state, GameData data, PlayerState player, Func<int> rollDie)
+    {
+        RollPreview first = PreviewRoll(state, data, player, rollDie(), rollDie());
+        RollPreview second = PreviewRoll(state, data, player, rollDie(), rollDie());
+
+        if (!IsIslandLocked(data, player)) return PickBetter(first, second);
+
+        if (first.IsDouble && second.IsDouble) return PickBetter(first, second); // 둘 다 탈출이면 도착이 좋은 쪽
+        return second.IsDouble ? second : first;
+    }
+
     // 도착 칸의 등급. 남의 땅이면 통행료도 알려 준다. (ArrivalRules.ArriveAtTile, TradeRules.ArriveAtProperty와 같은 칸 구분)
     private static RollGrade GradeTile(GameState state, GameData data, PlayerState player, int position, out long toll)
     {

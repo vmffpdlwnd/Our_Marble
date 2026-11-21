@@ -374,7 +374,7 @@ public class HostGameService : IHostRequestReceiver
         if (usedIslandEscape) Debug.Log($"[HostGameService] 무인도 탈출권 사용: {player.Nickname}");
 
         int dice1, dice2;
-        // 순위 보정(v1.3): 1등이면 두 번 굴려 나쁜 결과를 쓴다. 고른 주사위만 알림으로 보내므로 클라이언트는 평소처럼 받는다
+        // 순위 보정(v1.3): 1등이면 두 번 굴려 나쁜 결과를, 꼴찌면 좋은 결과를 쓴다. 고른 주사위만 알림으로 보내므로 클라이언트는 평소처럼 받는다
         RankBalance balance = BalanceRules.GetRankBalance(state, gameData.Properties);
         if (balance.IsLeader(player.PlayerId))
         {
@@ -382,6 +382,13 @@ public class HostGameService : IHostRequestReceiver
             dice1 = picked.Dice1;
             dice2 = picked.Dice2;
             Debug.Log($"[HostGameService] 1등 패널티: {player.Nickname} 두 번 굴려 나쁜 쪽을 씀");
+        }
+        else if (balance.IsLast(player.PlayerId))
+        {
+            RollPreview picked = BalanceRules.RollForLast(state, gameData, player, () => random.Next(1, 7));
+            dice1 = picked.Dice1;
+            dice2 = picked.Dice2;
+            Debug.Log($"[HostGameService] 꼴찌 보너스: {player.Nickname} 두 번 굴려 좋은 쪽을 씀");
         }
         else
         {
