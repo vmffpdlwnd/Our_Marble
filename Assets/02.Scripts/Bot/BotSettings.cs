@@ -42,6 +42,24 @@ public class BotSettings
         return new BotSettings();
     }
 
+    /// <summary>
+    /// 봇 너프(v1.3 순위 보정): 봇이 살아 있는 사람 중 가장 높은 사람보다 앞설 때 쓰는 약한 판단 기준입니다.
+    /// 현금을 더 아끼고(위험 허용 낮춤, 남길 현금 늘림), 좋은 땅 기준과 회수 기간을 엄격하게 해서 구매·건설·인수를 덜 합니다.
+    /// 판단 로직은 같고 값만 다릅니다. 값은 플레이해 보고 고칩니다.
+    /// </summary>
+    public static BotSettings Nerfed()
+    {
+        return new BotSettings
+        {
+            Name = "너프",
+            MaxCashShortProbability = 0.1, // 기본 0.2
+            GoodLandReturn = 0.9,          // 기본 0.75
+            SafeCashReserve = 400000,      // 기본 200000
+            MaxPaybackRounds = 6,          // 기본 10
+            MaxMissedChance = 0.1,         // 기본 0.15
+        };
+    }
+
     /// <summary>성향에 맞는 설정값을 만듭니다.</summary>
     public static BotSettings For(BotPersonality personality)
     {

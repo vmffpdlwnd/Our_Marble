@@ -92,6 +92,26 @@ public static class BalanceRules
         return balance;
     }
 
+    // ───────────── 봇 너프 ─────────────
+
+    /// <summary>
+    /// 봇이 살아 있는 사람 중 가장 높은 사람보다 순위가 앞서는가. 앞서면 봇의 판단을 약하게 한다. (BotSettings.Nerfed)
+    /// 1등 패널티와 상관없는 별도 장치라, 1등과 꼴찌의 차이(Active)와 상관없이 순위만 본다.
+    /// AFK는 사람이므로 사람 쪽에 든다. 살아 있는 사람이 없으면 앞설 사람이 없으므로 false.
+    /// </summary>
+    public static bool IsBotAheadOfHumans(GameState state, PropertyRules propertyRules, long botId)
+    {
+        List<PlayerState> ranked = RankingRules.Rank(state.PlayerStates, state.PropertyStates, propertyRules);
+        bool botFound = false;
+        foreach (PlayerState player in ranked)
+        {
+            if (player.IsBankrupt) continue;
+            if (!player.IsBot) return botFound;              // 가장 높은 사람. 그 전에 이 봇이 나왔으면 앞선 것
+            if (player.PlayerId == botId) botFound = true;
+        }
+        return false; // 살아 있는 사람이 없다
+    }
+
     // ───────────── 주사위 결과 판정 ─────────────
 
     /// <summary>

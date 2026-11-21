@@ -1030,6 +1030,7 @@ public class HostGameService : IHostRequestReceiver
 
     private readonly HashSet<long> afkPlayers = new HashSet<long>(); // 제한 시간을 넘긴 사람. 요청을 보내거나 재접속하면 풀린다
     private IBotStrategy botStrategy;
+    private IBotStrategy nerfedBotStrategy; // 봇 너프(v1.3): 봇이 사람보다 앞설 때 쓰는 약한 판단
 
     // 지금 입력 단계를 얼마나 기다렸는지. 아래 세 값 중 하나라도 바뀌면 새 입력 단계로 보고 0부터 다시 센다.
     private float waited;
@@ -1044,22 +1045,25 @@ public class HostGameService : IHostRequestReceiver
     public bool IsRunning => current == this && !state.IsGameOver;
 
     // 봇 전략은 처음 필요할 때 만든다. (보드와 땅 가격표가 있는 게임 씬에서 만들어야 한다)
-    private IBotStrategy Strategy
+    // 판단할 때마다 고른다: 봇이 살아 있는 사람 중 가장 높은 사람보다 앞서면 약한 판단(BotSettings.Nerfed)을 쓴다.
+    // AFK인 사람도 전략으로 대신 진행하지만, 사람이므로 너프하지 않는다
+    private IBotStrategy StrategyFor(PlayerState actor)
     {
-        get
-        {
-            if (botStrategy == null)
-            {
-                botStrategy = new BasicBotStrategy(
-                    BoardManager.Instance.BoardData.Tiles,
-                    property => PropertyManager.Instance.GetToll(property, state.PropertyStates), // 관광지 줄 보너스까지 넣은 통행료
-                    PropertyManager.Instance.GetData,
-                    BotSettings.Balanced(),
-                    state.Config.maxRound,
-                    message => Debug.Log($"[Bot] {message}"));
-            }
-            return botStrategy;
-        }
+        if (actor.IsBot && BalanceRules.IsBotAheadOfHumans(state, gameData.Properties, actor.PlayerId))
+            return nerfedBotStrategy ??= CreateStrategy(BotSettings.Nerfed());
+
+        return botStrategy ??= CreateStrategy(BotSettings.Balanced());
+    }
+
+    private IBotStrategy CreateStrategy(BotSettings settings)
+    {
+        return new BasicBotStrategy(
+            BoardManager.Instance.BoardData.Tiles,
+            property => PropertyManager.Instance.GetToll(property, state.PropertyStates), // 관광지 줄 보너스까지 넣은 통행료
+            PropertyManager.Instance.GetData,
+            settings,
+            state.Config.maxRound,
+            message => Debug.Log($"[Bot] {message}"));
     }
 
     // ───────────── 시간 ─────────────
@@ -1180,7 +1184,7 @@ public class HostGameService : IHostRequestReceiver
         if (property == null || property.OwnerId != null) return false;
 
         long price = PropertyManager.Instance.GetLandPrice(propertyId);
-        return actor.Money >= price && Strategy.ShouldPurchase(state, actor.PlayerId, propertyId, price);
+        return actor.Money >= price && StrategyFor(actor).ShouldPurchase(state, actor.PlayerId, propertyId, price);
     }
 
     private bool WantsToBuild(PlayerState actor, int propertyId)
@@ -1192,7 +1196,7 @@ public class HostGameService : IHostRequestReceiver
 
         long cost = PropertyManager.Instance.GetBuildCost(propertyId, property.BuildingLevel + 1);
         cost = CardRules.DiscountedBuildCost(cost, CardRules.BuildDiscountPercent(gameData, actor)); // 할인권이 있으면 할인한 금액으로 판단한다
-        return actor.Money >= cost && Strategy.ShouldBuild(state, actor.PlayerId, propertyId, cost);
+        return actor.Money >= cost && StrategyFor(actor).ShouldBuild(state, actor.PlayerId, propertyId, cost);
     }
 
     private bool WantsToAcquire(PlayerState actor, int propertyId)
@@ -1201,7 +1205,7 @@ public class HostGameService : IHostRequestReceiver
         if (property == null || !property.OwnerId.HasValue || property.OwnerId.Value == actor.PlayerId) return false;
 
         long price = PropertyManager.Instance.GetAcquireValue(property);
-        return actor.Money >= price && Strategy.ShouldAcquire(state, actor.PlayerId, propertyId, price);
+        return actor.Money >= price && StrategyFor(actor).ShouldAcquire(state, actor.PlayerId, propertyId, price);
     }
 
     // 통행료를 낼 땅 목록. 봇과 제한 시간을 넘긴 사람 모두 전략이 고른다.
@@ -1212,13 +1216,13 @@ public class HostGameService : IHostRequestReceiver
         if (landed == null) return new List<int>();
 
         long toll = PropertyManager.Instance.GetToll(landed, state.PropertyStates);
-        return Strategy.ChooseSellProperties(state, actor.PlayerId, toll, PropertyManager.Instance.GetSellValue);
+        return StrategyFor(actor).ChooseSellProperties(state, actor.PlayerId, toll, PropertyManager.Instance.GetSellValue);
     }
 
     // 세계여행 목적지. 전략이 고른 곳이 갈 수 없는 칸이면 갈 수 있는 첫 칸으로 간다.
     private int ChooseDestination(PlayerState actor)
     {
-        int destination = Strategy.ChooseTravelDestination(state, actor.PlayerId);
+        int destination = StrategyFor(actor).ChooseTravelDestination(state, actor.PlayerId);
         if (IsValidDestination(destination)) return destination;
 
         int tileCount = BoardManager.Instance.TileCount;
