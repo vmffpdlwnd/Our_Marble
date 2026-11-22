@@ -95,21 +95,27 @@ public static class BalanceRules
     // ───────────── 봇 너프 ─────────────
 
     /// <summary>
-    /// 봇이 살아 있는 사람 중 가장 높은 사람보다 순위가 앞서는가. 앞서면 봇의 판단을 약하게 한다. (BotSettings.Nerfed)
-    /// 1등 패널티와 상관없는 별도 장치라, 1등과 꼴찌의 차이(Active)와 상관없이 순위만 본다.
-    /// AFK는 사람이므로 사람 쪽에 든다. 살아 있는 사람이 없으면 앞설 사람이 없으므로 false.
+    /// 봇이 살아 있는 사람 중 가장 높은 사람보다 앞서는가. 앞서면 봇의 판단을 약하게 한다. (BotSettings.Nerfed)
+    /// 순위 목록의 순서가 아니라 총자산(RankingRules와 같은 기준)으로 비교해서, 봇이 **더 많을 때만** 앞선 것으로 본다.
+    /// (순위 목록은 동점이면 선턴 순서를 따르므로, 모두 시작 자금이 같은 게임 시작 때 선턴이 앞선 봇이 너프되는 일을 막는다)
+    /// 1등 패널티와 상관없는 별도 장치라, 1등과 꼴찌의 차이(Active)와 상관없이 본다.
+    /// AFK는 사람이므로 사람 쪽에 든다. 파산한 봇이거나 살아 있는 사람이 없으면 false.
     /// </summary>
     public static bool IsBotAheadOfHumans(GameState state, PropertyRules propertyRules, long botId)
     {
-        List<PlayerState> ranked = RankingRules.Rank(state.PlayerStates, state.PropertyStates, propertyRules);
-        bool botFound = false;
-        foreach (PlayerState player in ranked)
+        PlayerState bot = state.PlayerStates.Find(p => p.PlayerId == botId);
+        if (bot == null || bot.IsBankrupt) return false;
+
+        long botAsset = propertyRules.GetTotalAsset(bot.PlayerId, bot.Money, state.PropertyStates);
+        bool anyHuman = false;
+        long bestHumanAsset = long.MinValue;
+        foreach (PlayerState player in state.PlayerStates)
         {
-            if (player.IsBankrupt) continue;
-            if (!player.IsBot) return botFound;              // 가장 높은 사람. 그 전에 이 봇이 나왔으면 앞선 것
-            if (player.PlayerId == botId) botFound = true;
+            if (player.IsBot || player.IsBankrupt) continue;
+            anyHuman = true;
+            bestHumanAsset = Math.Max(bestHumanAsset, propertyRules.GetTotalAsset(player.PlayerId, player.Money, state.PropertyStates));
         }
-        return false; // 살아 있는 사람이 없다
+        return anyHuman && botAsset > bestHumanAsset;
     }
 
     // ───────────── 주사위 결과 판정 ─────────────
