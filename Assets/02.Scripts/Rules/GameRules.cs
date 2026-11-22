@@ -148,7 +148,13 @@ public static class GameRules
         }
 
         // 3번째 연속 더블이면 이동 없이 무인도로 간다. (월급 없음)
-        if (state.ConsecutiveDoubleCount >= 3)
+        // 뉴비 옵션(v1.3)은 무인도로 가지 않고 평소대로 이동하고 턴이 끝난다. (4번째 굴림 없음. BalanceRules.PreviewRoll도 같이 고친다)
+        if (state.ConsecutiveDoubleCount >= 3 && player.IsNewbie)
+        {
+            state.IsDouble = false;
+            state.ConsecutiveDoubleCount = 0;
+        }
+        else if (state.ConsecutiveDoubleCount >= 3)
         {
             int islandPosition = FindIslandTileIndex(data);
             if (islandPosition >= 0)

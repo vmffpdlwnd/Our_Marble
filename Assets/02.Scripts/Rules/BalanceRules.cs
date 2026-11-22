@@ -142,8 +142,9 @@ public static class BalanceRules
             return preview;
         }
 
-        // 3번째 연속 더블이면 무인도로 바로 간다 (월급 없음)
-        if (doubleCount >= 3)
+        // 3번째 연속 더블이면 무인도로 바로 간다 (월급 없음). 뉴비는 무인도 대신 평소대로 이동하고 턴이 끝난다
+        bool newbieThirdDouble = doubleCount >= 3 && player.IsNewbie;
+        if (doubleCount >= 3 && !player.IsNewbie)
         {
             int islandPosition = GameRules.FindIslandTileIndex(data);
             if (islandPosition >= 0)
@@ -168,7 +169,7 @@ public static class BalanceRules
         preview.Kind = DiceMoveKind.Move;
         preview.To = to;
         preview.ReceivesSalary = to < player.Position;
-        preview.RollsAgain = isDouble && !islandLocked; // 더블로 무인도를 탈출하면 추가 턴이 없다
+        preview.RollsAgain = isDouble && !islandLocked && !newbieThirdDouble; // 더블로 무인도를 탈출하거나 뉴비의 세 번째 더블이면 추가 턴이 없다
         preview.Grade = GradeTile(state, data, player, to, out preview.Toll);
         return preview;
     }
@@ -218,22 +219,22 @@ public static class BalanceRules
     private const int IslandRerollLimit = 10;
 
     /// <summary>
-    /// 1등 패널티: 주사위를 두 번 굴려 나쁜 결과(PickWorse)를 고른다. rollDie는 주사위 하나(1~6)를 굴리는 호스트의 난수다.
+    /// 1등 패널티: 주사위를 두 번 굴려 나쁜 결과(PickWorse)를 고른다. rollPair는 주사위 두 개를 굴리는 호스트의 난수다. (RollPair)
     /// 무인도 영업정지 중이면 결과 비교 대신 더블이 아닌 쪽(탈출 실패)을 쓰고, 둘 다 더블이면 다시 두 번 굴린다.
     /// (결과 비교로는 탈출한 더블이 남의 땅에 서면 탈출 실패와 같은 나쁨이 되어, 탈출이 골라질 수 있기 때문이다)
     /// 무인도 탈출권은 굴리기 전에 이미 써서 영업정지가 풀린 상태로 부르므로, 탈출권을 쓰면 평소처럼 결과를 비교한다.
     /// </summary>
-    public static RollPreview RollForLeader(GameState state, GameData data, PlayerState player, Func<int> rollDie)
+    public static RollPreview RollForLeader(GameState state, GameData data, PlayerState player, Func<(int, int)> rollPair)
     {
-        RollPreview first = PreviewRoll(state, data, player, rollDie(), rollDie());
-        RollPreview second = PreviewRoll(state, data, player, rollDie(), rollDie());
+        RollPreview first = Preview(state, data, player, rollPair());
+        RollPreview second = Preview(state, data, player, rollPair());
 
         if (!IsIslandLocked(data, player)) return PickWorse(first, second);
 
         for (int i = 0; i < IslandRerollLimit && first.IsDouble && second.IsDouble; i++)
         {
-            first = PreviewRoll(state, data, player, rollDie(), rollDie());
-            second = PreviewRoll(state, data, player, rollDie(), rollDie());
+            first = Preview(state, data, player, rollPair());
+            second = Preview(state, data, player, rollPair());
         }
         return !first.IsDouble ? first : second;
     }
@@ -241,19 +242,45 @@ public static class BalanceRules
     // ───────────── 꼴찌 보너스 ─────────────
 
     /// <summary>
-    /// 꼴찌 보너스: 주사위를 두 번 굴려 좋은 결과(PickBetter)를 고른다. rollDie는 주사위 하나(1~6)를 굴리는 호스트의 난수다.
+    /// 꼴찌 보너스: 주사위를 두 번 굴려 좋은 결과(PickBetter)를 고른다. rollPair는 주사위 두 개를 굴리는 호스트의 난수다. (RollPair)
     /// 결과가 같으면 더블을 고르므로 더블 확률도 오른다. (한 번 굴림 약 17% → 약 31%. 뉴비의 더블 확률 증가는 따로 겹친다)
     /// 무인도 영업정지 중이면 1등 패널티와 반대로 더블인 쪽(탈출)을 쓴다. 둘 다 더블이 아니면 비교할 것 없이 먼저 굴린 쪽(탈출 실패)이다.
     /// </summary>
-    public static RollPreview RollForLast(GameState state, GameData data, PlayerState player, Func<int> rollDie)
+    public static RollPreview RollForLast(GameState state, GameData data, PlayerState player, Func<(int, int)> rollPair)
     {
-        RollPreview first = PreviewRoll(state, data, player, rollDie(), rollDie());
-        RollPreview second = PreviewRoll(state, data, player, rollDie(), rollDie());
+        RollPreview first = Preview(state, data, player, rollPair());
+        RollPreview second = Preview(state, data, player, rollPair());
 
         if (!IsIslandLocked(data, player)) return PickBetter(first, second);
 
         if (first.IsDouble && second.IsDouble) return PickBetter(first, second); // 둘 다 탈출이면 도착이 좋은 쪽
         return second.IsDouble ? second : first;
+    }
+
+    private static RollPreview Preview(GameState state, GameData data, PlayerState player, (int dice1, int dice2) dice)
+    {
+        return PreviewRoll(state, data, player, dice.dice1, dice.dice2);
+    }
+
+    // ───────────── 뉴비 주사위 ─────────────
+
+    /// <summary>뉴비 옵션의 한 번 굴림 더블 확률. (보통은 1/6, 약 17%)</summary>
+    public const double NewbieDoubleChance = 0.25;
+
+    /// <summary>
+    /// 주사위 두 개를 굴린다. newbie면 더블이 NewbieDoubleChance 확률로 나온다. (뉴비 옵션, 1등이면 1등 패널티가 먼저라 newbie=false로 부른다)
+    /// 더블이 아닐 때는 첫 주사위를 뺀 다섯 눈 중에서 둘째를 골라, 더블이 아닌 조합끼리는 같은 확률이 되게 한다.
+    /// </summary>
+    public static (int, int) RollPair(Random random, bool newbie)
+    {
+        if (!newbie) return (random.Next(1, 7), random.Next(1, 7));
+
+        int first = random.Next(1, 7);
+        if (random.NextDouble() < NewbieDoubleChance) return (first, first);
+
+        int second = random.Next(1, 6);  // 1~5
+        if (second >= first) second++;   // first를 건너뛴다
+        return (first, second);
     }
 
     // ───────────── 황금열쇠 ─────────────
@@ -310,22 +337,23 @@ public static class BalanceRules
 
     /// <summary>
     /// 황금열쇠를 뽑는다. 순위 보정이 꺼져 있거나 1등, 꼴찌가 아니면 모든 카드가 같은 확률이다. (전과 같음)
-    /// 1등은 나쁜 카드의 가중치가 오르고, 꼴찌는 무인도 카드가 빠지고 좋은 카드의 가중치가 오른다.
+    /// 1등은 나쁜 카드의 가중치가 오르고, 꼴찌와 뉴비는 무인도 카드가 빠지고 좋은 카드의 가중치가 오른다.
+    /// 뉴비가 1등이면 1등 패널티가 먼저라 뉴비 혜택을 받지 않는다. 꼴찌이면서 뉴비여도 혜택은 한 번만 받는다.
     /// randomBelow(n)은 0 이상 n 미만의 수를 주는 호스트의 난수다. 덱이 비어 있으면 0.
     /// </summary>
-    public static int PickCardId(GameData data, RankBalance balance, long playerId, Func<int, int> randomBelow)
+    public static int PickCardId(GameData data, RankBalance balance, PlayerState player, Func<int, int> randomBelow)
     {
         IReadOnlyList<int> cardIds = data.CardIds;
         if (cardIds == null || cardIds.Count == 0) return 0;
 
-        bool isLeader = balance.IsLeader(playerId);
-        bool isLast = balance.IsLast(playerId);
+        bool isLeader = balance.IsLeader(player.PlayerId);
+        bool isHelped = !isLeader && (balance.IsLast(player.PlayerId) || player.IsNewbie);
 
         var weights = new int[cardIds.Count];
         int total = 0;
         for (int i = 0; i < cardIds.Count; i++)
         {
-            weights[i] = CardWeight(data.FindCard(cardIds[i]), isLeader, isLast);
+            weights[i] = CardWeight(data.FindCard(cardIds[i]), isLeader, isHelped);
             total += weights[i];
         }
 
@@ -341,16 +369,28 @@ public static class BalanceRules
         return cardIds[cardIds.Count - 1];
     }
 
-    // 카드 하나의 뽑기 가중치. 0이면 나오지 않는다
-    private static int CardWeight(CardData card, bool isLeader, bool isLast)
+    // 카드 하나의 뽑기 가중치. 0이면 나오지 않는다. isHelped는 꼴찌 보너스나 뉴비 혜택을 받는지
+    private static int CardWeight(CardData card, bool isLeader, bool isHelped)
     {
         if (card == null) return 1;
 
         CardGrade grade = GetCardGrade(card);
         if (isLeader && grade == CardGrade.Bad) return LeaderBadCardWeight;
-        if (isLast && SendsToIsland(card)) return 0;
-        if (isLast && grade == CardGrade.Good) return LastGoodCardWeight;
+        if (isHelped && SendsToIsland(card)) return 0;
+        if (isHelped && grade == CardGrade.Good) return LastGoodCardWeight;
         return 1;
+    }
+
+    // ───────────── 뉴비 제한 ─────────────
+
+    /// <summary>
+    /// 뉴비 제한: 매각과 세계여행 목적지는 뉴비가 고르지 않고 호스트가 고른다. 지금 입력 단계가 그런 단계인가.
+    /// 호스트는 이 단계에서 뉴비를 봇처럼 기다렸다가 대신 진행하고, AFK로 표시하지 않는다. 1등이어도 제한은 그대로다.
+    /// </summary>
+    public static bool IsNewbieAutoPhase(PlayerState player, GameMessageType? waitingType)
+    {
+        if (player == null || !player.IsNewbie || player.IsBot) return false;
+        return waitingType == GameMessageType.PROPERTIES_SOLD || waitingType == GameMessageType.DESTINATION_CHOSEN;
     }
 
     // 도착 칸의 등급. 남의 땅이면 통행료도 알려 준다. (ArrivalRules.ArriveAtTile, TradeRules.ArriveAtProperty와 같은 칸 구분)
