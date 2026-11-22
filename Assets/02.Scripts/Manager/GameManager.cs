@@ -247,6 +247,14 @@ public class GameManager : Singleton<GameManager>
         return gameState.CurrentPlayerId == LocalPlayer.Id;
     }
 
+    // 뉴비 제한(v1.3): 이 입력 단계를 호스트가 대신 고르는지 (매각, 세계여행 목적지). 호스트와 같은 규칙(BalanceRules)을 쓴다
+    private bool IsLocalNewbieAutoPhase(GameMessageType phase)
+    {
+        bool auto = BalanceRules.IsNewbieAutoPhase(GetPlayerState(LocalPlayer.Id), phase);
+        if (auto) Debug.Log($"[Game] 뉴비 옵션: {phase} 단계는 호스트가 고릅니다");
+        return auto;
+    }
+
     /// <summary>
     /// GameState.PlayerStates에서 playerId가 같은 플레이어 상태를 찾는다.
     /// 구매, 건설, 통행료, 인수, 매각 처리에서 돈을 바꿀 대상을 찾을 때 쓴다.
@@ -389,7 +397,8 @@ public class GameManager : Singleton<GameManager>
         // isAfk = !sendAndWaiting 이 true가 되어 잠수용 짧은 제한시간(afkSelectSeconds)으로 여행지 선택창이 금방 닫힙니다.
 
         // 자신의 차례인 경우에만 자유 여행할 타일을 선택하는 UI를 표시합니다.
-        if (IsLocalPlayerTurn())
+        // 뉴비 옵션(v1.3)이면 목적지는 호스트가 고르므로 띄우지 않습니다.
+        if (IsLocalPlayerTurn() && !IsLocalNewbieAutoPhase(GameMessageType.DESTINATION_CHOSEN))
         {
             screen.ShowChooseDestinationPopup();
         }
@@ -1164,7 +1173,8 @@ public class GameManager : Singleton<GameManager>
     public void HandleSellPropertiesPrompt(long payerId, long receiverId, long requiredAmount)
     {
         // 자신의 차례인 경우에만 청산할 자산들을 선택 가능한 UI를 표시합니다.
-        if (IsLocalPlayerTurn())
+        // 뉴비 옵션(v1.3)이면 팔 땅은 호스트가 고르므로 띄우지 않습니다.
+        if (IsLocalPlayerTurn() && !IsLocalNewbieAutoPhase(GameMessageType.PROPERTIES_SOLD))
         {
             screen.ShowSellPropertiesPopup(payerId, receiverId, requiredAmount);
         }
