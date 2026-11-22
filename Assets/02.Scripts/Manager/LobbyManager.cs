@@ -990,6 +990,7 @@ public class LobbyManager : MonoBehaviour
         if (roomSetup == null) { Debug.LogError("[Lobby] Canvas_RoomSetup이 로비 씬에 없습니다."); return; }
 
         ApplyRoomSnapshot(room, keepDraft: false); // 방을 처음 열 때는 방장의 초안도 서버 값에서 시작한다
+        roomSetup.SetSettingsButton(settingsButton, settingsView.Open); // 대기방에서도 설정창(뉴비 옵션)을 연다 (v1.3)
 
         roomSetup.SettingsApplied -= OnSettingsApplied;
         roomSetup.SettingsApplied += OnSettingsApplied;
