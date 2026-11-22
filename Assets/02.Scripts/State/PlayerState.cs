@@ -31,6 +31,10 @@ public class PlayerState
     [Newtonsoft.Json.JsonProperty("bot")]
     public bool IsBot { get; set; }
 
+    // 봇 성향 숫자 (0~99, v1.3). 게임을 시작할 때 호스트가 봇마다 뽑고, 끝자리로 성향을 정한다 (BotSettings.PersonalityOf)
+    // 게임 상태에 넣어서 방장이 바뀌거나 재접속해도 같은 성향을 쓴다. 사람과 옛 게임 상태는 없음(기본형)
+    public int? BotNumber { get; set; }
+
     // 고른 초상화 번호. 서버가 주지 않았거나 고르지 않았으면 없음
     public int? PortraitId { get; set; }
 

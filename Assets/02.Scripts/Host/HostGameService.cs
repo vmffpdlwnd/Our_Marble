@@ -179,6 +179,7 @@ public class HostGameService : IHostRequestReceiver
                 Nickname = p.nickname,
                 Money = config.startMoney,
                 IsBot = p.bot,
+                BotNumber = p.bot ? random.Next(BotSettings.BotNumberRange) : (int?)null, // 봇 성향 (v1.3)
                 PortraitId = p.portraitId,
             })
         .ToList();
@@ -1029,8 +1030,8 @@ public class HostGameService : IHostRequestReceiver
     // 화면의 선택창은 이보다 먼저 닫혀야 한다. 호스트가 먼저 움직이면 화면과 겹쳐 입력이 거절된다.
 
     private readonly HashSet<long> afkPlayers = new HashSet<long>(); // 제한 시간을 넘긴 사람. 요청을 보내거나 재접속하면 풀린다
-    private IBotStrategy botStrategy;
-    private IBotStrategy nerfedBotStrategy; // 봇 너프(v1.3): 봇이 사람보다 앞설 때 쓰는 약한 판단
+    // 봇 전략. 성향과 너프 여부마다 하나씩 처음 필요할 때 만든다 (StrategyFor)
+    private readonly Dictionary<(BotPersonality personality, bool nerfed), IBotStrategy> botStrategies = new Dictionary<(BotPersonality, bool), IBotStrategy>();
 
     // 지금 입력 단계를 얼마나 기다렸는지. 아래 세 값 중 하나라도 바뀌면 새 입력 단계로 보고 0부터 다시 센다.
     private float waited;
@@ -1045,14 +1046,22 @@ public class HostGameService : IHostRequestReceiver
     public bool IsRunning => current == this && !state.IsGameOver;
 
     // 봇 전략은 처음 필요할 때 만든다. (보드와 땅 가격표가 있는 게임 씬에서 만들어야 한다)
-    // 판단할 때마다 고른다: 봇이 살아 있는 사람 중 가장 높은 사람보다 앞서면 약한 판단(BotSettings.Nerfed)을 쓴다.
-    // AFK인 사람도 전략으로 대신 진행하지만, 사람이므로 너프하지 않는다
+    // 판단할 때마다 고른다: 봇은 숫자의 성향(BotSettings.PersonalityOf)을 쓰고,
+    // 살아 있는 사람 중 가장 높은 사람보다 앞서면 그 성향의 약한 판단(BotSettings.Nerfed)을 쓴다.
+    // AFK인 사람도 전략으로 대신 진행하지만, 사람이므로 기본형이고 너프하지 않는다
     private IBotStrategy StrategyFor(PlayerState actor)
     {
-        if (actor.IsBot && BalanceRules.IsBotAheadOfHumans(state, gameData.Properties, actor.PlayerId))
-            return nerfedBotStrategy ??= CreateStrategy(BotSettings.Nerfed());
+        BotPersonality personality = actor.IsBot ? BotSettings.PersonalityOf(actor.BotNumber) : BotPersonality.Balanced;
+        bool nerfed = actor.IsBot && BalanceRules.IsBotAheadOfHumans(state, gameData.Properties, actor.PlayerId);
 
-        return botStrategy ??= CreateStrategy(BotSettings.Balanced());
+        if (!botStrategies.TryGetValue((personality, nerfed), out IBotStrategy strategy))
+        {
+            BotSettings settings = BotSettings.For(personality); // 너프는 항상 원래 성향 값에서 한 번만 만든다
+            if (nerfed) settings = settings.Nerfed();
+            strategy = CreateStrategy(settings);
+            botStrategies[(personality, nerfed)] = strategy;
+        }
+        return strategy;
     }
 
     private IBotStrategy CreateStrategy(BotSettings settings)
