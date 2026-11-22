@@ -10,8 +10,8 @@ using UnityEngine;
 /// 남겨 둔 것은 읽기만 하거나 실제 경로(GameManager → 호스트 → 알림)로 요청을 보내는 것뿐이다.
 /// - 방 정보, 플레이어 상태(현금, 땅, 파산) 보기
 /// - 순위 보정 보기 (1등, 꼴찌, 켜짐 여부. 규칙 BalanceRules.GetRankBalance로 내 화면의 상태를 계산한다)
+/// - 봇 성향 보기 (숫자, 성향, 너프 여부, 공격형의 목표)
 /// - 다음 주사위 정하기 (이 PC가 호스트일 때만. 호스트가 굴리는 눈을 바꾼다. 한 번 또는 계속)
-/// - 황금열쇠 카드 앞면 보기 (효과 없이 화면만), 다음에 뽑힐 카드 지정 (이 PC가 호스트일 때만. 호스트가 뽑는 카드를 바꾼다)
 /// </summary>
 public class UIDebugPanel : MonoBehaviour
 {
@@ -86,8 +86,8 @@ public class UIDebugPanel : MonoBehaviour
         DrawRoomSection();
         DrawPlayerSection();
         DrawRankBalanceSection();
+        DrawBotSection();
         DrawDiceSection();
-        DrawCardPreviewSection();
 
         GUILayout.EndScrollView();
 
@@ -155,7 +155,51 @@ public class UIDebugPanel : MonoBehaviour
         GUILayout.Label($"꼴찌: {balance.Last.Nickname} 총자산 {balance.LastAsset:N0}");
     }
 
-    // ───────────── 황금열쇠 카드 보기 ─────────────
+    // ───────────── 봇 성향 (읽기만) ─────────────
+
+    // 봇마다 숫자, 성향, 너프 여부, 공격형이면 목표를 보여 준다. 호스트와 같은 규칙으로 내 화면의 GameState를 계산한다
+    private void DrawBotSection()
+    {
+        Header("봇 성향");
+        PropertyRules rules = PropertyManager.Instance.Rules;
+        bool anyBot = false;
+        foreach (PlayerState bot in State.PlayerStates)
+        {
+            if (!bot.IsBot) continue;
+            anyBot = true;
+
+            BotSettings settings = BotSettings.For(BotSettings.PersonalityOf(bot.BotNumber));
+            string number = bot.BotNumber.HasValue ? bot.BotNumber.Value.ToString() : "없음";
+            string line = $"{bot.Nickname}: 숫자 {number} → {settings.Name}";
+
+            if (bot.IsBankrupt)
+            {
+                line += " (파산)";
+            }
+            else if (BalanceRules.IsBotAheadOfHumans(State, rules, bot.PlayerId))
+            {
+                line += " <b>너프</b>"; // 공격형도 너프 중에는 노리지 않는다
+            }
+            else if (settings.TargetsLastHuman)
+            {
+                PlayerState target = LastHuman(rules);
+                line += $", 목표 {(target != null ? target.Nickname : "없음")}";
+            }
+            RichLabel(line);
+        }
+        if (!anyBot) GUILayout.Label("봇 없음");
+    }
+
+    // 살아 있는 사람 중 꼴찌. BasicBotStrategy.FindTarget과 같은 기준이다 (바꾸면 같이 고친다)
+    private PlayerState LastHuman(PropertyRules rules)
+    {
+        List<PlayerState> ranked = RankingRules.Rank(State.PlayerStates, State.PropertyStates, rules);
+        for (int i = ranked.Count - 1; i >= 0; i--)
+        {
+            if (!ranked[i].IsBankrupt && !ranked[i].IsBot) return ranked[i];
+        }
+        return null;
+    }
 
     // ───────────── 주사위 정하기 ─────────────
     // 다음 주사위 두 개의 눈을 고른다. 호스트가 굴리므로 이 PC가 호스트일 때만 된다. (누가 굴리든, 봇이 굴려도 적용)
@@ -221,51 +265,6 @@ public class UIDebugPanel : MonoBehaviour
         HostGameService.DebugDice1 = dice1;
         HostGameService.DebugDice2 = dice2;
         Log($"다음 주사위를 {dice1} + {dice2}로 정했습니다{(HostGameService.DebugKeepDice ? " (계속)" : "")}");
-    }
-
-    private void DrawCardPreviewSection()
-    {
-        Header("황금열쇠 카드");
-        GUILayout.Label("보기: 카드 앞면만 띄웁니다. (효과 없음)\n다음으로: 다음에 누가 뽑든 이 카드가 나옵니다. (한 번)");
-
-        CardDeckData deck = CardManager.Instance.DeckData;
-        if (deck == null)
-        {
-            GUILayout.Label("CardManager에 카드 덱이 연결되지 않았습니다.");
-            return;
-        }
-
-        // 카드는 호스트가 뽑으므로, 지정은 이 PC가 호스트일 때만 된다
-        bool isHost = HostGameService.Current != null;
-        int next = HostGameService.DebugNextCardId;
-        if (!isHost) GUILayout.Label("이 PC는 호스트가 아니라서 다음 카드를 지정할 수 없어요.");
-        else if (next != 0)
-        {
-            GUILayout.BeginHorizontal();
-            RichLabel($"<b>다음 카드: {next}번</b>");
-            if (GUILayout.Button("지정 취소", GUILayout.Width(90))) { HostGameService.DebugNextCardId = 0; Log("다음 카드 지정을 취소했습니다"); }
-            GUILayout.EndHorizontal();
-        }
-
-        foreach (var entry in deck.entries)
-        {
-            if (entry.card == null) continue;
-
-            int cardId = entry.card.id;
-            string kind = CardRules.IsHeldType(entry.card.effectType) ? " (보관)" : "";
-            GUILayout.BeginHorizontal();
-            GUILayout.Label($"{cardId}. {entry.card.cardName}{kind}");
-            if (GUILayout.Button("보기", GUILayout.Width(60)))
-                Log(UI.PreviewCardDraw(cardId) ? $"카드 {cardId} 미리 보기" : $"카드 {cardId}를 띄우지 못했습니다");
-            GUI.enabled = isHost && next != cardId;
-            if (GUILayout.Button("다음으로", GUILayout.Width(80)))
-            {
-                HostGameService.DebugNextCardId = cardId;
-                Log($"다음 황금열쇠를 {cardId}번으로 지정했습니다");
-            }
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
-        }
     }
 
     // ───────────── GUI 헬퍼 ─────────────

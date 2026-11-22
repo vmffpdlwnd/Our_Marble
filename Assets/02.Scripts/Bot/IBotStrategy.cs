@@ -24,4 +24,7 @@ public interface IBotStrategy
 
     /// <summary>세계여행 칸에서 이동할 목적지 칸 번호를 고릅니다.</summary>
     int ChooseTravelDestination(GameState state, long botId);
+
+    /// <summary>통행료 2배 카드로 고를 내 땅을 고릅니다. 따로 고를 이유가 없으면 0 (호출하는 쪽이 평소 규칙으로 고름)</summary>
+    int ChooseTollDoubleProperty(GameState state, long botId);
 }

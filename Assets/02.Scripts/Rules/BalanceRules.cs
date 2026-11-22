@@ -11,6 +11,14 @@ public enum RollGrade
     Good = 2,   // 빈 땅, 내 땅, 황금열쇠, 세계여행, 적립금
 }
 
+/// <summary>황금열쇠 카드의 좋고 나쁨. 순위 보정에서 뽑기 가중치를 정할 때 쓴다.</summary>
+public enum CardGrade
+{
+    Bad,    // 무인도, 세금폭탄, 기부금 납부 칸으로, 모두에게 돈 주기, 건물 수리비
+    Normal, // 앞뒤로 이동, 자리 바꾸기
+    Good,   // 돈 받기, 출발지·세계여행·기부금 수령 칸으로, 모두에게서 받기, 통행료 2배, 보관형 전부
+}
+
 /// <summary>주사위를 실제로 반영하지 않고 미리 본 결과. 만들 때 상태(GameState, PlayerState)는 바꾸지 않는다.</summary>
 public class RollPreview
 {
@@ -82,6 +90,32 @@ public static class BalanceRules
         // 1등의 총자산이 0 이하면 비율을 잴 수 없으므로 켜지 않는다
         balance.Active = balance.LeaderAsset > 0 && balance.LastAsset * 100 < balance.LeaderAsset * ActivePercent;
         return balance;
+    }
+
+    // ───────────── 봇 너프 ─────────────
+
+    /// <summary>
+    /// 봇이 살아 있는 사람 중 가장 높은 사람보다 앞서는가. 앞서면 봇의 판단을 약하게 한다. (BotSettings.Nerfed)
+    /// 순위 목록의 순서가 아니라 총자산(RankingRules와 같은 기준)으로 비교해서, 봇이 **더 많을 때만** 앞선 것으로 본다.
+    /// (순위 목록은 동점이면 선턴 순서를 따르므로, 모두 시작 자금이 같은 게임 시작 때 선턴이 앞선 봇이 너프되는 일을 막는다)
+    /// 1등 패널티와 상관없는 별도 장치라, 1등과 꼴찌의 차이(Active)와 상관없이 본다.
+    /// AFK는 사람이므로 사람 쪽에 든다. 파산한 봇이거나 살아 있는 사람이 없으면 false.
+    /// </summary>
+    public static bool IsBotAheadOfHumans(GameState state, PropertyRules propertyRules, long botId)
+    {
+        PlayerState bot = state.PlayerStates.Find(p => p.PlayerId == botId);
+        if (bot == null || bot.IsBankrupt) return false;
+
+        long botAsset = propertyRules.GetTotalAsset(bot.PlayerId, bot.Money, state.PropertyStates);
+        bool anyHuman = false;
+        long bestHumanAsset = long.MinValue;
+        foreach (PlayerState player in state.PlayerStates)
+        {
+            if (player.IsBot || player.IsBankrupt) continue;
+            anyHuman = true;
+            bestHumanAsset = Math.Max(bestHumanAsset, propertyRules.GetTotalAsset(player.PlayerId, player.Money, state.PropertyStates));
+        }
+        return anyHuman && botAsset > bestHumanAsset;
     }
 
     // ───────────── 주사위 결과 판정 ─────────────
@@ -220,6 +254,103 @@ public static class BalanceRules
 
         if (first.IsDouble && second.IsDouble) return PickBetter(first, second); // 둘 다 탈출이면 도착이 좋은 쪽
         return second.IsDouble ? second : first;
+    }
+
+    // ───────────── 황금열쇠 ─────────────
+
+    /// <summary>1등이 뽑을 때 나쁜 카드의 가중치. (보통 카드는 1) 지금 덱(나쁨 5장/20장)에서 나쁨이 25% → 40%</summary>
+    public const int LeaderBadCardWeight = 2;
+
+    /// <summary>꼴찌가 뽑을 때 좋은 카드의 가중치. (보통 카드는 1) 무인도 카드를 뺀 덱에서 좋음이 약 63% → 77%</summary>
+    public const int LastGoodCardWeight = 2;
+
+    /// <summary>
+    /// 카드의 좋고 나쁨. 카드 에셋마다 적지 않고 효과 종류로 정해서, 새 카드를 넣어도 따로 분류하지 않아도 되게 한다.
+    /// 이동 카드(MoveTo)는 가는 칸의 종류로 정한다. (주사위 결과 판정 GradeTile과 같은 기준)
+    /// </summary>
+    public static CardGrade GetCardGrade(CardData card)
+    {
+        switch (card.effectType)
+        {
+            case CardEffectType.GoToIsland:
+            case CardEffectType.Penalty:
+            case CardEffectType.PayToAll:
+            case CardEffectType.RepairCost:
+                return CardGrade.Bad;
+
+            case CardEffectType.MoveBy:
+            case CardEffectType.SwapPosition:
+                return CardGrade.Normal;
+
+            case CardEffectType.MoveTo:
+                switch (card.targetTileType)
+                {
+                    case TileType.ISLAND:
+                    case TileType.DONATION:
+                        return CardGrade.Bad;
+                    case TileType.START:        // 월급
+                    case TileType.WORLD_TRAVEL:
+                    case TileType.CHARITY:      // 적립금
+                        return CardGrade.Good;
+                    default:
+                        return CardGrade.Normal;
+                }
+
+            default:
+                return CardGrade.Good; // 돈 받기, 모두에게서 받기, 통행료 2배, 보관형
+        }
+    }
+
+    /// <summary>무인도로 보내는 카드인가. 꼴찌에게는 나오지 않는다.</summary>
+    public static bool SendsToIsland(CardData card)
+    {
+        return card.effectType == CardEffectType.GoToIsland
+            || (card.effectType == CardEffectType.MoveTo && card.targetTileType == TileType.ISLAND);
+    }
+
+    /// <summary>
+    /// 황금열쇠를 뽑는다. 순위 보정이 꺼져 있거나 1등, 꼴찌가 아니면 모든 카드가 같은 확률이다. (전과 같음)
+    /// 1등은 나쁜 카드의 가중치가 오르고, 꼴찌는 무인도 카드가 빠지고 좋은 카드의 가중치가 오른다.
+    /// randomBelow(n)은 0 이상 n 미만의 수를 주는 호스트의 난수다. 덱이 비어 있으면 0.
+    /// </summary>
+    public static int PickCardId(GameData data, RankBalance balance, long playerId, Func<int, int> randomBelow)
+    {
+        IReadOnlyList<int> cardIds = data.CardIds;
+        if (cardIds == null || cardIds.Count == 0) return 0;
+
+        bool isLeader = balance.IsLeader(playerId);
+        bool isLast = balance.IsLast(playerId);
+
+        var weights = new int[cardIds.Count];
+        int total = 0;
+        for (int i = 0; i < cardIds.Count; i++)
+        {
+            weights[i] = CardWeight(data.FindCard(cardIds[i]), isLeader, isLast);
+            total += weights[i];
+        }
+
+        // 모든 카드가 빠진 덱(무인도 카드만 있음 등)이면 평소처럼 고른다
+        if (total <= 0) return cardIds[randomBelow(cardIds.Count)];
+
+        int roll = randomBelow(total);
+        for (int i = 0; i < cardIds.Count; i++)
+        {
+            if (roll < weights[i]) return cardIds[i];
+            roll -= weights[i];
+        }
+        return cardIds[cardIds.Count - 1];
+    }
+
+    // 카드 하나의 뽑기 가중치. 0이면 나오지 않는다
+    private static int CardWeight(CardData card, bool isLeader, bool isLast)
+    {
+        if (card == null) return 1;
+
+        CardGrade grade = GetCardGrade(card);
+        if (isLeader && grade == CardGrade.Bad) return LeaderBadCardWeight;
+        if (isLast && SendsToIsland(card)) return 0;
+        if (isLast && grade == CardGrade.Good) return LastGoodCardWeight;
+        return 1;
     }
 
     // 도착 칸의 등급. 남의 땅이면 통행료도 알려 준다. (ArrivalRules.ArriveAtTile, TradeRules.ArriveAtProperty와 같은 칸 구분)

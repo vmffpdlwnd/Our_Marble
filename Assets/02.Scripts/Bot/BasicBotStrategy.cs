@@ -9,12 +9,15 @@ using System.Collections.Generic;
 /// 건설·인수는 늘어나는 통행료로 비용을 회수하는 기간(라운드)을 따져 결정합니다.
 /// 돈을 쓰면 다음 턴에 만날 더 좋은 땅을 못 사게 될 확률이 크면 이번에는 아낍니다.
 /// 막판에는 구매·건설을 적극적으로 하고, 남은 라운드 안에 회수 못 할 인수는 하지 않습니다.
+/// 공격형(BotSettings.TargetsLastHuman)은 살아 있는 사람 중 꼴찌를 목표로 정하고, 목표가 다음 턴에 밟을 수 있는 땅을 먼저 노립니다.
 /// </summary>
 public class BasicBotStrategy : IBotStrategy
 {
     // 성향과 무관한 게임 규칙 값
     private const int DefaultTravelDestination = 16;       // 기부금수령 칸 (갈 곳이 없을 때 기본 목적지)
     private const double AverageHitRate = 1.0 / 7;         // 주사위 평균 7칸 → 한 번 굴릴 때 특정 칸에 도착할 평균 확률
+    private const int TargetTravelTier = 0;                // 공격형: 목표의 길목에 있는 세계여행 목적지 순위 (가장 먼저)
+    private const double TargetKeepFactor = 3;             // 공격형: 매각할 때 목표의 길목에 있는 땅을 지키는 정도 (기대 손실에 곱함)
 
     private readonly TileData[] tileByIndex;                  // 칸 번호 → 칸 정보
     private readonly Func<PropertyState, long> getToll;       // 통행료 계산
@@ -22,13 +25,15 @@ public class BasicBotStrategy : IBotStrategy
     private readonly BotSettings settings;                    // 성향별 판단 기준값
     private readonly int maxRound;                            // 최대 라운드 (0이면 제한 없음)
     private readonly Action<string> log;                      // 판단 근거 로그 (없으면 출력 안 함)
+    private readonly Func<GameState, List<PlayerState>> rankPlayers; // 순위 순서의 플레이어 목록 (공격형의 목표 찾기, 없으면 노리지 않음)
 
     public BasicBotStrategy(IReadOnlyList<TileData> tiles,
                             Func<PropertyState, long> getToll,
                             Func<int, PropertyData> getPropertyData,
                             BotSettings settings = null,
                             int maxRound = 0,
-                            Action<string> log = null)
+                            Action<string> log = null,
+                            Func<GameState, List<PlayerState>> rankPlayers = null)
     {
         // 리스트 순서와 칸 번호가 달라도 안전하도록 Index 기준으로 다시 배치합니다.
         tileByIndex = new TileData[tiles.Count];
@@ -43,6 +48,7 @@ public class BasicBotStrategy : IBotStrategy
         this.settings = settings ?? BotSettings.Balanced();
         this.maxRound = maxRound;
         this.log = log;
+        this.rankPlayers = rankPlayers;
     }
 
     #region 판단 (IBotStrategy)
@@ -55,6 +61,14 @@ public class BasicBotStrategy : IBotStrategy
         PropertyData data = getPropertyData(propertyId);
         PlayerState bot = state.PlayerStates.Find(p => p.PlayerId == botId);
         if (data == null || bot == null) return true;
+
+        // 공격형: 목표가 다음 턴에 밟을 수 있는 땅이면 가치와 기회비용을 따지지 않고 삽니다. (통행료 위험은 위에서 이미 봄)
+        PlayerState target = FindTarget(state, botId);
+        if (IsOnTargetPath(target, propertyId))
+        {
+            Log(botId, $"{data.CityName} 목표 {target.Nickname}의 길목 (다음 턴 도착 {TargetHitChance(target, propertyId):P1}) → 구매");
+            return true;
+        }
 
         // 2) 좋은 땅은 사고, 보통 땅은 현금이 넉넉히 남을 때만 삽니다.
         double landReturn = GetMaxTollReturn(data);
@@ -83,6 +97,14 @@ public class BasicBotStrategy : IBotStrategy
         if (property == null || data == null || bot == null) return true;
         if (!data.CanBuild || property.BuildingLevel >= BuildingLevel.Hotel) return false;
 
+        // 공격형: 목표가 다음 턴에 밟을 수 있는 땅이면 회수 기간과 기회비용을 따지지 않고 짓습니다.
+        PlayerState target = FindTarget(state, botId);
+        if (IsOnTargetPath(target, propertyId))
+        {
+            Log(botId, $"{data.CityName} 목표 {target.Nickname}의 길목 (다음 턴 도착 {TargetHitChance(target, propertyId):P1}) → 건설");
+            return true;
+        }
+
         // 2) 통행료 상승분으로 건설비를 빨리 회수할 수 있거나, 현금이 넉넉하면 짓습니다.
         BuildingLevel next = property.BuildingLevel + 1;
         long tollGain = data.GetToll(next) - data.GetToll(property.BuildingLevel);
@@ -110,6 +132,14 @@ public class BasicBotStrategy : IBotStrategy
         PlayerState bot = state.PlayerStates.Find(p => p.PlayerId == botId);
         if (property == null || data == null || bot == null) return true;
 
+        // 공격형: 목표가 다음 턴에 밟을 수 있는 땅이면 회수 기간과 기회비용을 따지지 않고 인수합니다.
+        PlayerState target = FindTarget(state, botId);
+        if (IsOnTargetPath(target, propertyId))
+        {
+            Log(botId, $"{data.CityName} 목표 {target.Nickname}의 길목 (다음 턴 도착 {TargetHitChance(target, propertyId):P1}) → 인수");
+            return true;
+        }
+
         // 2) 인수가가 비싸므로, 통행료 수입으로 빨리 회수할 수 있는 땅만 인수합니다.
         long toll = getToll(property);
         double payback = PaybackRounds(state, botId, propertyId, price, toll);
@@ -133,9 +163,13 @@ public class BasicBotStrategy : IBotStrategy
     {
         long shortage = requiredAmount - GetMoney(state, botId);
 
+        // 공격형은 목표의 길목에 있는 땅을 지킬 가치가 크다고 보고 마지막까지 남깁니다.
+        PlayerState target = FindTarget(state, botId);
+        Func<PropertyState, double> lossPerWon = p => TollLossPerWon(state, botId, p, getSellValue)
+                                                       * (IsOnTargetPath(target, p.PropertyId) ? TargetKeepFactor : 1);
+
         List<PropertyState> owned = state.PropertyStates.FindAll(p => p.OwnerId == botId);
-        owned.Sort((a, b) => TollLossPerWon(state, botId, a, getSellValue)
-                            .CompareTo(TollLossPerWon(state, botId, b, getSellValue)));
+        owned.Sort((a, b) => lossPerWon(a).CompareTo(lossPerWon(b)));
 
         List<PropertyState> selected = new List<PropertyState>();
         long sum = 0;
@@ -147,8 +181,7 @@ public class BasicBotStrategy : IBotStrategy
         }
 
         // 지킬 가치가 큰 땅(기대 통행료 손실이 큰 땅)부터, 빼도 부족분을 채운다면 매각 목록에서 제외합니다.
-        selected.Sort((a, b) => TollLossPerWon(state, botId, b, getSellValue)
-                                .CompareTo(TollLossPerWon(state, botId, a, getSellValue)));
+        selected.Sort((a, b) => lossPerWon(b).CompareTo(lossPerWon(a)));
         for (int i = 0; i < selected.Count;)
         {
             long value = getSellValue(selected[i]);
@@ -179,11 +212,19 @@ public class BasicBotStrategy : IBotStrategy
         int bestPosition = -1;
         int bestTier = int.MaxValue;
         double bestScore = double.MinValue;
+        PlayerState target = FindTarget(state, botId);
 
         for (int position = 0; position < tileByIndex.Length; position++)
         {
             if (position == bot.Position) continue;
             if (!TryScoreDestination(state, bot, position, out int tier, out double score)) continue;
+
+            // 공격형: 살 만한 빈 땅이나 지을 내 땅이 목표의 길목에 있으면 가장 먼저 갑니다. (같은 순위에서는 목표가 밟을 확률로 비교)
+            if ((tier == 2 || tier == 3) && TargetHitChanceAt(target, position) > 0)
+            {
+                tier = TargetTravelTier;
+                score = TargetHitChanceAt(target, position);
+            }
 
             if (tier < bestTier || (tier == bestTier && score > bestScore))
             {
@@ -196,6 +237,70 @@ public class BasicBotStrategy : IBotStrategy
         if (bestPosition < 0) bestPosition = DefaultTravelDestination;
         Log(botId, $"세계여행 목적지 {bestPosition}번 (순위 {bestTier}, 점수 {bestScore:F2})");
         return bestPosition;
+    }
+
+    /// <summary>
+    /// 공격형: 목표가 다음 턴에 밟을 확률 × 통행료가 가장 큰 내 땅을 고릅니다. 공격형이 아니거나 그런 땅이 없으면 0. (호출하는 쪽이 평소 규칙으로 고름)
+    /// </summary>
+    public int ChooseTollDoubleProperty(GameState state, long botId)
+    {
+        PlayerState target = FindTarget(state, botId);
+        if (target == null) return 0;
+
+        int best = 0;
+        double bestValue = 0;
+        foreach (PropertyState property in state.PropertyStates)
+        {
+            if (property.OwnerId != botId) continue;
+            double value = getToll(property) * TargetHitChance(target, property.PropertyId);
+            if (value > bestValue) { best = property.PropertyId; bestValue = value; }
+        }
+
+        if (best != 0) Log(botId, $"통행료 2배: 목표 {target.Nickname}의 길목 땅 {best}번 (기대 통행료 {bestValue:N0})");
+        return best;
+    }
+
+    #endregion
+
+    #region 공격형 (목표)
+
+    /// <summary>
+    /// 공격형의 목표: 살아 있는 사람 중 꼴찌. 공격형이 아니거나, 너프 중이거나(앞선 봇은 노리기를 멈춤), 살아 있는 사람이 없으면 null.
+    /// 봇은 목표가 되지 않습니다. 뉴비 옵션을 켠 사람은 목표에서 뺍니다. (뉴비 표시는 v1.3 뉴비 옵션에서 생깁니다)
+    /// </summary>
+    private PlayerState FindTarget(GameState state, long botId)
+    {
+        if (!settings.TargetsLastHuman || settings.IsNerfed || rankPlayers == null) return null;
+
+        List<PlayerState> ranked = rankPlayers(state);
+        for (int i = ranked.Count - 1; i >= 0; i--)
+        {
+            PlayerState player = ranked[i];
+            if (player.IsBankrupt || player.IsBot || player.PlayerId == botId) continue;
+            return player;
+        }
+        return null;
+    }
+
+    /// <summary>목표가 다음 주사위 한 번으로 position 칸에 도착할 확률. 목표가 없으면 0.</summary>
+    private double TargetHitChanceAt(PlayerState target, int position)
+    {
+        if (target == null || position < 0 || tileByIndex.Length == 0) return 0;
+
+        int distance = (position - target.Position + tileByIndex.Length) % tileByIndex.Length;
+        return NextRollHitProbability(target, distance);
+    }
+
+    /// <summary>목표가 다음 주사위 한 번으로 이 땅에 도착할 확률. 목표가 없으면 0.</summary>
+    private double TargetHitChance(PlayerState target, int propertyId)
+    {
+        return TargetHitChanceAt(target, PositionOf(propertyId));
+    }
+
+    /// <summary>목표가 다음 턴에 밟을 수 있는 땅(앞쪽 2~12칸)인가.</summary>
+    private bool IsOnTargetPath(PlayerState target, int propertyId)
+    {
+        return TargetHitChance(target, propertyId) > 0;
     }
 
     #endregion
@@ -346,7 +451,7 @@ public class BasicBotStrategy : IBotStrategy
     /// </summary>
     private double OpponentHitRate(GameState state, long botId, int propertyId)
     {
-        int tilePosition = Array.FindIndex(tileByIndex, t => t != null && t.Type == TileType.PROPERTY && t.PropertyId == propertyId);
+        int tilePosition = PositionOf(propertyId);
         if (tilePosition < 0) return 0;
 
         double rate = 0;
@@ -488,6 +593,12 @@ public class BasicBotStrategy : IBotStrategy
     private static double DiceSumProbability(int sum)
     {
         return (6 - Math.Abs(sum - 7)) / 36.0;
+    }
+
+    /// <summary>땅의 칸 번호. 보드에 없으면 -1.</summary>
+    private int PositionOf(int propertyId)
+    {
+        return Array.FindIndex(tileByIndex, t => t != null && t.Type == TileType.PROPERTY && t.PropertyId == propertyId);
     }
 
     private static long GetMoney(GameState state, long botId)
