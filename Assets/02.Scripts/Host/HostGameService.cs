@@ -1072,7 +1072,8 @@ public class HostGameService : IHostRequestReceiver
             PropertyManager.Instance.GetData,
             settings,
             state.Config.maxRound,
-            message => Debug.Log($"[Bot] {message}"));
+            message => Debug.Log($"[Bot] {message}"),
+            s => RankingRules.Rank(s.PlayerStates, s.PropertyStates, gameData.Properties)); // 공격형의 목표 찾기
     }
 
     // ───────────── 시간 ─────────────
@@ -1140,9 +1141,13 @@ public class HostGameService : IHostRequestReceiver
                 HandleChooseDestination(id, new ChooseDestinationRequest { type = "CHOOSE_DESTINATION", destinationPosition = ChooseDestination(actor) });
                 break;
 
-            case GameMessageType.TOLL_DOUBLE_CHOSEN: // 통행료가 가장 비싼 내 땅을 고른다
-                HandleChooseTollDouble(id, new ChooseTollDoubleRequest { type = "CHOOSE_TOLL_DOUBLE", propertyId = CardRules.PickTollDoubleProperty(state, gameData, id) });
+            case GameMessageType.TOLL_DOUBLE_CHOSEN: // 통행료가 가장 비싼 내 땅을 고른다 (공격형은 목표의 길목에 있는 내 땅을 먼저)
+            {
+                int tollDoubleProperty = StrategyFor(actor).ChooseTollDoubleProperty(state, id);
+                if (tollDoubleProperty == 0) tollDoubleProperty = CardRules.PickTollDoubleProperty(state, gameData, id);
+                HandleChooseTollDouble(id, new ChooseTollDoubleRequest { type = "CHOOSE_TOLL_DOUBLE", propertyId = tollDoubleProperty });
                 break;
+            }
 
             // 구매, 건설, 인수는 봇과 제한 시간을 넘긴 사람 모두 같은 전략이 판단한다
             case GameMessageType.PROPERTY_PURCHASED:

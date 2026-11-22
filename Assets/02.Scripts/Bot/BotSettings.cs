@@ -41,6 +41,9 @@ public class BotSettings
     // ── 세계여행 ──
     public long WelfareFundWorthTrip = 200000;       // 적립금이 이 이상이면 세계여행 최우선 목적지
 
+    // ── 공격형 ──
+    public bool TargetsLastHuman;                    // 살아 있는 사람 중 꼴찌를 목표로 노림 (BasicBotStrategy.FindTarget)
+
     // ── 너프 ──
     public bool IsNerfed;                            // Nerfed()로 만든 값인지 (공격형은 너프 중에 노리기를 멈춤)
 
@@ -107,10 +110,13 @@ public class BotSettings
         };
     }
 
-    /// <summary>공격형: 값은 기본형과 같고, 누구를 기준으로 판단할지만 다릅니다. (BasicBotStrategy)</summary>
+    /// <summary>
+    /// 공격형: 값은 기본형과 같고, 사람 중 꼴찌를 목표로 정해 그 사람이 밟을 땅을 노립니다. (BasicBotStrategy)
+    /// 너프 중에는 노리기를 멈추고 값이 약해진 기본형처럼 움직입니다.
+    /// </summary>
     public static BotSettings Aggressive()
     {
-        return new BotSettings { Name = "공격형" };
+        return new BotSettings { Name = "공격형", TargetsLastHuman = true };
     }
 
     // ───────────── 너프 ─────────────
