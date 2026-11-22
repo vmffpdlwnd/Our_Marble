@@ -7,6 +7,7 @@ using UnityEngine.UI;
 /// 설정 팝업. Canvas_Settings에 붙는다. 로비와 게임 씬이 같은 프리팹을 쓴다.
 /// 창 아래의 닫기 버튼으로만 닫는다. (배경을 누르거나 Esc를 눌러도, 설정 버튼을 다시 눌러도 닫히지 않는다.)
 /// 값은 PlayerPrefs에 저장하고, 바뀔 때마다 SoundChanged를 알린다. SoundManager가 BgmVolume, SfxVolume을 읽어 바로 반영한다.
+/// 뉴비 옵션(v1.3)도 여기서 켜고 끈다. 로비에서만 바꿀 수 있고, 게임 씬에서는 보이기만 하고 잠긴다. (LobbyManager가 NewbieChanged를 받아 호스트에 알린다)
 /// </summary>
 public class SettingsView : UIView
 {
@@ -17,6 +18,7 @@ public class SettingsView : UIView
     private const string SfxKey = "Settings.Sfx";
     private const string BgmOnKey = "Settings.BgmOn";
     private const string SfxOnKey = "Settings.SfxOn";
+    private const string NewbieKey = "Settings.Newbie";
 
     private static readonly Color SwitchOn = UIPalette.Mint;
     private static readonly Color SwitchOff = new Color32(205, 210, 224, 255);
@@ -48,9 +50,19 @@ public class SettingsView : UIView
     /// <summary>볼륨이나 스위치가 바뀌면 알린다. (SoundManager가 받아서 바로 반영한다)</summary>
     public static event System.Action SoundChanged;
 
+    /// <summary>뉴비 옵션 (v1.3). 이 기기에 저장한다. 기본은 꺼짐</summary>
+    public static bool NewbieOn => PlayerPrefs.GetInt(NewbieKey, 0) == 1;
+
+    /// <summary>뉴비 옵션이 바뀌면 알린다. (LobbyManager가 받아서 호스트에 보낸다)</summary>
+    public static event System.Action NewbieChanged;
+
     // 에디터에서 도메인 리로드 없이 플레이를 다시 시작해도 이전 플레이의 구독이 남지 않게 한다
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => SoundChanged = null;
+    private static void ResetStatics()
+    {
+        SoundChanged = null;
+        NewbieChanged = null;
+    }
 
     public override void Bind()
     {
@@ -78,6 +90,13 @@ public class SettingsView : UIView
         SetupChannel(sfx, SfxKey, SfxOnKey);
         SetOnClick(confirmButton, Close);
         BuildLanguageSection();
+        BuildNewbieSection();
+    }
+
+    public override void Open()
+    {
+        RefreshNewbieRow(); // 로비인지 게임인지는 열 때마다 본다
+        base.Open();
     }
 
     private void SetupChannel(Channel c, string volumeKey, string onKey)
@@ -203,5 +222,67 @@ public class SettingsView : UIView
     private static void Paint(Button button, bool selected)
     {
         if (button != null && button.targetGraphic != null) button.targetGraphic.color = selected ? SwitchOn : SwitchOff;
+    }
+
+    // ───────────── 뉴비 옵션 줄 (v1.3) ─────────────
+    // 언어 줄처럼 프리팹을 고치지 않고 코드로 만든다. 효과음 줄을 복사해 스위치만 남기고, 언어 줄 아래에 둔다.
+
+    private readonly Channel newbie = new Channel();
+    private CanvasGroup newbieGroup;
+
+    private void BuildNewbieSection()
+    {
+        var window = transform.Find("SettingsPopup/Window") as RectTransform;
+        var sfxSection = window != null ? window.Find("SfxSection") as RectTransform : null;
+        if (window == null || sfxSection == null) return;
+        if (window.Find("NewbieSection") != null) return; // 이미 만들었다
+
+        var section = Instantiate(sfxSection, window);
+        section.name = "NewbieSection";
+        section.anchoredPosition = sfxSection.anchoredPosition + new Vector2(0f, -RowStep * 2f); // 언어 줄 아래
+        foreach (string child in new[] { "SfxSlider", "ValueChip" })
+        {
+            var t = section.Find(child);
+            if (t == null) continue;
+            t.gameObject.SetActive(false);
+            Destroy(t.gameObject);
+        }
+
+        window.sizeDelta += new Vector2(0f, RowStep);
+
+        var labelTransform = section.Find("Label");
+        if (labelTransform != null) Loc.Bind(labelTransform.GetComponent<TMP_Text>(), "뉴비 옵션");
+
+        var toggleTransform = section.Find("SfxToggle");
+        if (toggleTransform == null) return;
+        toggleTransform.name = "NewbieToggle";
+
+        newbie.toggle = toggleTransform.GetComponent<Toggle>();
+        newbie.switchTrack = newbie.toggle != null ? newbie.toggle.GetComponent<Image>() : null;
+        newbie.switchKnob = toggleTransform.Find("Knob") as RectTransform;
+        newbieGroup = UIFx.EnsureGroup(section.gameObject);
+        if (newbie.toggle == null) return;
+
+        newbie.toggle.onValueChanged.RemoveAllListeners();
+        newbie.toggle.onValueChanged.AddListener(on =>
+        {
+            PlayerPrefs.SetInt(NewbieKey, on ? 1 : 0);
+            ApplySwitch(newbie, on, true);
+            NewbieChanged?.Invoke();
+        });
+        RefreshNewbieRow();
+    }
+
+    // 저장된 값을 보여 주고, 로비가 아니면(게임 중) 잠근다. 게임 중에 바꾼 값은 그 판에 반영되지 않기 때문이다
+    private void RefreshNewbieRow()
+    {
+        if (newbie.toggle == null) return;
+
+        newbie.toggle.SetIsOnWithoutNotify(NewbieOn);
+        ApplySwitch(newbie, NewbieOn, false);
+
+        bool canChange = FindAnyObjectByType<LobbyManager>() != null;
+        newbie.toggle.interactable = canChange;
+        if (newbieGroup != null) newbieGroup.alpha = canChange ? 1f : 0.45f;
     }
 }

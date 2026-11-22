@@ -266,7 +266,7 @@ public class BasicBotStrategy : IBotStrategy
 
     /// <summary>
     /// 공격형의 목표: 살아 있는 사람 중 꼴찌. 공격형이 아니거나, 너프 중이거나(앞선 봇은 노리기를 멈춤), 살아 있는 사람이 없으면 null.
-    /// 봇은 목표가 되지 않습니다. 뉴비 옵션을 켠 사람은 목표에서 뺍니다. (뉴비 표시는 v1.3 뉴비 옵션에서 생깁니다)
+    /// 봇은 목표가 되지 않습니다. 뉴비 옵션을 켠 사람은 목표에서 빼고, 그다음으로 낮은 사람을 노립니다.
     /// </summary>
     private PlayerState FindTarget(GameState state, long botId)
     {
@@ -276,7 +276,7 @@ public class BasicBotStrategy : IBotStrategy
         for (int i = ranked.Count - 1; i >= 0; i--)
         {
             PlayerState player = ranked[i];
-            if (player.IsBankrupt || player.IsBot || player.PlayerId == botId) continue;
+            if (player.IsBankrupt || player.IsBot || player.IsNewbie || player.PlayerId == botId) continue; // 뉴비 옵션을 켠 사람은 보호한다
             return player;
         }
         return null;

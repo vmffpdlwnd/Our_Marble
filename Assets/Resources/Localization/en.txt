@@ -10,6 +10,12 @@
 배경음	Music
 효과음	Sound
 언어	Language
+뉴비 옵션	Beginner Mode
+뉴비	Beginner
+기본형	Balanced
+부동산형	Tycoon
+짠돌이	Thrifty
+공격형	Aggressive
 닫기	Close
 
 # ── 타이틀(로그인 씬) ──

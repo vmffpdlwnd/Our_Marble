@@ -9,6 +9,7 @@ using UnityEngine.UI;
 /// <summary>
 /// 모서리 플레이어 정보 카드 1장. PlayerInfo_N에 붙는다.
 /// 이름·등수·자산 표시, 차례 강조, 파산 표시, 돈 변화 연출, 들고 있는 황금열쇠 아이콘을 담당한다.
+/// 초상화 아래의 작은 표시(뉴비, 봇 성향, v1.3)도 여기서 보인다.
 /// </summary>
 public class PlayerInfoView : UIView
 {
@@ -248,6 +249,65 @@ public class PlayerInfoView : UIView
     private bool hasStampRest;
     private Vector2 rootRestPosition;
     private bool hasRootRest;
+
+    // ───────────── 초상화 아래 표시 (v1.3) ─────────────
+    // 뉴비 옵션을 켠 사람은 "뉴비", 봇은 성향 이름을 보인다. 프리팹을 고치지 않고 등수 배지를 복사해 초상화 아래에 붙인다.
+
+    private const float TagWidth = 104f;
+    private const float TagHeight = 34f;
+    private const float TagFontSize = 22f;
+    private static readonly Color BotTagColor = new Color32(205, 210, 224, 255);
+
+    private Image tagBadge;
+    private TMP_Text tagText;
+    private string tagKey; // 번역 전 한국어 글. 언어가 바뀌면 다시 번역한다
+
+    /// <summary>초상화 아래 표시. text가 비어 있으면 숨긴다. isNewbie면 뉴비 색, 아니면(봇 성향) 회색이다.</summary>
+    public void SetTag(string text, bool isNewbie)
+    {
+        tagKey = text;
+        if (string.IsNullOrEmpty(text))
+        {
+            if (tagBadge != null) tagBadge.gameObject.SetActive(false);
+            return;
+        }
+
+        EnsureTagBadge();
+        if (tagBadge == null) return;
+        tagBadge.gameObject.SetActive(true);
+        tagBadge.color = isNewbie ? UIPalette.Mint : BotTagColor;
+        if (tagText != null) tagText.text = Loc.T(text);
+    }
+
+    /// <summary>표시 글자만 지금 언어로 다시 쓴다. 게임 중에 언어를 바꿨을 때 UIManager가 부른다.</summary>
+    public void RefreshTagText()
+    {
+        if (!string.IsNullOrEmpty(tagKey) && tagText != null) tagText.text = Loc.T(tagKey);
+    }
+
+    private void EnsureTagBadge()
+    {
+        if (tagBadge != null || rankBadge == null) return;
+        var portrait = transform.Find("Card/Portrait") as RectTransform;
+        if (portrait == null) return;
+
+        tagBadge = Instantiate(rankBadge, portrait);
+        tagBadge.name = "TagBadge";
+        tagBadge.transform.localScale = Vector3.one; // 등수 배지가 뒤집히는 중에 복사해도 원래 크기로
+
+        var rect = (RectTransform)tagBadge.transform;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(TagWidth, TagHeight);
+        rect.anchoredPosition = Vector2.zero; // 초상화 아래 테두리에 걸친다
+
+        tagText = tagBadge.GetComponentInChildren<TMP_Text>(true);
+        if (tagText != null)
+        {
+            tagText.enableAutoSizing = false;
+            tagText.fontSize = TagFontSize;
+        }
+    }
 
     /// <summary>
     /// 들고 있는 보관형 황금열쇠 아이콘을 cards 순서대로 보여 준다. 빈 목록이면 모두 숨긴다.

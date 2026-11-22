@@ -190,13 +190,13 @@ public class UIDebugPanel : MonoBehaviour
         if (!anyBot) GUILayout.Label("봇 없음");
     }
 
-    // 살아 있는 사람 중 꼴찌. BasicBotStrategy.FindTarget과 같은 기준이다 (바꾸면 같이 고친다)
+    // 살아 있는 사람 중 꼴찌 (뉴비 제외). BasicBotStrategy.FindTarget과 같은 기준이다 (바꾸면 같이 고친다)
     private PlayerState LastHuman(PropertyRules rules)
     {
         List<PlayerState> ranked = RankingRules.Rank(State.PlayerStates, State.PropertyStates, rules);
         for (int i = ranked.Count - 1; i >= 0; i--)
         {
-            if (!ranked[i].IsBankrupt && !ranked[i].IsBot) return ranked[i];
+            if (!ranked[i].IsBankrupt && !ranked[i].IsBot && !ranked[i].IsNewbie) return ranked[i];
         }
         return null;
     }

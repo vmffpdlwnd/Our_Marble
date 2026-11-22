@@ -179,6 +179,7 @@ public class HostGameService : IHostRequestReceiver
                 Nickname = p.nickname,
                 Money = config.startMoney,
                 IsBot = p.bot,
+                IsNewbie = p.newbie && !p.bot, // 뉴비 옵션 (v1.3)
                 BotNumber = p.bot ? random.Next(BotSettings.BotNumberRange) : (int?)null, // 봇 성향 (v1.3)
                 PortraitId = p.portraitId,
             })
@@ -380,25 +381,29 @@ public class HostGameService : IHostRequestReceiver
 
         int dice1, dice2;
         // 순위 보정(v1.3): 1등이면 두 번 굴려 나쁜 결과를, 꼴찌면 좋은 결과를 쓴다. 고른 주사위만 알림으로 보내므로 클라이언트는 평소처럼 받는다
+        // 뉴비 옵션(v1.3): 굴릴 때마다 더블이 25%로 나온다. 1등이면 1등 패널티가 먼저라 평소 주사위로 굴린다
         RankBalance balance = BalanceRules.GetRankBalance(state, gameData.Properties);
+        bool newbieDice = player.IsNewbie && !balance.IsLeader(player.PlayerId);
+        Func<(int, int)> rollPair = () => BalanceRules.RollPair(random, newbieDice);
+        if (newbieDice) Debug.Log($"[HostGameService] 뉴비 주사위: {player.Nickname} 더블 {BalanceRules.NewbieDoubleChance:P0}");
+
         if (balance.IsLeader(player.PlayerId))
         {
-            RollPreview picked = BalanceRules.RollForLeader(state, gameData, player, () => random.Next(1, 7));
+            RollPreview picked = BalanceRules.RollForLeader(state, gameData, player, rollPair);
             dice1 = picked.Dice1;
             dice2 = picked.Dice2;
             Debug.Log($"[HostGameService] 1등 패널티: {player.Nickname} 두 번 굴려 나쁜 쪽을 씀");
         }
         else if (balance.IsLast(player.PlayerId))
         {
-            RollPreview picked = BalanceRules.RollForLast(state, gameData, player, () => random.Next(1, 7));
+            RollPreview picked = BalanceRules.RollForLast(state, gameData, player, rollPair);
             dice1 = picked.Dice1;
             dice2 = picked.Dice2;
             Debug.Log($"[HostGameService] 꼴찌 보너스: {player.Nickname} 두 번 굴려 좋은 쪽을 씀");
         }
         else
         {
-            dice1 = random.Next(1, 7);
-            dice2 = random.Next(1, 7);
+            (dice1, dice2) = rollPair();
         }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         // F1 창에서 주사위를 정해 두었으면 그 눈으로 굴린다. (봇이 굴려도 적용된다)
@@ -432,7 +437,7 @@ public class HostGameService : IHostRequestReceiver
         {
             // 순위 보정(v1.3): 1등은 나쁜 카드가, 꼴찌는 좋은 카드가 잘 나오고 꼴찌에게는 무인도 카드가 나오지 않는다
             RankBalance balance = BalanceRules.GetRankBalance(state, gameData.Properties);
-            cardId = BalanceRules.PickCardId(gameData, balance, player.PlayerId, random.Next);
+            cardId = BalanceRules.PickCardId(gameData, balance, player, random.Next);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             // F1 창에서 다음 카드를 지정했으면 그 카드를 뽑는다. (봇이 뽑아도 적용된다)
             if (DebugNextCardId != 0 && gameData.FindCard(DebugNextCardId) != null) cardId = DebugNextCardId;
@@ -1115,7 +1120,9 @@ public class HostGameService : IHostRequestReceiver
     // 이 차례를 몇 초 기다렸다가 대신 진행할지. 사람의 제한 시간이 0 이하면 제한이 없다.
     private float WaitLimit(PlayerState actor)
     {
-        return TimeRules.HostWaitSeconds(state.Config, actor.IsBot, afkPlayers.Contains(actor.PlayerId));
+        // 뉴비 제한(v1.3): 매각과 세계여행 목적지는 뉴비 대신 호스트가 고르므로 봇처럼 기다린다
+        bool autoLikeBot = actor.IsBot || BalanceRules.IsNewbieAutoPhase(actor, state.WaitingType);
+        return TimeRules.HostWaitSeconds(state.Config, autoLikeBot, afkPlayers.Contains(actor.PlayerId));
     }
 
     // ───────────── 대신 진행 ─────────────
@@ -1126,7 +1133,8 @@ public class HostGameService : IHostRequestReceiver
         long id = actor.PlayerId;
         bool isBot = actor.IsBot;
 
-        if (!isBot && afkPlayers.Add(id))
+        // 뉴비 제한 단계(매각, 세계여행 목적지)는 원래 호스트가 고르는 단계라 AFK로 표시하지 않는다
+        if (!isBot && !BalanceRules.IsNewbieAutoPhase(actor, state.WaitingType) && afkPlayers.Add(id))
             Debug.Log($"[HostGameService] 제한 시간 초과: {actor.Nickname} AFK로 표시하고 대신 진행합니다.");
 
         // 대신 진행이 검증에 걸려 알림 없이 끝나더라도 매 프레임 되풀이하지 않게, 다시 처음부터 기다린다

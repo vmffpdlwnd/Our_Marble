@@ -31,6 +31,10 @@ public class PlayerState
     [Newtonsoft.Json.JsonProperty("bot")]
     public bool IsBot { get; set; }
 
+    // 뉴비 옵션 (v1.3). 게임을 시작할 때 대기방 정보(PlayerSnapshot.newbie)에서 가져오고 게임 중에는 바뀌지 않는다
+    // 혜택(황금열쇠, 더블 25%, 3연속 더블 무인도 면제)과 제한(매각, 세계여행 목적지는 호스트가 고름). BalanceRules, GameRules.ApplyDice
+    public bool IsNewbie { get; set; }
+
     // 봇 성향 숫자 (0~99, v1.3). 게임을 시작할 때 호스트가 봇마다 뽑고, 끝자리로 성향을 정한다 (BotSettings.PersonalityOf)
     // 게임 상태에 넣어서 방장이 바뀌거나 재접속해도 같은 성향을 쓴다. 사람과 옛 게임 상태는 없음(기본형)
     public int? BotNumber { get; set; }

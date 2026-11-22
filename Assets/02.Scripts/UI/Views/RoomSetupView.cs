@@ -276,7 +276,7 @@ public class RoomSetupView : UIView
         var rect = (RectTransform)copy.transform;
         rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
         rect.pivot = new Vector2(1f, 1f);
-        rect.anchoredPosition = new Vector2(-60f, -24f); // 제목 줄의 오른쪽 끝 (구분선과 같은 여백)
+        rect.anchoredPosition = new Vector2(-60f - SettingsButtonSize - SettingsButtonGap, -24f); // 제목 줄의 오른쪽 끝, 설정 버튼 왼쪽
         rect.sizeDelta = new Vector2(480f, 56f);
 
         codeChip = copy.GetComponent<Button>();
@@ -291,6 +291,38 @@ public class RoomSetupView : UIView
         codeChipLabel.fontSizeMax = 22f;
         codeChipLabel.fontSizeMin = 16f;
         return true;
+    }
+
+    // ───────────── 설정 버튼 (v1.3) ─────────────
+    // 대기방에서도 설정창(뉴비 옵션 등)을 열 수 있게, 로비의 설정 버튼(톱니)을 복사해 제목 줄의 오른쪽 끝에 둔다. 씬을 고치지 않는다.
+
+    private const float SettingsButtonSize = 56f;
+    private const float SettingsButtonGap = 12f;  // 방 코드 칩과의 간격
+    private Button settingsButton;
+
+    /// <summary>대기방 설정 버튼을 만든다. template은 로비의 설정 버튼, 누르면 onClick(설정창 열기)을 부른다. 한 번만 만든다.</summary>
+    public void SetSettingsButton(Button template, Action onClick)
+    {
+        if (settingsButton != null || template == null) return;
+
+        Transform window = transform.Find("RoomSetupPopup/Window");
+        if (window == null) return;
+
+        settingsButton = Instantiate(template, window);
+        settingsButton.name = "SettingsButton";
+        settingsButton.gameObject.SetActive(true);
+        settingsButton.transform.SetAsLastSibling();
+
+        var rect = (RectTransform)settingsButton.transform;
+        rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
+        rect.pivot = new Vector2(1f, 1f);
+        rect.anchoredPosition = new Vector2(-60f, -24f); // 방 코드 칩과 같은 줄, 구분선과 같은 오른쪽 여백
+        rect.sizeDelta = new Vector2(SettingsButtonSize, SettingsButtonSize);
+        rect.localScale = Vector3.one;
+
+        settingsButton.onClick.RemoveAllListeners();
+        settingsButton.onClick.AddListener(() => onClick?.Invoke());
+        settingsButton.interactable = true;
     }
 
     public void SetRoomInfo(string roomName, string password = null)

@@ -272,6 +272,7 @@ public class UIManager : MonoBehaviour
             if (view == null) continue;
             view.SetName(NameOf(state.PlayerStates[i].PlayerId));
             view.RefreshRankText();
+            view.RefreshTagText();
         }
 
         if (currentTurn != null && currentTurn.IsOpen && shownTurnIndex >= 0 && shownTurnIndex < state.PlayerStates.Count)
@@ -956,6 +957,15 @@ public class UIManager : MonoBehaviour
         hasLocalPlayer = true;
     }
 
+    // 플레이어 카드 초상화 아래 표시 (v1.3): 뉴비 옵션이면 "뉴비", 봇이면 성향 이름(BotSettings). 둘 다 아니면 없음.
+    // 게임 중에는 바뀌지 않는 값이라 게임을 시작할 때 한 번 정한다
+    private static string PlayerTagOf(PlayerState player)
+    {
+        if (player.IsNewbie) return "뉴비";
+        if (player.IsBot) return BotSettings.For(BotSettings.PersonalityOf(player.BotNumber)).Name;
+        return null;
+    }
+
     /// <summary>플레이어 이름과 초상화. 지정하지 않으면 "플레이어 N"과 기본 초상화를 씁니다.</summary>
     public void SetPlayerProfile(long playerId, string playerName, Sprite portrait = null)
     {
@@ -994,6 +1004,7 @@ public class UIManager : MonoBehaviour
             PlayerInfoView view = GetPlayerInfo(i);
             long id = state.PlayerStates[i].PlayerId;
             if (view != null) view.SetProfile(NameOf(id), PortraitOf(id), i);
+            if (view != null) view.SetTag(PlayerTagOf(state.PlayerStates[i]), state.PlayerStates[i].IsNewbie);
         }
         RefreshPlayerCards(animate: false);
 

@@ -24,6 +24,7 @@ public class LocalLobbyHost : IHostRequestReceiver
         public bool Ready;
         public bool Bot;
         public int? PortraitId;
+        public bool Newbie; // 뉴비 옵션 (v1.3)
     }
 
     private class Room
@@ -42,6 +43,7 @@ public class LocalLobbyHost : IHostRequestReceiver
     private readonly Dictionary<long, string> roomOfPlayer = new Dictionary<long, string>();
     private readonly Dictionary<long, string> nicknames = new Dictionary<long, string>();
     private readonly Dictionary<long, int> portraits = new Dictionary<long, int>();
+    private readonly HashSet<long> newbies = new HashSet<long>(); // 뉴비 옵션을 켠 사람 (방 밖에서 알려도 기억해 둔다)
     private int nextRoomNumber = 1;
 
     /// <summary>방 번호를 정하는 방법. 정하지 않으면 "room-1", "room-2"처럼 센다. (Photon에서는 방 코드를 쓴다)</summary>
@@ -108,6 +110,7 @@ public class LocalLobbyHost : IHostRequestReceiver
             case "LEAVE_ROOM": HandleLeaveRoom(senderId); break;
             case "SET_READY": HandleSetReady(senderId, JsonConvert.DeserializeObject<SetReadyRequest>(json)); break;
             case "SET_PORTRAIT": HandleSetPortrait(senderId, JsonConvert.DeserializeObject<SetPortraitRequest>(json)); break;
+            case "SET_NEWBIE": HandleSetNewbie(senderId, JsonConvert.DeserializeObject<SetNewbieRequest>(json)); break;
             case "ROOM_CONFIG_REQUEST": HandleRoomConfig(senderId, JsonConvert.DeserializeObject<RoomConfigRequest>(json)); break;
             case "START_GAME": HandleStartGame(senderId); break;
             case "CHAT_SEND": HandleChat(senderId, JsonConvert.DeserializeObject<ChatSendRequest>(json)); break;
@@ -337,13 +340,30 @@ public class LocalLobbyHost : IHostRequestReceiver
         return true;
     }
 
+    // 뉴비 옵션 (v1.3). 방 밖에서 켜도 기억해 두었다가 방에 들어갈 때 쓴다. 게임 중인 방에서는 자리에 반영하지 않는다 (다음 판부터)
+    private void HandleSetNewbie(long senderId, SetNewbieRequest request)
+    {
+        if (request.newbie) newbies.Add(senderId);
+        else newbies.Remove(senderId);
+
+        Room room = RoomOf(senderId);
+        if (room == null || room.Status != RoomStatus.WAITING) return;
+
+        Member member = MemberOf(room, senderId);
+        if (member.Newbie == request.newbie) return;
+        member.Newbie = request.newbie;
+        BroadcastRoomUpdated(room);
+    }
+
     // ───────────── 다른 PC에서 온 사람 ─────────────
 
-    /// <summary>다른 PC에서 온 사람의 닉네임과 초상화를 기억한다. 요청 JSON에는 이 값이 없어서 입장 전에 따로 알려 받는다.</summary>
-    public void RegisterPlayer(long playerId, string nickname, int? portraitId)
+    /// <summary>다른 PC에서 온 사람의 닉네임, 초상화, 뉴비 옵션을 기억한다. 요청 JSON에는 이 값이 없어서 입장 전에 따로 알려 받는다.</summary>
+    public void RegisterPlayer(long playerId, string nickname, int? portraitId, bool newbie = false)
     {
         if (!string.IsNullOrWhiteSpace(nickname)) nicknames[playerId] = nickname;
         if (portraitId.HasValue) portraits[playerId] = portraitId.Value;
+        if (newbie) newbies.Add(playerId);
+        else newbies.Remove(playerId);
     }
 
     /// <summary>이 사람이 방에 들어 있는지</summary>
@@ -375,6 +395,7 @@ public class LocalLobbyHost : IHostRequestReceiver
                 Ready = p.ready,
                 Bot = p.bot,
                 PortraitId = p.portraitId,
+                Newbie = p.newbie,
             }).ToList(),
         };
 
@@ -389,6 +410,7 @@ public class LocalLobbyHost : IHostRequestReceiver
             roomOfPlayer[member.Id] = room.Id;
             nicknames[member.Id] = member.Nickname;
             if (member.PortraitId.HasValue) portraits[member.Id] = member.PortraitId.Value;
+            if (member.Newbie) newbies.Add(member.Id);
         }
 
         // 새 방을 만들 때 이 방과 번호가 겹치지 않게 한다. ("room-3"이면 다음은 4부터)
@@ -415,6 +437,7 @@ public class LocalLobbyHost : IHostRequestReceiver
             Id = playerId,
             Nickname = NicknameOf(playerId),
             PortraitId = portraits.TryGetValue(playerId, out int portraitId) ? portraitId : (int?)null,
+            Newbie = newbies.Contains(playerId),
         };
 
         // 사람은 봇보다 앞에 들어간다 (봇은 맨 뒤에 붙어 있다)
@@ -487,6 +510,7 @@ public class LocalLobbyHost : IHostRequestReceiver
                 ready = m.Ready || m.Bot,
                 bot = m.Bot,
                 portraitId = m.PortraitId,
+                newbie = m.Newbie,
             }).ToList(),
             maxPlayers = room.MaxPlayers,
             botCount = room.Members.Count(m => m.Bot),
