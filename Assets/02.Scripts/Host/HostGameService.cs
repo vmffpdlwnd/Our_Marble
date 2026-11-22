@@ -217,6 +217,10 @@ public class HostGameService : IHostRequestReceiver
         };
 
         Debug.Log($"[HostGameService] 게임 생성: 방 {roomId}, {players.Count}명, 땅 {properties.Count}개, 시작 자금 {config.startMoney}");
+
+        // 봇 성향 (v1.3): 성향은 화면에 보이지 않으므로, 숫자와 성향을 시작할 때 한 번 남긴다. (게임 중에는 F1 개발용 창)
+        foreach (PlayerState bot in players.Where(p => p.IsBot))
+            Debug.Log($"[Bot] {bot.Nickname}: 숫자 {bot.BotNumber} → {BotSettings.For(BotSettings.PersonalityOf(bot.BotNumber)).Name}");
     }
 
     // 이미 진행 중인 게임 상태로 호스트를 만든다. (TakeOver가 부른다)
