@@ -7,6 +7,7 @@ using UnityEngine.UI;
 /// 방 코드를 입력해서 방에 들어가는 창. 로비의 "코드로 입장" 버튼이 연다.
 /// 씬에 있는 비밀번호 입력 창(Canvas_Password)을 그대로 쓰고, 제목과 안내 글자, 입력칸 설정은 여기서 바꾼다.
 /// (비밀번호 창의 입력칸은 숫자 네 자리를 가리는 설정이라, 방 코드에 맞게 일반 글자 입력으로 바꾼다)
+/// v1.3부터 방 목록에서 비밀번호 방에 들어갈 때 비밀번호 입력 창으로도 쓴다. 열 때마다 두 모드 중 하나로 입력칸을 맞춘다.
 /// </summary>
 public class JoinByCodePopup
 {
@@ -20,6 +21,7 @@ public class JoinByCodePopup
     private TMP_InputField input;
     private Button confirmButton;
     private string lastCode = "";
+    private Action<string> onPassword; // 비밀번호 모드일 때 입력한 비밀번호를 받는다. null이면 방 코드 모드
 
     /// <param name="popup">방 코드 입력 창으로 쓸 팝업 (Canvas_Password)</param>
     /// <param name="onJoin">올바른 코드를 넣고 입장을 눌렀을 때. 정리된 코드(8자리 대문자)를 받는다. 창은 닫은 뒤에 부른다.</param>
@@ -49,14 +51,9 @@ public class JoinByCodePopup
 
         if (input != null)
         {
-            // 숫자 네 자리를 가리는 비밀번호 입력칸을 방 코드 입력칸으로 바꾼다
-            input.contentType = TMP_InputField.ContentType.Standard;
             input.lineType = TMP_InputField.LineType.SingleLine;
-            input.characterValidation = TMP_InputField.CharacterValidation.None;
-            input.characterLimit = InputLimit;
-            input.onValidateInput = (text, index, added) => char.ToUpperInvariant(added); // 소문자로 쳐도 대문자로 들어간다
             input.onSubmit.AddListener(_ => Confirm());
-            if (input.placeholder is TMP_Text placeholder) placeholder.text = "ABCD-EFGH";
+            ApplyCodeMode();
         }
 
         if (confirmButton != null) confirmButton.onClick.AddListener(Confirm);
@@ -73,6 +70,9 @@ public class JoinByCodePopup
     /// <summary>창을 연다. 지난번에 넣은 코드가 입력칸에 남아 있다. (틀렸을 때 고쳐서 다시 넣기 쉽게)</summary>
     public void Open()
     {
+        onPassword = null;
+        ApplyCodeMode();
+
         Transform w = Window;
         if (w != null)
         {
@@ -85,6 +85,48 @@ public class JoinByCodePopup
         if (input != null) input.ActivateInputField();
     }
 
+    /// <summary>비밀번호 방에 들어갈 때 비밀번호(숫자 4자리)를 묻는다 (v1.3). 입장을 누르면 창을 닫고 onEntered(비밀번호)를 부른다.</summary>
+    public void OpenPassword(Action<string> onEntered)
+    {
+        onPassword = onEntered;
+        ApplyPasswordMode();
+
+        Transform w = Window;
+        if (w != null)
+        {
+            SetText(w, "TitleText", "비밀번호 입력");
+            SetText(w, "RoomNameText", "비밀번호 4자리를 입력해 주세요");
+        }
+
+        if (input != null) input.SetTextWithoutNotify("");
+        popup.Open();
+        if (input != null) input.ActivateInputField();
+    }
+
+    // 방 코드 모드: 일반 글자, 소문자로 쳐도 대문자로 들어간다
+    private void ApplyCodeMode()
+    {
+        if (input == null) return;
+        input.contentType = TMP_InputField.ContentType.Standard;
+        input.characterValidation = TMP_InputField.CharacterValidation.None;
+        input.characterLimit = InputLimit;
+        input.onValidateInput = (text, index, added) => char.ToUpperInvariant(added);
+        if (input.placeholder is TMP_Text placeholder) placeholder.text = "ABCD-EFGH";
+        input.ForceLabelUpdate();
+    }
+
+    // 비밀번호 모드: 숫자 4자리, 가려서 보인다 (원래 이 창의 설정)
+    private void ApplyPasswordMode()
+    {
+        if (input == null) return;
+        input.contentType = TMP_InputField.ContentType.Pin;
+        input.characterValidation = TMP_InputField.CharacterValidation.Digit;
+        input.characterLimit = RoomPasswords.Length;
+        input.onValidateInput = null;
+        if (input.placeholder is TMP_Text placeholder) placeholder.text = "0000";
+        input.ForceLabelUpdate();
+    }
+
     public void Close() => popup.Close();
 
     private static void SetText(Transform root, string path, string text)
@@ -95,6 +137,23 @@ public class JoinByCodePopup
 
     private void Confirm()
     {
+        if (onPassword != null)
+        {
+            string password = RoomPasswords.Sanitize(input != null ? input.text : "");
+            if (password == null)
+            {
+                if (Window != null) UIFx.Shake(Window);
+                showMessage("비밀번호 4자리를 입력해 주세요"); // 토스트가 번역한다 (방 코드 안내와 같음)
+                return;
+            }
+
+            Action<string> entered = onPassword;
+            onPassword = null;
+            popup.Close();
+            entered(password);
+            return;
+        }
+
         if (!TryRead(input != null ? input.text : "", out string code, out string message))
         {
             if (Window != null) UIFx.Shake(Window);

@@ -35,6 +35,7 @@ public class LocalLobbyHost : IHostRequestReceiver
         public RoomStatus Status;
         public GameConfig Config;
         public int MaxPlayers;
+        public string Password; // 방 비밀번호 (v1.3). 없으면 null
         public List<Member> Members = new List<Member>(); // 사람이 먼저, 봇은 맨 뒤
     }
 
@@ -146,6 +147,7 @@ public class LocalLobbyHost : IHostRequestReceiver
             Status = RoomStatus.WAITING,
             Config = new GameConfig(),
             MaxPlayers = MaxPlayersLimit, // 방을 만든 직후 바로 오는 방 설정 요청이 실제 값으로 바꾼다
+            Password = RoomPasswords.Sanitize(request?.password),
         };
         rooms.Add(room);
         AddHuman(room, senderId);
@@ -164,6 +166,8 @@ public class LocalLobbyHost : IHostRequestReceiver
         if (room == null) { SendError(senderId, "ROOM_NOT_FOUND", "방이 사라졌어요"); return; }
         if (room.Status != RoomStatus.WAITING) { SendError(senderId, "ROOM_PLAYING", "이미 게임이 시작된 방이에요"); return; }
         if (room.Members.Count >= room.MaxPlayers) { SendError(senderId, "ROOM_FULL", "방이 가득 찼어요"); return; }
+        // 비밀번호 방은 목록에서 들어올 때만 확인한다. 방 코드로 들어오면 묻지 않는다 (기획서 "방 비밀번호")
+        if (!request.byCode && !RoomPasswords.Matches(room.Password, request.password)) { SendError(senderId, "WRONG_PASSWORD", "비밀번호가 달라요"); return; }
 
         AddHuman(room, senderId);
 
@@ -386,6 +390,7 @@ public class LocalLobbyHost : IHostRequestReceiver
                 : RoomNames.Default(snapshot.Players?.FirstOrDefault(p => p.playerId == snapshot.hostId)?.nickname),
             HostId = snapshot.hostId,
             Status = snapshot.status,
+            Password = RoomPasswords.Sanitize(snapshot.password), // 방장이 바뀌어도 비밀번호는 방 정보로 이어진다
             Config = snapshot.config == null ? new GameConfig() : JsonConvert.DeserializeObject<GameConfig>(JsonConvert.SerializeObject(snapshot.config)),
             MaxPlayers = snapshot.maxPlayers,
             Members = snapshot.Players.Select(p => new Member
@@ -490,6 +495,7 @@ public class LocalLobbyHost : IHostRequestReceiver
             mapId = room.Config.mapId,
             playerCount = room.Members.Count,
             maxPlayers = room.MaxPlayers,
+            locked = !string.IsNullOrEmpty(room.Password),
         };
     }
 
@@ -514,6 +520,7 @@ public class LocalLobbyHost : IHostRequestReceiver
             }).ToList(),
             maxPlayers = room.MaxPlayers,
             botCount = room.Members.Count(m => m.Bot),
+            password = room.Password,
         };
     }
 

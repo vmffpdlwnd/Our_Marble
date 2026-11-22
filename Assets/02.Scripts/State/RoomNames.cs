@@ -38,3 +38,30 @@ public static class RoomNames
     public static string Resolve(string roomName, string hostNickname) =>
         string.IsNullOrWhiteSpace(roomName) ? Default(hostNickname) : roomName;
 }
+
+/// <summary>
+/// 방 비밀번호 규칙 (v1.3). 숫자 4자리이고, 비우면 비밀번호 없는 방이다.
+/// 비밀번호는 방장의 호스트만 들고 있고, 방 목록에는 "있음"(RoomSummary.locked)만 보낸다.
+/// </summary>
+public static class RoomPasswords
+{
+    public const int Length = 4;
+
+    /// <summary>입력을 정리한다. 앞뒤 공백을 빼고 숫자 4자리면 그대로, 비었거나 아니면 null.</summary>
+    public static string Sanitize(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return null;
+        string text = input.Trim();
+        if (text.Length != Length) return null;
+        foreach (char c in text) if (c < '0' || c > '9') return null;
+        return text;
+    }
+
+    /// <summary>입력이 비었거나 숫자 4자리면 true. (방 만들기에서 잘못 넣은 값을 막을 때 쓴다)</summary>
+    public static bool IsValidOrEmpty(string input) =>
+        string.IsNullOrWhiteSpace(input) || Sanitize(input) != null;
+
+    /// <summary>방에 들어갈 수 있는 비밀번호인가. 비밀번호 없는 방이면 항상 true.</summary>
+    public static bool Matches(string roomPassword, string input) =>
+        string.IsNullOrEmpty(roomPassword) || roomPassword == Sanitize(input);
+}

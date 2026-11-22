@@ -107,7 +107,7 @@ public class UIManager : MonoBehaviour
         if (topBar != null)
         {
             RefreshTopBarRoom();
-            topBar.SetPassword(null); // 서버 방 정보에는 비밀번호가 없다
+            topBar.SetPassword(LobbyManager.CurrentRoom?.password); // 비밀번호 방이면 상단바에 보인다 (v1.3)
             topBar.SetCallbacks(settings != null ? settings.Open : (Action)null, RequestExit);
             topBar.SetBankruptButton(RequestBankruptcy);
         }

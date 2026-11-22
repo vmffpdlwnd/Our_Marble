@@ -110,6 +110,9 @@
 비밀번호 (선택, 숫자 4자리)	Password (optional, 4 digits)
 숫자 4자리	4 digits
 비밀번호 입력	Enter password
+비밀번호 4자리를 입력해 주세요	Please enter the 4-digit password
+비밀번호는 숫자 4자리로 정해 주세요	Please set a 4-digit number as the password
+비밀번호가 달라요	Wrong password
 2명	2
 3명	3
 4명	4

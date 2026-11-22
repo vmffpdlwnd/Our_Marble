@@ -30,6 +30,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private const string KeyCount = "count";
     private const string KeyMax = "max";
     private const string KeyMembers = "members"; // 참가자 닉네임 명단 (RoomMemberCodec). 방 목록에서 방을 눌렀을 때 이름을 보여 준다
+    private const string KeyLocked = "locked";   // 1이면 비밀번호 방 (v1.3). 비밀번호 자체는 목록에 넣지 않는다 (로비의 모두가 본다)
     private const string KeyHosted = "hosted";   // 1이면 방장 PC가 로비 호스트(서버 역할)를 돌리고 있는 방. 게임 로비에서 만든 방이다
 
     private const string StateWaiting = "waiting";
@@ -380,6 +381,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         mapId = IntProp(info, KeyMap, 0),
         playerCount = IntProp(info, KeyCount, info.PlayerCount),
         maxPlayers = IntProp(info, KeyMax, PhotonConnection.MaxHumansLimit),
+        locked = IntProp(info, KeyLocked, 0) == 1 && StringProp(info, KeyState, StateWaiting) == StateWaiting, // 이어하기는 이미 참가자라 묻지 않는다
     };
 
     // 방 속성의 참가자 명단을 꺼낸다. 명단이 없는 방(이름 표시가 없던 옛 빌드가 만든 방)은 빈 목록이고, 화면이 예전 방식으로 보여 준다.
@@ -428,10 +430,16 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             // 방 목록에 보일 속성(방장, 인원, 호스트 표시 등)은 방을 만들 때 함께 정해야 다른 PC의 방 목록에 보인다.
             // 화면이 고른 인원과 맵을 처음부터 반영한다. (Photon 방의 최대 인원은 만든 뒤에 못 바꿔서 4로 두고, 실제 자리는 게임 규칙이 막는다)
             string roomName = null;
-            try { roomName = RoomNames.Sanitize(JsonConvert.DeserializeObject<CreateRoomRequest>(json)?.roomName); }
+            bool locked = false;
+            try
+            {
+                CreateRoomRequest create = JsonConvert.DeserializeObject<CreateRoomRequest>(json);
+                roomName = RoomNames.Sanitize(create?.roomName);
+                locked = RoomPasswords.Sanitize(create?.password) != null; // 비밀번호 자체는 호스트만 들고, 목록에는 있음만 올린다
+            }
             catch (Exception e) { Log("방 만들기 요청의 이름을 읽지 못해 기본 이름을 씁니다: " + e.Message); }
 
-            if (!await connection.CreateRoom(roomName ?? RoomNames.Default(LocalPlayer.Nickname), PhotonConnection.MaxHumansLimit, InitialRoomProperties(PeekRoomConfig())))
+            if (!await connection.CreateRoom(roomName ?? RoomNames.Default(LocalPlayer.Nickname), PhotonConnection.MaxHumansLimit, InitialRoomProperties(PeekRoomConfig(), locked)))
             {
                 DeliverError("CREATE_FAILED", "방을 만들지 못했어요");
                 return;
@@ -791,7 +799,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         return null;
     }
 
-    private static Dictionary<string, SessionProperty> InitialRoomProperties(RoomConfigRequest config)
+    private static Dictionary<string, SessionProperty> InitialRoomProperties(RoomConfigRequest config, bool locked)
     {
         int max = config != null ? config.maxPlayers : PhotonConnection.MaxHumansLimit;
         int bots = config != null ? config.botCount : 0;
@@ -804,6 +812,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             [KeyMap] = map,
             [KeyCount] = 1 + bots,
             [KeyMax] = max,
+            [KeyLocked] = locked ? 1 : 0,
             [KeyHosted] = 1,
         };
     }
@@ -837,6 +846,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             [KeyMap] = room.mapId,
             [KeyCount] = room.Players.Count,
             [KeyMax] = room.maxPlayers,
+            [KeyLocked] = string.IsNullOrEmpty(room.password) ? 0 : 1,
             [KeyHosted] = 1,
         };
         connection.UpdateRoomProperties(properties);

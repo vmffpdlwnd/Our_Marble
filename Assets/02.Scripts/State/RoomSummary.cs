@@ -12,4 +12,5 @@ public class RoomSummary
     public int mapId;
     public int playerCount;
     public int maxPlayers;
+    public bool locked;                       // 비밀번호 방이면 true (v1.3). 방 목록은 로비의 모두가 보므로 비밀번호 자체는 담지 않는다
 }
