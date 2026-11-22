@@ -325,6 +325,43 @@ public class RoomSetupView : UIView
         settingsButton.interactable = true;
     }
 
+    // ───────────── 방 정보 버튼 (v1.3) ─────────────
+    // 방장이 방 이름과 비밀번호를 바꾸는 창을 연다. 설정 탭에 자리가 없어서 게임 시작 버튼 왼쪽에 따로 둔다.
+    // 설정 탭의 "취소" 버튼(밝은 보조 버튼)을 복사해 만든다. 빨간 "나가기"와 헷갈리지 않게 한다. 씬을 고치지 않는다. 방장에게만 보인다 (SetHost).
+
+    private const float RoomInfoButtonWidth = 200f;
+    private const float RoomInfoButtonHeight = 80f;
+    private const float RoomInfoButtonRight = 640f; // 창 오른쪽 끝에서 버튼 오른쪽 끝까지. 시작 버튼(오른쪽 320, 너비 300) 왼쪽에 20 띄운다
+    private Button roomInfoButton;
+
+    /// <summary>방 정보 버튼을 만든다. 누르면 onClick(방 정보 수정 창 열기)을 부른다. 한 번만 만든다.</summary>
+    public void SetRoomInfoButton(Action onClick)
+    {
+        if (roomInfoButton != null || cancelButton == null) return;
+
+        Transform window = transform.Find("RoomSetupPopup/Window");
+        if (window == null) return;
+
+        roomInfoButton = Instantiate(cancelButton, window);
+        roomInfoButton.name = "RoomInfoButton";
+        roomInfoButton.transform.SetAsLastSibling();
+
+        var rect = (RectTransform)roomInfoButton.transform;
+        rect.anchorMin = rect.anchorMax = new Vector2(1f, 0f);
+        rect.pivot = new Vector2(1f, 0f);
+        rect.anchoredPosition = new Vector2(-RoomInfoButtonRight, 50f); // 시작, 나가기 버튼과 같은 줄
+        rect.sizeDelta = new Vector2(RoomInfoButtonWidth, RoomInfoButtonHeight); // 시작, 나가기 버튼과 같은 높이
+
+        roomInfoButton.onClick.RemoveAllListeners();
+        roomInfoButton.onClick.AddListener(() => onClick?.Invoke());
+        roomInfoButton.interactable = true; // 복사한 "취소" 버튼이 눌리지 않는 상태였어도 이 버튼은 항상 눌린다
+
+        TMP_Text label = roomInfoButton.GetComponentInChildren<TMP_Text>(true);
+        if (label != null) Loc.Bind(label, "방 정보");
+
+        roomInfoButton.gameObject.SetActive(isHost);
+    }
+
     public void SetRoomInfo(string roomName, string password = null)
     {
         if (subtitleText == null) subtitleText = Find<TMP_Text>("RoomSetupPopup/Window/SubtitleText"); // 이미 만들어진 프리팹에는 연결돼 있지 않을 수 있다
@@ -454,6 +491,7 @@ public class RoomSetupView : UIView
     public void SetHost(bool host)
     {
         isHost = host;
+        if (roomInfoButton != null) roomInfoButton.gameObject.SetActive(host); // 방 정보 수정은 방장만 (v1.3)
         RefreshAll();
     }
 

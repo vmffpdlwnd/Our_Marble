@@ -192,25 +192,28 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
     public event Action<long, string> OnChatBroadcast; // 보낸 사람 playerId, 내용
    
     /// <param name="roomName">방 이름. 비우면 만든 사람의 이름으로 정해진다.</param>
-    public void SendCreateRoomRequest(string roomName = null)
+    public void SendCreateRoomRequest(string roomName = null, string password = null)
     {
         Debug.Log("[Net] C");
         CreateRoomRequest message = new CreateRoomRequest
         {
             type = "CREATE_ROOM",
             roomName = roomName,
+            password = password,
         };
 
         string json = JsonConvert.SerializeObject(message);
         SendLobbyMessage(json);
     }
     
-    public void SendEnterRoomRequest(string roomId)
+    public void SendEnterRoomRequest(string roomId, string password = null, bool byCode = false)
     {
         EnterRoomRequest message = new EnterRoomRequest
         {
             type = "ENTER_ROOM",
-            roomId = roomId
+            roomId = roomId,
+            password = password,
+            byCode = byCode,
         };
 
         string json = JsonConvert.SerializeObject(message);
@@ -240,6 +243,18 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
         SendLobbyMessage(json);
     }
     
+
+    public void SendSetRoomInfoRequest(string roomName, string password)
+    {
+        SetRoomInfoRequest message = new SetRoomInfoRequest
+        {
+            type = "SET_ROOM_INFO",
+            roomName = roomName,
+            password = password,
+        };
+
+        SendLobbyMessage(JsonConvert.SerializeObject(message));
+    }
 
     public void SendSetNewbieRequest(bool newbie)
     {

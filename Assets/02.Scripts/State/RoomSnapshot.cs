@@ -13,6 +13,7 @@ public class RoomSnapshot
     public List<PlayerSnapshot> Players;
     public int maxPlayers;
     public int botCount;
+    public string password; // 방 비밀번호 (v1.3). 방 안의 사람에게만 가는 정보라 담는다. 없으면 비밀번호 없는 방
 }
 
 public enum RoomStatus
