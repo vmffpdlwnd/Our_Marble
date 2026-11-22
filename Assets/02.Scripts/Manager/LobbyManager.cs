@@ -249,6 +249,7 @@ public class LobbyManager : MonoBehaviour
 
     private void Start()
     {
+        SendNewbieOption(); // 저장된 뉴비 옵션을 호스트에 알려 둔다 (방에 들어갈 때 쓴다)
         // 게임이 끝나 같은 방으로 돌아왔다면 방 설정을 다시 띄운다 (준비 해제 등은 서버가 스냅샷으로 알려 준다)
         bool returning = SceneFlow.ConsumeReopenRoomSetup();
         if (returning && CurrentRoom != null)
@@ -297,6 +298,7 @@ public class LobbyManager : MonoBehaviour
         
         Net.OnConnected += HandleConnected;
         PortraitLibrary.Changed += HandlePortraitChanged;
+        SettingsView.NewbieChanged += SendNewbieOption;
     }
 
     private void OnDisable()
@@ -314,6 +316,7 @@ public class LobbyManager : MonoBehaviour
         
         Net.OnConnected -= HandleConnected;
         PortraitLibrary.Changed -= HandlePortraitChanged;
+        SettingsView.NewbieChanged -= SendNewbieOption;
     }
 
     private static T Get<T>(Transform root, string path) where T : Component
@@ -641,6 +644,7 @@ public class LobbyManager : MonoBehaviour
     {
         SetConnectionTrue();
         RefreshNickname(localNickname);
+        SendNewbieOption(); // 다시 연결되면 호스트가 바뀌었을 수 있어서 다시 알린다
     }
 
     public void HandleRoomList(List<RoomSummary> roomSummaries)
@@ -1384,6 +1388,12 @@ public class LobbyManager : MonoBehaviour
     {
         PortraitLibrary.Select(id);
         if (CanRequest) LobbyNetwork.Instance.SendSetPortraitRequest(id);
+    }
+
+    // 뉴비 옵션(v1.3)을 호스트에 알린다. 방 밖이면 호스트가 기억해 두었다가 방에 들어갈 때 쓴다. (초상화와 같은 방식)
+    private void SendNewbieOption()
+    {
+        if (Net != null && IsUsable) Net.SendSetNewbieRequest(SettingsView.NewbieOn);
     }
 
     // 내가 초상화를 골랐다: 내 정보와 (방 안이라면) 대기방의 내 자리에 바로 보인다

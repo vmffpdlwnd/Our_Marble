@@ -10,6 +10,7 @@
 배경음	Music
 효과음	Sound
 언어	Language
+뉴비 옵션	Beginner Mode
 닫기	Close
 
 # ── 타이틀(로그인 씬) ──

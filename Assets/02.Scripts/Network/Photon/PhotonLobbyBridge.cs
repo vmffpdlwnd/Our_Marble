@@ -61,6 +61,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     private bool leaving;                        // 방을 나가는 중 (연결을 끊고 로비로 돌아갈 때까지 계속 true)
     private bool finishing;                      // 나가기 마무리(FinishLeave)가 실행 중
     private int? pendingPortrait;                // 방에 들어가기 전에 고른 초상화
+    private bool pendingNewbie;                  // 방에 들어가기 전에 정한 뉴비 옵션 (v1.3)
     private bool awaitingAnswer;                 // 방 만들기나 입장 요청을 보내고 방장의 답을 기다리는 중
     private readonly Queue<string> queued = new Queue<string>();   // 만드는 중에 들어온 요청 (방 설정 요청 등)
     private readonly HashSet<int> knownIds = new HashSet<int>();
@@ -165,6 +166,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         }
 
         if (type == "SET_PORTRAIT") RememberPortrait(json);
+        if (type == "SET_NEWBIE") RememberNewbie(json);
         ForwardToMaster(type, json);
     }
 
@@ -179,8 +181,8 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             return;
         }
 
-        // 방 밖에서 고른 초상화는 기억해 두었다가 방에 들어갈 때 알린다. 그 밖의 요청은 방이 있어야 한다.
-        if (type == "SET_PORTRAIT") return;
+        // 방 밖에서 고른 초상화와 뉴비 옵션은 기억해 두었다가 방에 들어갈 때 알린다. 그 밖의 요청은 방이 있어야 한다.
+        if (type == "SET_PORTRAIT" || type == "SET_NEWBIE") return;
         DeliverError("NOT_IN_ROOM", "방에 들어가 있지 않아요");
     }
 
@@ -188,6 +190,12 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     {
         try { pendingPortrait = JsonConvert.DeserializeObject<SetPortraitRequest>(json).portraitId; }
         catch (Exception e) { Log("초상화 요청을 읽지 못했습니다: " + e.Message); }
+    }
+
+    private void RememberNewbie(string json)
+    {
+        try { pendingNewbie = JsonConvert.DeserializeObject<SetNewbieRequest>(json).newbie; }
+        catch (Exception e) { Log("뉴비 옵션 요청을 읽지 못했습니다: " + e.Message); }
     }
 
     // ───────────── 방 목록 (방 밖) ─────────────
@@ -607,11 +615,12 @@ public class PhotonLobbyBridge : IHostRequestReceiver
         foreach (PlayerRef player in connection.Players) knownIds.Add(player.PlayerId);
     }
 
-    // 닉네임과 초상화를 방장에게 먼저 알린다. 요청 JSON에는 없는 값이라서, 입장 요청보다 앞서 보낸다. (보내는 순서가 지켜진다)
+    // 닉네임, 초상화, 뉴비 옵션을 방장에게 먼저 알린다. 요청 JSON에는 없는 값이라서, 입장 요청보다 앞서 보낸다. (보내는 순서가 지켜진다)
     private void SendHello()
     {
         var hello = new JObject { ["type"] = "PLAYER_HELLO", ["nickname"] = LocalPlayer.Nickname };
         if (pendingPortrait.HasValue) hello["portraitId"] = pendingPortrait.Value;
+        hello["newbie"] = pendingNewbie;
 
         connection.Messenger.SendRequest(PhotonMessenger.DomainLobby, hello.ToString(Formatting.None));
     }
@@ -674,7 +683,7 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             try
             {
                 JObject hello = JObject.Parse(json);
-                host.RegisterPlayer(senderId, (string)hello["nickname"], (int?)hello["portraitId"]);
+                host.RegisterPlayer(senderId, (string)hello["nickname"], (int?)hello["portraitId"], (bool?)hello["newbie"] ?? false);
             }
             catch (Exception e) { Log("PLAYER_HELLO를 읽지 못했습니다: " + e.Message); }
             return;

@@ -241,6 +241,17 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
     }
     
 
+    public void SendSetNewbieRequest(bool newbie)
+    {
+        SetNewbieRequest message = new SetNewbieRequest
+        {
+            type = "SET_NEWBIE",
+            newbie = newbie
+        };
+
+        SendLobbyMessage(JsonConvert.SerializeObject(message));
+    }
+
     public void SendSetPortraitRequest(int portraitId)
     {
         SetPortraitRequest message = new SetPortraitRequest
