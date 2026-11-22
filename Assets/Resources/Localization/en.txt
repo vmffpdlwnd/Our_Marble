@@ -113,6 +113,9 @@
 비밀번호 4자리를 입력해 주세요	Please enter the 4-digit password
 비밀번호는 숫자 4자리로 정해 주세요	Please set a 4-digit number as the password
 비밀번호가 달라요	Wrong password
+방 정보	Room info
+방 정보 수정	Edit room info
+저장	Save
 2명	2
 3명	3
 4명	4

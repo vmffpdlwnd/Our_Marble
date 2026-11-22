@@ -112,6 +112,7 @@ public class LocalLobbyHost : IHostRequestReceiver
             case "SET_READY": HandleSetReady(senderId, JsonConvert.DeserializeObject<SetReadyRequest>(json)); break;
             case "SET_PORTRAIT": HandleSetPortrait(senderId, JsonConvert.DeserializeObject<SetPortraitRequest>(json)); break;
             case "SET_NEWBIE": HandleSetNewbie(senderId, JsonConvert.DeserializeObject<SetNewbieRequest>(json)); break;
+            case "SET_ROOM_INFO": HandleSetRoomInfo(senderId, JsonConvert.DeserializeObject<SetRoomInfoRequest>(json)); break;
             case "ROOM_CONFIG_REQUEST": HandleRoomConfig(senderId, JsonConvert.DeserializeObject<RoomConfigRequest>(json)); break;
             case "START_GAME": HandleStartGame(senderId); break;
             case "CHAT_SEND": HandleChat(senderId, JsonConvert.DeserializeObject<ChatSendRequest>(json)); break;
@@ -217,6 +218,22 @@ public class LocalLobbyHost : IHostRequestReceiver
         if (room == null) return;
 
         MemberOf(room, senderId).PortraitId = request.portraitId;
+        BroadcastRoomUpdated(room);
+    }
+
+    // 방장이 대기방에서 방 이름과 비밀번호를 바꾼다 (v1.3). 이름을 비우면 기본 이름, 비밀번호를 비우면 없앤다
+    // 방 목록의 이름과 자물쇠는 BroadcastRoomUpdated를 받은 PhotonLobbyBridge가 방 속성에 다시 올린다
+    private void HandleSetRoomInfo(long senderId, SetRoomInfoRequest request)
+    {
+        Room room = RoomOf(senderId);
+        if (room == null) { SendError(senderId, "NOT_IN_ROOM", "방에 들어가 있지 않아요"); return; }
+        if (room.HostId != senderId) { SendError(senderId, "NOT_HOST", "방장만 설정을 바꿀 수 있어요"); return; }
+        if (room.Status != RoomStatus.WAITING) { SendError(senderId, "ROOM_PLAYING", "게임 중에는 설정을 바꿀 수 없어요"); return; }
+        if (!RoomPasswords.IsValidOrEmpty(request.password)) { SendError(senderId, "BAD_PASSWORD", "비밀번호는 숫자 4자리로 정해 주세요"); return; }
+
+        room.Name = RoomNames.Sanitize(request.roomName) ?? RoomNames.Default(NicknameOf(senderId));
+        room.Password = RoomPasswords.Sanitize(request.password);
+        Debug.Log($"[LocalLobbyHost] 방 정보 수정: {room.Id} ({room.Name}, 비밀번호 {(room.Password != null ? "있음" : "없음")})");
         BroadcastRoomUpdated(room);
     }
 

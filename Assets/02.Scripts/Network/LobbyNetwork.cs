@@ -244,6 +244,18 @@ public class LobbyNetwork : Singleton<LobbyNetwork>
     }
     
 
+    public void SendSetRoomInfoRequest(string roomName, string password)
+    {
+        SetRoomInfoRequest message = new SetRoomInfoRequest
+        {
+            type = "SET_ROOM_INFO",
+            roomName = roomName,
+            password = password,
+        };
+
+        SendLobbyMessage(JsonConvert.SerializeObject(message));
+    }
+
     public void SendSetNewbieRequest(bool newbie)
     {
         SetNewbieRequest message = new SetNewbieRequest

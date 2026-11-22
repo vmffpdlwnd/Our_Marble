@@ -190,6 +190,17 @@ public class LobbyManager : MonoBehaviour
     private PopupView createPopup;
     private TMP_InputField createNameInput;   // 방 이름 입력칸 (Canvas_CreateRoom/.../NameSection/NameInput). 씬에 없으면 이름 칸을 숨긴다
     private TMP_InputField createPasswordInput; // 방 비밀번호 입력칸 (v1.3, …/PasswordSection/PasswordInput). 씬에 없으면 비밀번호 칸을 숨긴다
+
+    // 방 만들기 창을 방 정보 수정 창으로도 쓴다 (v1.3). 수정할 때는 맵, 최대 인원 칸을 숨기고 비밀번호 칸을 이름 칸 아래로 올린다
+    private const int CreatePopupSortingOrder = 110; // 대기방(100) 위, 설정창(125) 아래
+    private const float RoomEditWindowHeight = 480f;
+    private static readonly Vector2 RoomEditPasswordPosition = new Vector2(40f, -244f); // 이름 칸 바로 아래 (맵 칸 자리)
+    private bool createEditMode;
+    private bool createLayoutSaved;
+    private Vector2 createWindowSize;
+    private Vector2 createPasswordPosition;
+    private TMP_Text createTitleText;
+    private TMP_Text createConfirmLabel;
     private TMP_Text mapNameText;
     private Image mapPreviewImage;
     private Button prevMapButton, nextMapButton, createCancel, createConfirm, createClose;
@@ -456,6 +467,11 @@ public class LobbyManager : MonoBehaviour
         createCancel = Get<Button>(cw, "CancelButton");
         createConfirm = Get<Button>(cw, "CreateButton");
         createClose = Get<Button>(cw, "CloseButton");
+        Transform createTitleTransform = cw.Find("TitleText");
+        createTitleText = createTitleTransform != null ? createTitleTransform.GetComponent<TMP_Text>() : null;
+        createConfirmLabel = createConfirm != null ? createConfirm.GetComponentInChildren<TMP_Text>(true) : null;
+        Canvas createCanvas = createPopup.GetComponent<Canvas>();
+        if (createCanvas != null) createCanvas.sortingOrder = Mathf.Max(createCanvas.sortingOrder, CreatePopupSortingOrder); // 대기방에서 열어도 위에 보이게
     }
 
     private void WireEvents()
@@ -1010,6 +1026,7 @@ public class LobbyManager : MonoBehaviour
 
         ApplyRoomSnapshot(room, keepDraft: false); // 방을 처음 열 때는 방장의 초안도 서버 값에서 시작한다
         roomSetup.SetSettingsButton(settingsButton, settingsView.Open); // 대기방에서도 설정창(뉴비 옵션)을 연다 (v1.3)
+        roomSetup.SetRoomInfoButton(OpenRoomEdit); // 방장이 방 이름과 비밀번호를 바꾼다 (v1.3)
 
         roomSetup.SettingsApplied -= OnSettingsApplied;
         roomSetup.SettingsApplied += OnSettingsApplied;
@@ -1359,6 +1376,7 @@ public class LobbyManager : MonoBehaviour
 
     private void OpenCreatePopup()
     {
+        SetCreateEditMode(false);
         mapIndex = FirstAvailableMap();
         ShowMap();
         for (int i = 0; i < maxToggles.Length; i++) maxToggles[i].SetIsOnWithoutNotify(i == maxToggles.Length - 1);
@@ -1400,8 +1418,57 @@ public class LobbyManager : MonoBehaviour
             ShowToast("비밀번호는 숫자 4자리로 정해 주세요");
             return;
         }
+
+        // 방 정보 수정 창으로 열었으면 방을 만들지 않고 방장의 호스트에 바꾼 값을 보낸다. 대기방은 ROOM_UPDATED로 갱신된다
+        if (createEditMode)
+        {
+            if (CanRequest && CurrentRoom != null) Net.SendSetRoomInfoRequest(roomName, RoomPasswords.Sanitize(passwordText));
+            createPopup.Close();
+            return;
+        }
         RequestCreate(mapIndex, max, roomName, RoomPasswords.Sanitize(passwordText));
         createPopup.Close();
+    }
+    // 대기방의 방 정보 버튼 (방장만 보임): 지금 이름과 비밀번호를 채운 수정 창을 연다 (v1.3)
+    private void OpenRoomEdit()
+    {
+        if (CurrentRoom == null || !IsHost(CurrentRoom) || Busy) return;
+
+        SetCreateEditMode(true);
+        if (createNameInput != null) createNameInput.SetTextWithoutNotify(CurrentRoom.roomName ?? "");
+        if (createPasswordInput != null) createPasswordInput.SetTextWithoutNotify(CurrentRoom.password ?? "");
+        createPopup.Open();
+    }
+
+    // 방 만들기 창을 방 만들기 모드와 방 정보 수정 모드 중 하나로 맞춘다. 처음 부를 때 원래 크기와 위치를 기억해 둔다
+    private void SetCreateEditMode(bool edit)
+    {
+        createEditMode = edit;
+        var window = createPopup.Window as RectTransform;
+        if (window == null) return;
+
+        var passwordSection = window.Find("PasswordSection") as RectTransform;
+        if (!createLayoutSaved)
+        {
+            createWindowSize = window.sizeDelta;
+            if (passwordSection != null) createPasswordPosition = passwordSection.anchoredPosition;
+            createLayoutSaved = true;
+        }
+
+        SetChildActive(window, "MapSection", !edit);
+        SetChildActive(window, "MaxPlayersSection", !edit);
+        if (passwordSection != null && createPasswordInput != null)
+            passwordSection.anchoredPosition = edit ? RoomEditPasswordPosition : createPasswordPosition;
+        window.sizeDelta = edit ? new Vector2(createWindowSize.x, RoomEditWindowHeight) : createWindowSize;
+
+        if (createTitleText != null) Loc.Bind(createTitleText, edit ? "방 정보 수정" : "방 만들기");
+        if (createConfirmLabel != null) Loc.Bind(createConfirmLabel, edit ? "저장" : "방 만들기");
+    }
+
+    private static void SetChildActive(Transform root, string path, bool active)
+    {
+        var t = root.Find(path);
+        if (t != null) t.gameObject.SetActive(active);
     }
     #endregion
 
