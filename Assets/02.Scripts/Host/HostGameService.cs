@@ -34,9 +34,6 @@ public class HostGameService : IHostRequestReceiver
     private bool started; // 첫 GAME_STATE_REQUEST를 받아 첫 차례를 시작했는지
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-    /// <summary>[개발용] F1 창에서 고른 다음 황금열쇠 카드 id. 0이면 무작위. 한 번 뽑으면 0으로 돌아간다. (이 PC가 호스트일 때만 의미가 있다)</summary>
-    public static int DebugNextCardId;
-
     /// <summary>[개발용] F1 창에서 고른 다음 주사위 두 개. 0이면 무작위. 한 번 굴리면 0으로 돌아간다. DebugKeepDice면 지울 때까지 계속 쓴다. (이 PC가 호스트일 때만)</summary>
     public static int DebugDice1, DebugDice2;
     public static bool DebugKeepDice;
@@ -138,7 +135,6 @@ public class HostGameService : IHostRequestReceiver
         current = null;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         // 도메인 리로드 없이 플레이를 다시 시작해도 지난 플레이의 개발용 지정이 남지 않게 한다
-        DebugNextCardId = 0;
         DebugDice1 = DebugDice2 = 0;
         DebugKeepDice = false;
 #endif
@@ -438,11 +434,6 @@ public class HostGameService : IHostRequestReceiver
             // 순위 보정(v1.3): 1등은 나쁜 카드가, 꼴찌는 좋은 카드가 잘 나오고 꼴찌에게는 무인도 카드가 나오지 않는다
             RankBalance balance = BalanceRules.GetRankBalance(state, gameData.Properties);
             cardId = BalanceRules.PickCardId(gameData, balance, player, random.Next);
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            // F1 창에서 다음 카드를 지정했으면 그 카드를 뽑는다. (봇이 뽑아도 적용된다)
-            if (DebugNextCardId != 0 && gameData.FindCard(DebugNextCardId) != null) cardId = DebugNextCardId;
-            DebugNextCardId = 0;
-#endif
             card = gameData.FindCard(cardId);
         }
 
