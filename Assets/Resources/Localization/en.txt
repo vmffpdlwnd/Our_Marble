@@ -540,3 +540,10 @@ BBG치킨	BBG Chicken
 {0}님과 자리가 바뀌었어요 (위치 바꾸기)	{0} swapped places with you (Swap)
 뉴비 옵션: 팔 땅은 자동으로 골라요	Beginner Mode: properties to sell are picked for you
 뉴비 옵션: 세계여행 목적지는 자동으로 골라요	Beginner Mode: your World Tour destination is picked for you
+
+# ── 점검과 구버전 (v1.3.1, PhotonLobbyBridge.BlockedMessage, LobbyManager.OfflineText) ──
+오프라인 (점검 중)	Offline (maintenance)
+오프라인 (업데이트 필요)	Offline (update needed)
+서버 점검 중이라 혼자 하기로 시작해요	The server is under maintenance, so you're in solo play
+서버 점검 중이라 혼자 하기로 시작해요 ({0}까지)	The server is under maintenance until {0}, so you're in solo play
+새 버전이 나왔어요. 업데이트 전에는 혼자 하기만 할 수 있어요	A new version is out. Only solo play is available until you update

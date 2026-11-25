@@ -829,7 +829,18 @@ public class LobbyManager : MonoBehaviour
     {
         connectionText.text = Loc.T(connection == ConnectionState.Connected ? "서버 연결됨"
             : connection == ConnectionState.Reconnecting ? (everConnected ? "재연결 중..." : "연결 중...")
-            : connection == ConnectionState.Offline ? "오프라인 (혼자 하기)" : "연결 끊김");
+            : connection == ConnectionState.Offline ? OfflineText() : "연결 끊김");
+    }
+
+    // 오프라인 표시에 사유를 붙인다. 점검과 구버전은 연결 실패와 다르게 보인다 (v1.3.1)
+    private static string OfflineText()
+    {
+        switch (LobbyConnectionStatus.OfflineReason)
+        {
+            case MaintenanceBlock.Maintenance: return "오프라인 (점검 중)";
+            case MaintenanceBlock.Outdated: return "오프라인 (업데이트 필요)";
+            default: return "오프라인 (혼자 하기)";
+        }
     }
 
     // 설정창에서 언어를 바꿨을 때: 코드가 직접 만든 글자를 다시 그린다. (씬에 적힌 글자는 LocalizedText가 알아서 바꾼다)
