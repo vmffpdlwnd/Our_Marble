@@ -28,7 +28,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "5";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "11-2.1";
+    public const string CodeRevision = "11-3.1";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -66,6 +66,12 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
     /// <summary>Photon에 연결하지 못해 이 PC 안에서 혼자 하기로 전환된 상태. 타이틀 화면으로 돌아가면 풀려서 다시 온라인을 시도한다</summary>
     public bool OfflineMode { get; set; }
+
+    /// <summary>
+    /// 마지막 로비 연결에서 확인한 점검과 구버전 결과. 막혔으면 Photon에 연결하지 않았다. (로비 쪽이 이유에 맞게 혼자 하기로 안내한다)
+    /// 로비에 연결할 때마다 다시 확인한다. 방과 게임 안에서는 확인하지 않는다.
+    /// </summary>
+    public MaintenanceCheck Blocked { get; private set; } = MaintenanceCheck.Open;
 
     /// <summary>개발용: 테스트 창에서 연결을 끈 뒤로는 자동으로 켜지 않는다</summary>
     public bool AutoStartDisabled { get; set; }
@@ -227,6 +233,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     /// <summary>로비에 들어가 방 목록을 받기 시작한다. 이미 연결돼 있으면 끊고 새로 시작한다.</summary>
     public async Task<bool> JoinLobby()
     {
+        Blocked = MaintenanceCheck.Open; // 지난번 결과가 남지 않게, 확인하기 전에는 막지 않은 것으로 둔다
         if (!CheckReady()) return false;
 
         if (Simulated != SimulatedFailure.None)
@@ -247,6 +254,17 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
 
         SetState(ConnectionState.JoiningLobby);
         Add($"로비 입장 시도 (지역 {Region})");
+
+        // 점검과 구버전 (v1.3.1): PlayFab에 로그인한 뒤(CallAsync가 로그인한다), Photon에 연결하기 전에 확인한다. 막히면 연결하지 않는다
+        Blocked = await CheckMaintenanceAsync();
+        if (Blocked.IsBlocked)
+        {
+            Add(Blocked.Block == MaintenanceBlock.Outdated
+                ? $"구버전이라 Photon에 연결하지 않습니다 (내 네트워크 버전 {NetworkVersion})"
+                : $"서버 점검 중이라 Photon에 연결하지 않습니다 (끝나는 시각 {(Blocked.EndTime.HasValue ? Blocked.EndTime.Value.ToString("o") : "없음")})");
+            await Disconnect(); // 이미 연결돼 있던 것이 있으면 정리한다 (다른 실패와 같게)
+            return false;
+        }
 
         // Photon은 PlayFab 인증을 요구한다. PlayFab에서 Photon용 토큰을 받아 오고, 못 받으면 연결하지 않는다.
         // (연결하지 못하면 로비 쪽이 혼자 하기로 전환한다)
@@ -448,6 +466,23 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
         SessionInfo info = runner.SessionInfo;
         bool hasOurProperties = info != null && info.Properties != null && info.Properties.ContainsKey("state");
         return runner.IsSharedModeMasterClient && !hasOurProperties;
+    }
+
+    /// <summary>
+    /// PlayFab Title Data의 점검 표시를 읽어 온라인을 막을지 정한다. (판단은 MaintenanceRules)
+    /// 읽지 못하면(키가 없음, 응답 없음) 막지 않는다. PlayFab 로그인이 안 되면 다음 단계(Photon 인증)에서 지금처럼 연결 실패가 된다.
+    /// </summary>
+    private async Task<MaintenanceCheck> CheckMaintenanceAsync()
+    {
+        PlayFabRest.Result result = await Identity.CallAsync("/Client/GetTitleData", new { Keys = new[] { MaintenanceRules.TitleDataKey } });
+        if (!result.Ok)
+        {
+            Add($"점검 표시를 읽지 못해 평소처럼 연결합니다 ({result.ErrorCode})");
+            return MaintenanceCheck.Open;
+        }
+
+        string json = (string)result.Data?["Data"]?[MaintenanceRules.TitleDataKey];
+        return MaintenanceRules.Evaluate(json, MaintenanceRules.ParseNetworkVersion(NetworkVersion));
     }
 
     /// <summary>방에서 나가 연결을 끊는다. (로비로 돌아가려면 이어서 JoinLobby를 부른다)</summary>

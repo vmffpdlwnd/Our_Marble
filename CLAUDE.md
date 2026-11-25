@@ -65,6 +65,7 @@ AI(Claude)가 이 저장소에서 작업하기 전에 가장 먼저 읽는 안�
 | Photon 연결, 재접속, 방장 승계 | `Network/Photon/` (`PhotonConnection`, `PhotonRejoinLoop`, `PlayerRegistry`) |
 | 요청과 알림 메시지 | `Network/DTO/`, 보내고 받는 입구는 `Network/GameNetwork`, `Network/LobbyNetwork` |
 | 계정과 전적(PlayFab) | `Network/PlayFab/` (`PlayFabIdentity`, `PlayFabProfile`, `PlayFabRest`, `GameRecord`) |
+| 점검과 구버전 혼자 하기 (v1.3.1) | 판단은 `Network/PlayFab/MaintenanceRules` (PlayFab Title Data `Maintenance`), 읽기는 `PhotonConnection.JoinLobby`의 `CheckMaintenanceAsync`(결과 `Blocked`), 안내는 `PhotonLobbyBridge.BlockedMessage`, 로비 헤더 사유는 `LobbyConnectionStatus.OfflineReason` → `LobbyManager.OfflineText` |
 | 방과 게임 상태 데이터 | `State/` (`GameState`, `PlayerState`, `RoomSnapshot`, `RoomSummary`) |
 | 맵 고르기 (방의 맵으로 보드 정하기) | 맵 이름과 고를 수 있는 맵은 `LobbyManager.Maps`, `MapAvailable`(맵 번호 = 순서, 초상화 `mapSprites` = `05.Art/UI/UI_Map_*`). 게임 시작 알림 `GameStartedBroadcast.mapId` → `SceneFlow.ToGame(mapId)` → `BoardManager.SelectBoard`(`defaultBoard`, `otherBoards`) |
 | 보드, 땅, 카드 데이터 | `Board/`, `Property/`, `Card/` (데이터는 `Assets/04.ScriptableObject`). 땅 가격표는 `Resources/Data/properties.json`(id = 맵 번호 × 100 + 칸 번호), 땅 그림은 `Resources/PropertyImages/property_{id}`, 보드는 맵마다 `Board/*BoardInfo.asset` |

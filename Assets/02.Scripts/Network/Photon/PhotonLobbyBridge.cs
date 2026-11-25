@@ -235,7 +235,8 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             // 연결되기까지 시간이 걸리거나 한 번 실패해도 곧바로 혼자 하기로 넘기지 않고, 정해 둔 시간 동안 다시 해 본다.
             if (!await EnsureLobbyWithRetry(RejoinRules.LobbyGiveUpSeconds(everOnline, LobbyFirstConnectSeconds, LobbyGiveUpSeconds)))
             {
-                await FallbackToLocal("로비에 연결하지 못했습니다");
+                if (connection.Blocked.IsBlocked) await FallbackToLocal("점검 중이거나 구버전입니다", null, BlockedMessage(connection.Blocked));
+                else await FallbackToLocal("로비에 연결하지 못했습니다");
                 return;
             }
         }
@@ -252,7 +253,9 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             async attempt =>
             {
                 if (attempt > 1) Log($"로비에 다시 연결해 봅니다 ({attempt}번째)");
-                return await EnsureLobby(LobbyAttemptSeconds) ? RejoinAttempt.Success : RejoinAttempt.Retry;
+                if (await EnsureLobby(LobbyAttemptSeconds)) return RejoinAttempt.Success;
+                // 점검 중이거나 구버전이면 다시 해 봐야 소용없다 (RoomGone = 그만 시도). 기다리지 않고 바로 혼자 하기로 간다
+                return connection.Blocked.IsBlocked ? RejoinAttempt.RoomGone : RejoinAttempt.Retry;
             },
             () => Time.unscaledTime, WaitUntil, () => IsActive, giveUpSeconds, LobbyRetryGapSeconds);
 
@@ -289,7 +292,8 @@ public class PhotonLobbyBridge : IHostRequestReceiver
     // Photon에 연결하지 못했을 때, 이 PC 안의 호스트를 쓰는 혼자 하기로 전환한다. (v1.0.1과 같은 동작)
     // 화면이 이미 보낸 요청(방 만들기 등)은 이 PC의 호스트에게 다시 보내고, 전환했다는 안내는 그 뒤에 보낸다.
     // (안내를 먼저 보내면 화면이 "입장 중" 상태를 끝내 버려서 뒤따르는 방 입장 응답과 겹친다)
-    private async Task FallbackToLocal(string reason, List<string> replay = null)
+    // notice: 화면에 띄울 안내 (이미 번역한 글). 없으면 연결 실패 안내를 띄운다
+    private async Task FallbackToLocal(string reason, List<string> replay = null, string notice = null)
     {
         Log($"온라인에 연결하지 못해 이 PC에서 혼자 하기로 전환합니다 ({reason})");
 
@@ -306,7 +310,18 @@ public class PhotonLobbyBridge : IHostRequestReceiver
             LobbyNetwork.Instance.SendRoomListRequest();
         }
 
-        LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.LOBBY_ERROR, ErrorJson("OFFLINE_MODE", "온라인에 연결하지 못해 혼자 하기로 전환했어요"));
+        LobbyNetwork.Instance.ReceiveLobbyMessage(LobbyMessageType.LOBBY_ERROR, ErrorJson("OFFLINE_MODE", notice ?? "온라인에 연결하지 못해 혼자 하기로 전환했어요"));
+    }
+
+    /// <summary>
+    /// 점검과 구버전 안내 (v1.3.1). 연결 실패와 다르게 알려 준다. 점검이 끝나는 시각은 이 PC의 시간대로 보여 준다.
+    /// 시각이 들어가 번역표에서 찾을 수 없으므로 여기서 번역해서 넘긴다. (화면이 다시 번역해도 번역한 글은 그대로 남는다)
+    /// </summary>
+    private static string BlockedMessage(MaintenanceCheck check)
+    {
+        if (check.Block == MaintenanceBlock.Outdated) return Loc.T("새 버전이 나왔어요. 업데이트 전에는 혼자 하기만 할 수 있어요");
+        if (check.EndTime.HasValue) return Loc.T("서버 점검 중이라 혼자 하기로 시작해요 ({0}까지)", check.EndTime.Value.ToLocalTime().ToString("MM/dd HH:mm"));
+        return Loc.T("서버 점검 중이라 혼자 하기로 시작해요");
     }
 
     private void OnSessionsChanged()

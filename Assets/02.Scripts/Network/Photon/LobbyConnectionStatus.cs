@@ -23,6 +23,16 @@ public static class LobbyConnectionStatus
         return connected ? LobbyLink.Online : LobbyLink.Connecting;
     }
 
+    /// <summary>오프라인이 된 이유가 점검이나 구버전인지 (v1.3.1). 로비 헤더의 빨강 표시에 사유를 붙이는 데 쓴다. 평소의 연결 실패면 None.</summary>
+    public static MaintenanceBlock OfflineReason
+    {
+        get
+        {
+            PhotonConnection photon = PhotonConnection.Instance;
+            return photon != null && photon.OfflineMode ? photon.Blocked.Block : MaintenanceBlock.None;
+        }
+    }
+
     public static LobbyLink Current
     {
         get
