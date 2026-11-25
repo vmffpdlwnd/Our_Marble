@@ -9,7 +9,7 @@ using System.Collections.Generic;
 /// 건설·인수는 늘어나는 통행료로 비용을 회수하는 기간(라운드)을 따져 결정합니다.
 /// 돈을 쓰면 다음 턴에 만날 더 좋은 땅을 못 사게 될 확률이 크면 이번에는 아낍니다.
 /// 막판에는 구매·건설을 적극적으로 하고, 남은 라운드 안에 회수 못 할 인수는 하지 않습니다.
-/// 공격형(BotSettings.TargetsLastHuman)은 살아 있는 사람 중 꼴찌를 목표로 정하고, 목표가 다음 턴에 밟을 수 있는 땅을 먼저 노립니다.
+/// 공격형(BotSettings.TargetsLast)은 자기와 뉴비를 뺀 살아 있는 사람과 봇 중 꼴찌를 목표로 정하고, 목표가 다음 턴에 밟을 수 있는 땅을 먼저 노립니다.
 /// </summary>
 public class BasicBotStrategy : IBotStrategy
 {
@@ -265,18 +265,20 @@ public class BasicBotStrategy : IBotStrategy
     #region 공격형 (목표)
 
     /// <summary>
-    /// 공격형의 목표: 살아 있는 사람 중 꼴찌. 공격형이 아니거나, 너프 중이거나(앞선 봇은 노리기를 멈춤), 살아 있는 사람이 없으면 null.
-    /// 봇은 목표가 되지 않습니다. 뉴비 옵션을 켠 사람은 목표에서 빼고, 그다음으로 낮은 사람을 노립니다.
+    /// 공격형의 목표: 자기와 뉴비를 뺀, 살아 있는 사람과 봇 중 꼴찌. 공격형이 아니거나, 너프 중이거나(앞선 봇은 노리기를 멈춤), 노릴 사람이 없으면 null.
+    /// 봇도 목표가 됩니다(공격형끼리도). 꼴찌가 봇이면 사람은 공격받지 않아서, "사람을 괴롭히는 AI"가 아니라 "꼴찌를 무너뜨리는 AI"가 됩니다.
+    /// 자기가 꼴찌면 자기를 빼므로 바로 위 한 명을 노려 위로 올라갑니다. 뉴비 옵션을 켠 사람은 목표에서 빼고, 그다음으로 낮은 사람을 노립니다.
+    /// UIDebugPanel.FindTarget(F1 목표 표시)과 같은 기준입니다. 바꾸면 같이 고칩니다.
     /// </summary>
     private PlayerState FindTarget(GameState state, long botId)
     {
-        if (!settings.TargetsLastHuman || settings.IsNerfed || rankPlayers == null) return null;
+        if (!settings.TargetsLast || settings.IsNerfed || rankPlayers == null) return null;
 
         List<PlayerState> ranked = rankPlayers(state);
         for (int i = ranked.Count - 1; i >= 0; i--)
         {
             PlayerState player = ranked[i];
-            if (player.IsBankrupt || player.IsBot || player.IsNewbie || player.PlayerId == botId) continue; // 뉴비 옵션을 켠 사람은 보호한다
+            if (player.IsBankrupt || player.IsNewbie || player.PlayerId == botId) continue; // 뉴비 옵션을 켠 사람은 보호하고, 자기는 노리지 않는다
             return player;
         }
         return null;
