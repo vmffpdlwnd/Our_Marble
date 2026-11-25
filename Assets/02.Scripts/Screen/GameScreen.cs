@@ -177,6 +177,15 @@ public class GameScreen
         PlayerManager.Instance.SetCurrentTurn(playerId);
     }
 
+    // ───────────── 알림 ─────────────
+
+    /// <summary>화면 아래에 짧은 알림을 띄운다. ko는 번역표의 한국어 문장, args는 자리표({0})에 들어갈 값.</summary>
+    public void ShowToast(string ko, params object[] args)
+    {
+        if (UIManager.Instance != null)
+            UIManager.Instance.ShowToast(ko, args);
+    }
+
     // ───────────── 선택창 ─────────────
 
     public void ShowRollDicePopup()

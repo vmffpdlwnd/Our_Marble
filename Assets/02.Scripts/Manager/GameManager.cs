@@ -397,10 +397,13 @@ public class GameManager : Singleton<GameManager>
         // isAfk = !sendAndWaiting 이 true가 되어 잠수용 짧은 제한시간(afkSelectSeconds)으로 여행지 선택창이 금방 닫힙니다.
 
         // 자신의 차례인 경우에만 자유 여행할 타일을 선택하는 UI를 표시합니다.
-        // 뉴비 옵션(v1.3)이면 목적지는 호스트가 고르므로 띄우지 않습니다.
-        if (IsLocalPlayerTurn() && !IsLocalNewbieAutoPhase(GameMessageType.DESTINATION_CHOSEN))
+        // 뉴비 옵션(v1.3)이면 목적지는 호스트가 고르므로 선택창 대신 자동으로 고른다는 안내를 띄웁니다. (v1.3.1)
+        if (IsLocalPlayerTurn())
         {
-            screen.ShowChooseDestinationPopup();
+            if (IsLocalNewbieAutoPhase(GameMessageType.DESTINATION_CHOSEN))
+                screen.ShowToast("뉴비 옵션: 세계여행 목적지는 자동으로 골라요");
+            else
+                screen.ShowChooseDestinationPopup();
         }
 
         gameState.WaitingType = GameMessageType.DESTINATION_CHOSEN;
@@ -1173,10 +1176,13 @@ public class GameManager : Singleton<GameManager>
     public void HandleSellPropertiesPrompt(long payerId, long receiverId, long requiredAmount)
     {
         // 자신의 차례인 경우에만 청산할 자산들을 선택 가능한 UI를 표시합니다.
-        // 뉴비 옵션(v1.3)이면 팔 땅은 호스트가 고르므로 띄우지 않습니다.
-        if (IsLocalPlayerTurn() && !IsLocalNewbieAutoPhase(GameMessageType.PROPERTIES_SOLD))
+        // 뉴비 옵션(v1.3)이면 팔 땅은 호스트가 고르므로 선택창 대신 자동으로 고른다는 안내를 띄웁니다. (v1.3.1)
+        if (IsLocalPlayerTurn())
         {
-            screen.ShowSellPropertiesPopup(payerId, receiverId, requiredAmount);
+            if (IsLocalNewbieAutoPhase(GameMessageType.PROPERTIES_SOLD))
+                screen.ShowToast("뉴비 옵션: 팔 땅은 자동으로 골라요");
+            else
+                screen.ShowSellPropertiesPopup(payerId, receiverId, requiredAmount);
         }
 
         // broadcast메시지 수신 대기 상태에 들어갑니다.
@@ -1389,7 +1395,13 @@ public class GameManager : Singleton<GameManager>
 
             case CardEffectType.SwapPosition: // 상대와 위치만 바꾼다 (칸 효과 없음, 무인도만 예외)
                 if (outcome.Problem == CardProblem.None)
+                {
                     Log($"[카드:위치 바꾸기] {P(playerId)} ↔ {P(outcome.SwapTargetId)}: {P(playerId)}는 {TileName(outcome.To)}, {P(outcome.SwapTargetId)}는 {TileName(outcome.TargetTo)}(으)로 (칸 효과 없음)");
+
+                    // 당한 사람은 남의 카드 창이 잠깐 뜨고 닫혀서 놓치기 쉬우므로, 그 사람 화면에만 알림을 띄운다 (v1.3.1)
+                    if (outcome.SwapTargetId == LocalPlayer.Id)
+                        screen.ShowToast("{0}님과 자리가 바뀌었어요 (위치 바꾸기)", Loc.TName(player.Nickname));
+                }
                 break;
 
             case CardEffectType.RepairCost: // 내 건물 수 × 금액을 낸다 (현금 한도 안에서)

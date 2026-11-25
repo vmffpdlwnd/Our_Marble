@@ -30,6 +30,28 @@ public class BoardManager : Singleton<BoardManager>
     private void OnEnable() => GameManager.OnPlayerArrived += HandlePlayerArrived;
     private void OnDisable() => GameManager.OnPlayerArrived -= HandlePlayerArrived;
 
+    private void LateUpdate() => RefreshTollDoubleMarks();
+
+    /// <summary>
+    /// 통행료 2배 표시를 GameState에 맞춘다. 주인이 2배를 붙인 땅(TollDoubleOwnerId == OwnerId)만 표시한다.
+    /// 표시가 바뀌는 곳(카드로 고름, 통행료를 받음, 매각·인수로 주인이 바뀜, 재접속 동기화)이 여러 군데라 하나씩 부르면 빠뜨리기 쉬워서,
+    /// 매 프레임 GameState와 맞춘다. 땅은 32칸 이하이고, 바뀐 칸만 다시 그린다. (BoardController.SetTollDoubleMark)
+    /// </summary>
+    private void RefreshTollDoubleMarks()
+    {
+        if (boardController == null || tilesByIndex == null) return;
+        GameState state = GameManager.Instance != null ? GameManager.Instance.gameState : null;
+        if (state == null || state.PropertyStates == null) return;
+
+        foreach (var pair in tilesByIndex)
+        {
+            if (pair.Value == null || pair.Value.Type != TileType.PROPERTY) continue;
+            PropertyState property = state.PropertyStates.Find(p => p.PropertyId == pair.Value.PropertyId);
+            bool marked = property != null && property.OwnerId.HasValue && property.TollDoubleOwnerId == property.OwnerId;
+            boardController.SetTollDoubleMark(pair.Key, marked);
+        }
+    }
+
     private void HandlePlayerArrived(long playerId, int tileIndex)
     {
         if (boardController == null || tileIndex < 0 || tileIndex >= boardController.BoardTiles.Count) return;
