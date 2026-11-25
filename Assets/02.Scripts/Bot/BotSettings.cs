@@ -9,7 +9,7 @@ public enum BotPersonality
     Balanced,   // 기본형 (중간 성향)
     RealEstate, // 부동산형: 땅을 많이 사고 건설도 적극적
     Miser,      // 짠돌이: 현금을 많이 남기고 좋은 땅만 삼
-    Aggressive, // 공격형: 사람 중 꼴찌를 노림 (노리는 판단은 BasicBotStrategy)
+    Aggressive, // 공격형: 자기와 뉴비를 뺀 꼴찌를 노림 (노리는 판단은 BasicBotStrategy)
 }
 
 /// <summary>
@@ -42,7 +42,7 @@ public class BotSettings
     public long WelfareFundWorthTrip = 200000;       // 적립금이 이 이상이면 세계여행 최우선 목적지
 
     // ── 공격형 ──
-    public bool TargetsLastHuman;                    // 살아 있는 사람 중 꼴찌를 목표로 노림 (BasicBotStrategy.FindTarget)
+    public bool TargetsLast;                         // 자기와 뉴비를 뺀, 살아 있는 사람과 봇 중 꼴찌를 목표로 노림 (BasicBotStrategy.FindTarget)
 
     // ── 너프 ──
     public bool IsNerfed;                            // Nerfed()로 만든 값인지 (공격형은 너프 중에 노리기를 멈춤)
@@ -111,12 +111,12 @@ public class BotSettings
     }
 
     /// <summary>
-    /// 공격형: 값은 기본형과 같고, 사람 중 꼴찌를 목표로 정해 그 사람이 밟을 땅을 노립니다. (BasicBotStrategy)
+    /// 공격형: 값은 기본형과 같고, 자기와 뉴비를 뺀 꼴찌(사람과 봇)를 목표로 정해 그 사람이 밟을 땅을 노립니다. (BasicBotStrategy)
     /// 너프 중에는 노리기를 멈추고 값이 약해진 기본형처럼 움직입니다.
     /// </summary>
     public static BotSettings Aggressive()
     {
-        return new BotSettings { Name = "공격형", TargetsLastHuman = true };
+        return new BotSettings { Name = "공격형", TargetsLast = true };
     }
 
     // ───────────── 너프 ─────────────
