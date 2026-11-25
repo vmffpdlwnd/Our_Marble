@@ -4,10 +4,13 @@ using UnityEngine;
 public class BoardController : MonoBehaviour
 {
 #if UNITY_EDITOR
+    // 보드 배치 값은 코드에서 읽지 않고 에디터 스크립트(BoardControllerEditor)가 이름으로 읽는다. 그래서 "쓰지 않는 값" 경고(CS0414)를 끈다
+#pragma warning disable CS0414
     [Header("Board Layout")]
     [SerializeField, Min(1)] private int tilesPerSide = 7;
     [SerializeField] private Vector2 tileSpacing = new(0.8f, 0.45f);
     [SerializeField, Min(1f)] private float cornerSpacingMultiplier = 1.5f;
+#pragma warning restore CS0414
 
     [Header("Tile Prefabs")]
     [SerializeField] private GameObject cornerTilePrefab;
