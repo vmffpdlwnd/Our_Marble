@@ -535,3 +535,8 @@ BBG치킨	BBG Chicken
 {0}을(를) 쓸까요?\n건설비 <s>{1}</s> {2}	Use {0}?\nBuild cost <s>{1}</s> {2}
 안 쓰기	Don't use
 {0}님이 {1}을(를) 인수하려고 해요.\n{2}을(를) 쓸까요?	{0} wants to take over {1}.\nUse {2}?
+
+# ── 게임 화면: 알림 (토스트, v1.3.1) ──
+{0}님과 자리가 바뀌었어요 (위치 바꾸기)	{0} swapped places with you (Swap)
+뉴비 옵션: 팔 땅은 자동으로 골라요	Beginner Mode: properties to sell are picked for you
+뉴비 옵션: 세계여행 목적지는 자동으로 골라요	Beginner Mode: your World Tour destination is picked for you

@@ -29,7 +29,11 @@ public class BoardController : MonoBehaviour
     [SerializeField] private Color worldTravelColor = new Color32(190, 160, 255, 255);
     [SerializeField] private Color taxColor = new Color32(255, 154, 154, 255);
     [SerializeField] private Color charityColor = new Color32(154, 255, 188, 255);
+    [Tooltip("통행료 2배가 붙은 땅의 칸 이름 색 (이름 뒤에 x2가 붙는다)")]
+    [SerializeField] private Color tollDoubleTextColor = new Color32(230, 40, 40, 255);
     public IReadOnlyList<BoardTile> BoardTiles => boardTiles;
+
+    private bool[] tollDoubleMarks; // 칸마다 통행료 2배 표시를 하고 있는지. 바뀐 칸만 다시 그리려고 들고 있다
 
     private bool tileLabelsDrawn; // InitializeBoardTiles가 칸 이름을 그렸는지. 그리기 전에는 언어가 바뀌어도 다시 쓸 것이 없다
 
@@ -41,7 +45,31 @@ public class BoardController : MonoBehaviour
     {
         if (!tileLabelsDrawn || BoardManager.Instance == null) return;
         for (int i = 0; i < boardTiles.Count; i++)
-            boardTiles[i].SetText(defaultTextColor, GetTileLabel(BoardManager.Instance.GetTileData(i)));
+            DrawTileLabel(i);
+    }
+
+    /// <summary>
+    /// 통행료 2배 표시를 켜거나 끈다. 표시는 칸 이름을 빨간 굵은 글씨로 바꾸고 뒤에 x2를 붙인다.
+    /// (보드에 따로 붙일 표시 오브젝트가 없어서, 프리팹을 고치지 않고 이미 있는 칸 이름 글자로 보여 준다)
+    /// 이미 같은 상태면 다시 그리지 않는다.
+    /// </summary>
+    public void SetTollDoubleMark(int tileIndex, bool marked)
+    {
+        if (!tileLabelsDrawn || tileIndex < 0 || tileIndex >= boardTiles.Count) return;
+        if (tollDoubleMarks == null || tollDoubleMarks.Length != boardTiles.Count) tollDoubleMarks = new bool[boardTiles.Count];
+        if (tollDoubleMarks[tileIndex] == marked) return;
+
+        tollDoubleMarks[tileIndex] = marked;
+        DrawTileLabel(tileIndex);
+    }
+
+    // 칸 이름을 지금 언어로 쓴다. 통행료 2배 표시 중이면 빨간 굵은 글씨에 x2를 붙인다
+    private void DrawTileLabel(int tileIndex)
+    {
+        string label = GetTileLabel(BoardManager.Instance.GetTileData(tileIndex));
+        bool marked = tollDoubleMarks != null && tileIndex < tollDoubleMarks.Length && tollDoubleMarks[tileIndex];
+        if (marked) boardTiles[tileIndex].SetText(tollDoubleTextColor, $"<b>{label} x2</b>");
+        else boardTiles[tileIndex].SetText(defaultTextColor, label);
     }
     public int TileCount => boardTiles.Count;
     

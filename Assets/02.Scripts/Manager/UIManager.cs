@@ -44,6 +44,8 @@ public class UIManager : MonoBehaviour
     [SerializeField] private GameResultView gameResult;
     [SerializeField] private ExitConfirmView exitConfirm;
     [SerializeField] private SettingsView settings;
+    [Tooltip("짧은 알림 (Canvas_Toast 프리팹). 위치 바꾸기를 당했을 때, 뉴비 자동 선택 안내에 쓴다.")]
+    [SerializeField] private ToastView toast;
 
     [Header("데이터")]
     [Tooltip("황금열쇠 카드의 이름·설명·아이콘을 찾는 덱. CardManager가 쓰는 덱과 같은 에셋을 연결한다.")]
@@ -1116,6 +1118,21 @@ public class UIManager : MonoBehaviour
         view.SetMoney(player.Money, TotalAssetOf(playerId, player.Money));
         if (amount != 0) view.ShowMoneyChange(reason, amount);
         UpdateRanks();
+    }
+
+    /// <summary>
+    /// 화면 아래에 짧은 알림을 띄웁니다. ko는 번역표의 한국어 문장이고, 값이 있으면 자리표({0})에 채웁니다.
+    /// 토스트가 연결되지 않았으면 로그만 남깁니다.
+    /// </summary>
+    public void ShowToast(string ko, params object[] args)
+    {
+        string text = Loc.T(ko, args);
+        if (toast == null)
+        {
+            Debug.LogWarning($"[UIManager] 토스트가 연결되지 않아 알림을 띄우지 못했습니다: {text}");
+            return;
+        }
+        toast.ShowText(text);
     }
 
     // 통행료 지불 연출. PlayMoneyTransfer를 통행료 문구로 부르는 단축 함수입니다.
