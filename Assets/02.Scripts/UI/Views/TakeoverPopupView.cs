@@ -43,7 +43,7 @@ public class TakeoverPopupView : UIView
 
     // 안내 줄의 원래 모양 (특수 칸에서 바꿨다가 되돌린다)
     private string normalDesc;
-    private bool normalWrap;
+    private TextWrappingModes normalWrap;
     private float normalDescHeight;
 
     /// <summary>specialDescription이 있으면 특수 칸: 별 단계 대신 "특수 칸" 배지를, 안내 줄에는 땅 효과 설명을 보여준다.</summary>
@@ -55,7 +55,7 @@ public class TakeoverPopupView : UIView
         if (descText != null && normalDesc == null)
         {
             normalDesc = descText.text;
-            normalWrap = descText.enableWordWrapping;
+            normalWrap = descText.textWrappingMode;
             normalDescHeight = descText.rectTransform.sizeDelta.y;
         }
 
@@ -65,7 +65,7 @@ public class TakeoverPopupView : UIView
         if (descText != null)
         {
             descText.text = special ? specialDescription : normalDesc;
-            descText.enableWordWrapping = special || normalWrap;
+            descText.textWrappingMode = special ? TextWrappingModes.Normal : normalWrap; // enableWordWrapping은 TMP에서 없어질 예정이라 textWrappingMode를 쓴다
             var size = descText.rectTransform.sizeDelta;
             size.y = special ? 48f : normalDescHeight; // 설명이 두 줄까지 들어가게 한다 (아래 정보칸과 겹치지 않는 높이)
             descText.rectTransform.sizeDelta = size;

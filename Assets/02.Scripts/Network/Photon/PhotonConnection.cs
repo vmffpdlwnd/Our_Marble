@@ -28,7 +28,7 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     public const string NetworkVersion = "5";
 
     // 화면(F2 창)에 보이는 코드 버전. 두 PC가 같은 파일로 빌드됐는지 확인하는 용도다. 이 파일들을 고칠 때마다 올린다.
-    public const string CodeRevision = "11-3.1";
+    public const string CodeRevision = "11-3.2";
 
     // 한 방에 들어올 수 있는 사람(봇 제외)의 한계. NetworkProjectConfig의 Player Count와 같게 둔다.
     public const int MaxHumansLimit = 4;
@@ -764,5 +764,8 @@ public class PhotonConnection : Singleton<PhotonConnection>, INetworkRunnerCallb
     }
     public void OnSceneLoadDone(NetworkRunner r) { }
     public void OnSceneLoadStart(NetworkRunner r) { }
+    // Fusion이 요구하는 콜백이라 지울 수 없는데, SimulationMessagePtr가 "없어질 예정"으로 표시돼 경고(CS0618)가 난다. 쓰지 않으므로 경고만 끈다
+#pragma warning disable CS0618
     public void OnUserSimulationMessage(NetworkRunner r, SimulationMessagePtr message) { }
+#pragma warning restore CS0618
 }
