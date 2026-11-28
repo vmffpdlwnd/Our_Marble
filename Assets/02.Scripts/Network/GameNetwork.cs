@@ -360,6 +360,19 @@ public class GameNetwork : Singleton<GameNetwork>
         SendGameMessage(json);
     }
 
+    // 자리 비움을 켜고 끈다 (v1.3.2, GameManager.SetAfk)
+    public void SendSetAfkRequest(bool afk)
+    {
+        SetAfkRequest message = new SetAfkRequest
+        {
+            type = "SET_AFK",
+            afk = afk
+        };
+
+        string json = JsonConvert.SerializeObject(message);
+        SendGameMessage(json);
+    }
+
     public event Action<GameState> OnSync;
     
     /// <summary>

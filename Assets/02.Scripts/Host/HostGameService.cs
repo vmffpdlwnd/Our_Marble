@@ -259,7 +259,8 @@ public class HostGameService : IHostRequestReceiver
 
         // 요청을 보내면 AFK가 풀린다. (재접속의 GAME_STATE_REQUEST도 같다)
         // 화면이 사람 대신 보낸 요청은 사람이 돌아왔다는 뜻이 아니라서 풀지 않는다. (IsScreenAutoRequest)
-        if (!IsScreenAutoRequest(type, root)) afkPlayers.Remove(senderId);
+        // SET_AFK는 자리 비움을 직접 켜고 끄는 요청이라 여기서 풀지 않고 HandleSetAfk가 정한다. (v1.3.2)
+        if (type != "SET_AFK" && !IsScreenAutoRequest(type, root)) afkPlayers.Remove(senderId);
 
         switch (type)
         {
@@ -275,6 +276,7 @@ public class HostGameService : IHostRequestReceiver
             case "CHOOSE_TOLL_CARD": HandleChooseTollCard(senderId, JsonConvert.DeserializeObject<ChooseTollCardRequest>(json)); break;
             case "CHOOSE_TAKEOVER_SHIELD": HandleChooseTakeoverShield(senderId, JsonConvert.DeserializeObject<ChooseTakeoverShieldRequest>(json)); break;
             case "DECLARE_BANKRUPTCY": HandleDeclareBankruptcy(senderId); break;
+            case "SET_AFK": HandleSetAfk(senderId, JsonConvert.DeserializeObject<SetAfkRequest>(json)); break;
 
             default:
                 Debug.LogWarning($"[HostGameService] 알 수 없는 요청입니다: {type}");
@@ -1039,6 +1041,33 @@ public class HostGameService : IHostRequestReceiver
 
         StartTurn(GetNextPlayerId()); // 게임이 끝났으면 아무것도 하지 않는다
     }
+
+    // GameManager.SetAfk (v1.3.2)
+    // 상단바의 자리 비움 버튼. 자리는 남의 차례에도 비울 수 있으므로 차례와 단계를 가리지 않고 받는다. (Validate를 쓰지 않는다)
+    // 켜면 바로 AFK로 표시해, 지금 이 사람의 입력을 기다리는 중이면 누른 때부터 AFK 시간(8초) 뒤 대신 진행한다.
+    // 알림은 보내지 않는다. AFK는 호스트와 그 사람의 화면(GameManager.isAfk)만 아는 값이다.
+    private void HandleSetAfk(long senderId, SetAfkRequest request)
+    {
+        PlayerState player = GetPlayer(senderId);
+        if (state.IsGameOver || player == null || player.IsBot || player.IsBankrupt) return;
+
+        if (!request.afk)
+        {
+            if (afkPlayers.Remove(senderId)) Debug.Log($"[HostGameService] 자리 비움 해제: {player.Nickname}");
+            return;
+        }
+
+        float leftBefore = WaitLimit(player) - waited; // 켜기 전에 남아 있던 시간
+        if (!afkPlayers.Add(senderId)) return;
+
+        // 기다린 시간을 AFK 기준으로 다시 맞춘다. 남은 시간이 8초보다 짧았으면 그대로 두어 누른다고 늦어지지 않게 한다
+        if (WaitingForId() == senderId)
+        {
+            float limit = WaitLimit(player);
+            waited = limit - Mathf.Min(limit, leftBefore);
+        }
+        Debug.Log($"[HostGameService] 자리 비움: {player.Nickname} AFK로 표시합니다.");
+    }
     #endregion
 
     #region 자동 진행: 봇 차례, 제한 시간, AFK
@@ -1103,15 +1132,7 @@ public class HostGameService : IHostRequestReceiver
     {
         if (!started || state.IsGameOver || state.WaitingType == null) return;
 
-        // 인수 방지권 단계에서는 차례인 사람이 아니라 땅 주인의 입력을 기다린다 (봇이거나 AFK이면 주인 기준으로 대신 진행)
-        long waitingFor = state.CurrentPlayerId;
-        if (state.WaitingType == GameMessageType.TAKEOVER_SHIELD_CHOSEN)
-        {
-            PropertyState shieldProperty = WaitingShieldProperty();
-            if (shieldProperty != null && shieldProperty.OwnerId.HasValue) waitingFor = shieldProperty.OwnerId.Value;
-        }
-
-        PlayerState actor = GetPlayer(waitingFor);
+        PlayerState actor = GetPlayer(WaitingForId());
         if (actor == null || actor.IsBankrupt) return;
 
         // 새 입력 단계가 시작되면 기다린 시간을 0부터 센다
@@ -1127,6 +1148,19 @@ public class HostGameService : IHostRequestReceiver
         if (waited < WaitLimit(actor)) return;
 
         AutoAct(actor);
+    }
+
+    // 지금 누구의 입력을 기다리는지. (Tick, HandleSetAfk)
+    // 인수 방지권 단계에서는 차례인 사람이 아니라 땅 주인의 입력을 기다린다 (봇이거나 AFK이면 주인 기준으로 대신 진행)
+    private long WaitingForId()
+    {
+        long waitingFor = state.CurrentPlayerId;
+        if (state.WaitingType == GameMessageType.TAKEOVER_SHIELD_CHOSEN)
+        {
+            PropertyState shieldProperty = WaitingShieldProperty();
+            if (shieldProperty != null && shieldProperty.OwnerId.HasValue) waitingFor = shieldProperty.OwnerId.Value;
+        }
+        return waitingFor;
     }
 
     // 이 차례를 몇 초 기다렸다가 대신 진행할지. 사람의 제한 시간이 0 이하면 제한이 없다.

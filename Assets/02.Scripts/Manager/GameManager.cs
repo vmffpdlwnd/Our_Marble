@@ -60,6 +60,9 @@ public class GameManager : Singleton<GameManager>
         {
             Debug.Log("GameManager 초기화 작업 수행");
             gameState = null;
+            // GameManager는 씬을 넘어 남아서, 지난 게임의 AFK가 남지 않게 비운다. (새 게임과 재접속 모두 호스트의 AFK도 풀려 있다) (v1.3.2)
+            isAfk = false;
+            sendAndWaiting = false;
             GameNetwork.Instance.SendGameStateRequest();
         }
     }
@@ -292,6 +295,8 @@ public class GameManager : Singleton<GameManager>
     private void HandleGameError(string code, string message)
     {
         sendAndWaiting = false;
+        // v1.3.1 방장은 자리 비움(SET_AFK)을 몰라 이 코드로 거절한다. 그 호스트는 나를 AFK로 보지 않으므로 화면도 되돌린다 (v1.3.2)
+        if (code == "UNKNOWN_REQUEST") isAfk = false;
         screen.CancelDiceRolling();
     }
 
@@ -1273,6 +1278,22 @@ public class GameManager : Singleton<GameManager>
 
         sendAndWaiting = true;
         GameNetwork.Instance.SendDeclareBankruptcyRequest();
+    }
+
+    // ────────────────────────── 자리 비움 (v1.3.2) ──────────────────────────
+    /// <summary>
+    /// 상단바의 '자리 비움' 버튼을 누르면 호출됩니다. 켜면 호스트가 바로 AFK로 보고 AFK 시간(8초) 뒤 대신 진행하며,
+    /// 이 화면의 선택창도 AFK 시간(5초)으로 열립니다. 다시 누르거나 직접 고르면(HandleRoutine) 풀립니다.
+    /// 자리는 남의 차례에도 비울 수 있어서 차례와 상관없이 보냅니다. 내 차례의 요청이 아니므로 sendAndWaiting은 건드리지 않습니다.
+    /// </summary>
+    public void SetAfk(bool afk)
+    {
+        if (gameState == null || gameState.IsGameOver) return;
+        PlayerState me = GetPlayerState(LocalPlayer.Id);
+        if (me == null || me.IsBankrupt) return;
+
+        isAfk = afk;
+        GameNetwork.Instance.SendSetAfkRequest(afk);
     }
 
     /// <summary>

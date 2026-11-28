@@ -106,12 +106,14 @@ public class UIManager : MonoBehaviour
 
         // 상단바: 로비에서 넘어온 방 정보 표시, 설정은 설정 창 열기/닫기, 나가기는 확인 후 로비로 돌아간다
         // 파산 신청은 확인 후 호스트에 보낸다. 버튼의 상태는 매 프레임 RefreshBankruptButton이 맞춘다
+        // 자리 비움은 누를 때마다 켜고 끈다. 버튼의 상태는 매 프레임 RefreshAfkButton이 맞춘다 (v1.3.2)
         if (topBar != null)
         {
             RefreshTopBarRoom();
             topBar.SetPassword(LobbyManager.CurrentRoom?.password); // 비밀번호 방이면 상단바에 보인다 (v1.3)
             topBar.SetCallbacks(settings != null ? settings.Open : (Action)null, RequestExit);
             topBar.SetBankruptButton(RequestBankruptcy);
+            topBar.SetAfkButton(ToggleAfk);
         }
     }
 
@@ -246,6 +248,28 @@ public class UIManager : MonoBehaviour
             bankruptConfirmOpen = false;
             exitConfirm.Close();
         }
+    }
+
+    // 자리 비움 버튼 (v1.3.2): 누를 때마다 켜고 끈다. 켜면 내 차례를 AFK 시간(8초) 뒤 대신 진행한다
+    private void ToggleAfk()
+    {
+        if (Game == null) return;
+        bool afk = !Game.isAfk;
+        Game.SetAfk(afk);
+        if (Game.isAfk != afk) return; // 보내지 않았다 (파산했거나 게임이 끝남)
+        ShowToast(afk ? "자리 비움: 내 차례는 잠시 뒤 대신 진행해요" : "자리로 돌아왔어요");
+    }
+
+    // 자리 비움 버튼을 게임 상태에 맞춘다. 살아 있는 동안 보이고, 글자는 AFK인지(GameManager.isAfk)를 따른다.
+    // AFK는 직접 고르거나 대신 진행될 때도 바뀌므로(GameManager.HandleRoutine) 매 프레임 맞춘다
+    private void RefreshAfkButton()
+    {
+        if (topBar == null) return;
+
+        GameState state = State;
+        PlayerState me = state != null ? GetPlayer(LocalPlayerId) : null;
+        bool visible = Game != null && me != null && !me.IsBankrupt && !state.IsGameOver;
+        topBar.SetAfkState(visible, visible && Game.isAfk);
     }
 
     // 돈이 바뀌면 EconomyManager가 알려준다. 돈 표시와 연출은 여기서 갱신한다.
@@ -1666,6 +1690,7 @@ public class UIManager : MonoBehaviour
     private void Update()
     {
         RefreshBankruptButton();
+        RefreshAfkButton();
 
         if (timerWindow == null) return;
 
