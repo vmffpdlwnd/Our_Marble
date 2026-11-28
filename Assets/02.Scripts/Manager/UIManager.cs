@@ -273,6 +273,22 @@ public class UIManager : MonoBehaviour
         topBar.SetAfkState(visible, visible && Game.isAfk);
     }
 
+    // 무인도 배지 (v1.3.2): 갇힌 사람의 플레이어 카드에 남은 영업정지 턴을 보여 준다.
+    // 남은 턴은 무인도 도착, 탈출 실패, 탈출, 자리 바꾸기, 탈출권, 재접속 동기화로 바뀌어서 매 프레임 GameState와 맞춘다. (바뀔 때만 다시 그린다)
+    private void RefreshIslandBadges()
+    {
+        GameState state = State;
+        if (state == null || state.PlayerStates == null) return;
+
+        for (int i = 0; i < state.PlayerStates.Count; i++)
+        {
+            PlayerInfoView view = GetPlayerInfo(i);
+            if (view == null) continue;
+            PlayerState player = state.PlayerStates[i];
+            view.SetIslandTurns(player.IsBankrupt ? 0 : player.IslandTurnsRemaining);
+        }
+    }
+
     // 돈이 바뀌면 EconomyManager가 알려준다. 돈 표시와 연출은 여기서 갱신한다.
     private void OnEnable()
     {
@@ -1713,6 +1729,7 @@ public class UIManager : MonoBehaviour
     {
         RefreshBankruptButton();
         RefreshAfkButton();
+        RefreshIslandBadges();
 
         if (timerWindow == null) return;
 

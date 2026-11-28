@@ -528,6 +528,9 @@ BBG치킨	BBG Chicken
 파산 신청	Bankrupt
 파산하면 땅과 현금을 모두 잃어요.\n남은 게임은 관전만 할 수 있어요.	You lose all your land and cash.\nYou can only watch the rest.
 
+# ── 무인도 배지 (플레이어 카드, 남은 영업정지 턴) ──
+무인도 {0}턴	Island ({0})
+
 # ── 자리 비움 (상단바 버튼, 토스트) ──
 자리 비움	Away
 자리 복귀	Back

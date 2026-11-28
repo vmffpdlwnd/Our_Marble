@@ -283,6 +283,60 @@ public class PlayerInfoView : UIView
     public void RefreshTagText()
     {
         if (!string.IsNullOrEmpty(tagKey) && tagText != null) tagText.text = Loc.T(tagKey);
+        if (islandTurns > 0 && islandText != null) islandText.text = Loc.T("무인도 {0}턴", islandTurns);
+    }
+
+    // ───── 무인도 배지 (v1.3.2) ─────
+    // 무인도에 갇힌 동안 초상화 위 테두리에 남은 영업정지 턴을 보여 준다. 아래 테두리의 표시(뉴비, 봇 성향)와 겹치지 않게 위에 둔다.
+    // 등수 배지를 복사해 코드로 만든다. (프리팹을 고치지 않는다)
+    private const float IslandBadgeWidth = 124f; // 표시(104)보다 넓게. "무인도 3턴"이 들어가야 한다
+    private static readonly Color IslandBadgeColor = new Color32(142, 205, 255, 255); // 보드의 무인도 칸 색과 같다
+    private Image islandBadge;
+    private TMP_Text islandText;
+    private int islandTurns; // 지금 보여 주는 남은 턴. 0이면 숨김. 바뀔 때만 다시 쓴다
+
+    /// <summary>무인도 남은 영업정지 턴을 보여 준다. 0 이하면 숨긴다. (파산했으면 0으로 부른다) 같은 값이면 아무것도 하지 않는다.</summary>
+    public void SetIslandTurns(int turns)
+    {
+        turns = Mathf.Max(0, turns);
+        if (turns == islandTurns) return;
+        islandTurns = turns;
+
+        if (turns == 0)
+        {
+            if (islandBadge != null) islandBadge.gameObject.SetActive(false);
+            return;
+        }
+
+        EnsureIslandBadge();
+        if (islandBadge == null) return;
+        islandBadge.gameObject.SetActive(true);
+        if (islandText != null) islandText.text = Loc.T("무인도 {0}턴", turns);
+    }
+
+    private void EnsureIslandBadge()
+    {
+        if (islandBadge != null || rankBadge == null) return;
+        var portrait = transform.Find("Card/Portrait") as RectTransform;
+        if (portrait == null) return;
+
+        islandBadge = Instantiate(rankBadge, portrait);
+        islandBadge.name = "IslandBadge";
+        islandBadge.transform.localScale = Vector3.one; // 등수 배지가 뒤집히는 중에 복사해도 원래 크기로
+        islandBadge.color = IslandBadgeColor;
+
+        var rect = (RectTransform)islandBadge.transform;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(IslandBadgeWidth, TagHeight);
+        rect.anchoredPosition = Vector2.zero; // 초상화 위 테두리에 걸친다
+
+        islandText = islandBadge.GetComponentInChildren<TMP_Text>(true);
+        if (islandText != null)
+        {
+            islandText.enableAutoSizing = false;
+            islandText.fontSize = TagFontSize;
+        }
     }
 
     private void EnsureTagBadge()
