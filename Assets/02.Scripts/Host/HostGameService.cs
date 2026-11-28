@@ -242,9 +242,11 @@ public class HostGameService : IHostRequestReceiver
     public void OnRequest(long senderId, string json)
     {
         string type;
+        JObject root;
         try
         {
-            type = (string)JObject.Parse(json)["type"];
+            root = JObject.Parse(json);
+            type = (string)root["type"];
         }
         catch (Exception e)
         {
@@ -257,7 +259,7 @@ public class HostGameService : IHostRequestReceiver
 
         // 요청을 보내면 AFK가 풀린다. (재접속의 GAME_STATE_REQUEST도 같다)
         // 화면이 사람 대신 보낸 요청은 사람이 돌아왔다는 뜻이 아니라서 풀지 않는다. (IsScreenAutoRequest)
-        if (!IsScreenAutoRequest(type)) afkPlayers.Remove(senderId);
+        if (!IsScreenAutoRequest(type, root)) afkPlayers.Remove(senderId);
 
         switch (type)
         {
@@ -285,10 +287,13 @@ public class HostGameService : IHostRequestReceiver
     /// 사람이 누르지 않았는데 화면이 보낸 요청인지. 이런 요청으로 AFK를 풀면, 이어지는 선택이 AFK 시간(8초)이 아니라
     /// 일반 제한 시간으로 처리된다. (v1.3.2)
     /// DRAW_CARD: 황금열쇠 칸에 도착하면 화면이 바로 보낸다. (GameManager.DrawCard)
+    /// SELL_PROPERTIES의 isTimeout: 매각 창 시간이 끝나 화면이 자동으로 고른 땅을 보냈다. (UIManager.SellOnTimeout, AFK 표시는 HandleSellProperties)
     /// </summary>
-    private static bool IsScreenAutoRequest(string type)
+    private static bool IsScreenAutoRequest(string type, JObject root)
     {
-        return type == "DRAW_CARD";
+        if (type == "DRAW_CARD") return true;
+        if (type == "SELL_PROPERTIES") return (bool?)root["isTimeout"] == true; // v1.3.1 화면은 이 값을 보내지 않아 false다
+        return false;
     }
 
     // ───────────── 요청 처리 ─────────────
@@ -885,6 +890,10 @@ public class HostGameService : IHostRequestReceiver
         List<int> propertyIds = request.propertyIds ?? new List<int>();
 
         if (!Validate(senderId, GameMessageType.PROPERTIES_SOLD, out PlayerState player, propertyIds: propertyIds)) return;
+
+        // 매각 창 시간이 끝나 화면이 대신 보낸 매각이면, 호스트가 대신 진행했을 때(AutoAct)와 같이 AFK로 표시한다
+        if (request.isTimeout && !player.IsBot && afkPlayers.Add(senderId))
+            Debug.Log($"[HostGameService] 매각 창 시간 초과: {player.Nickname} AFK로 표시합니다.");
 
         // 7, 8. 통행료를 낼 땅 위에 있어야 하고, 팔 땅 목록이 올바르고, 판 돈을 합쳐 통행료를 낼 수 있어야 한다
         SellPlan plan = TradeRules.CheckSell(state, gameData, player, propertyIds);

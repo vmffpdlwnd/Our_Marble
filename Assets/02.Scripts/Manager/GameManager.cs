@@ -1191,11 +1191,14 @@ public class GameManager : Singleton<GameManager>
 
     /// <summary>
     /// 화면의 '선택 완료' 버튼을 누르면 이 함수가 호출됩니다.
+    /// 매각 창 시간이 끝나 자동으로 고른 땅을 보낼 때는 isTimeout이 true입니다. (UIManager.SellOnTimeout)
+    /// 이때는 내가 고른 것이 아니므로 sendAndWaiting을 켜지 않습니다. 그래야 HandlePropertiesSold의 HandleRoutine에서
+    /// 호스트(HandleSellProperties)와 같이 AFK가 됩니다.
     /// </summary>
-    public void SellProperties(long payerId, List<int> propertyIds)
+    public void SellProperties(long payerId, List<int> propertyIds, bool isTimeout = false)
     {
-        sendAndWaiting = true;
-        GameNetwork.Instance.SendSellPropertiesRequest(propertyIds);
+        sendAndWaiting = !isTimeout;
+        GameNetwork.Instance.SendSellPropertiesRequest(propertyIds, isTimeout);
     }
 
     public void HandlePropertiesSold(long payerId, List<int> propertyIds)

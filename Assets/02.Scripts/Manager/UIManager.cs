@@ -829,7 +829,7 @@ public class UIManager : MonoBehaviour
         if (Game != null && propertyIds.Count > 0)
         {
             BoardManager.Instance.ChangeToInspectMode();
-            Game.SellProperties(payerId, propertyIds);
+            Game.SellProperties(payerId, propertyIds, isTimeout: true); // 내가 고른 것이 아니라서 호스트와 화면 모두 AFK로 본다 (v1.3.2)
         }
     }
 
