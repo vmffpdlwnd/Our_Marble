@@ -378,8 +378,8 @@ public static class CardRules
         return null;
     }
 
-    // 뽑은 사람을 뺀, 파산하지 않은 플레이어들 (차례 순서대로)
-    private static List<PlayerState> OtherActivePlayers(GameState state, PlayerState player)
+    // 뽑은 사람을 뺀, 파산하지 않은 플레이어들 (차례 순서대로). 카드 점수(BalanceRules.CardScore)도 쓴다
+    internal static List<PlayerState> OtherActivePlayers(GameState state, PlayerState player)
     {
         var others = new List<PlayerState>();
         foreach (long id in state.PlayerOrder)
@@ -391,8 +391,8 @@ public static class CardRules
         return others;
     }
 
-    // 내 건물 수. 땅마다 건물 단계만큼 센다 (땅만 0, 별장 1, 빌딩 2, 호텔 3)
-    private static int CountBuildings(GameState state, long ownerId)
+    // 내 건물 수. 땅마다 건물 단계만큼 센다 (땅만 0, 별장 1, 빌딩 2, 호텔 3). 카드 점수(BalanceRules.CardScore)도 쓴다
+    internal static int CountBuildings(GameState state, long ownerId)
     {
         int count = 0;
         foreach (PropertyState property in state.PropertyStates)

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 /// 순위 보정 후보 로그 (v1.3.2). 1등 패널티와 꼴찌 보너스에서 두 번 굴린 후보와 고른 쪽, 고른 이유를 한 줄로 만든다.
 /// "왜 이게 골라졌는지"(다른 후보보다 나아서인지, 같은 결과라 먼저 굴린 쪽인지)를 확인하려는 것이다. (HostGameService.HandleRollDice)
 /// 개발자가 보는 로그라 번역하지 않는다. 번역 점검(tools/check_translations.py)에서도 이 파일은 뺀다.
-/// 예: 꼴찌 보너스: 파산왕 [1] 4+5 → 9번 무인도 (나쁨) / [2] 1+2 → 3번 서울 남의 땅 (나쁨, 통행료 40,000) → [1] 사용 (같음, 먼저 굴린 쪽)
+/// 예: 꼴찌 보너스: 파산왕 [1] 4+5 → 9번 무인도 (-40) / [2] 1+2 → 3번 서울 남의 땅 (-4, 통행료 40,000) → [2] 사용 (더 좋음)
 /// </summary>
 public static class BalanceRollLog
 {
@@ -18,10 +18,10 @@ public static class BalanceRollLog
              + $" → [{(choice.PickedFirst ? 1 : 2)}] 사용 ({ReasonText(choice.Reason, leader)})";
     }
 
-    // 한 후보: 눈 → 도착 칸 (등급, 통행료, 월급, 더블)
+    // 한 후보: 눈 → 도착 칸 (총점, 통행료, 월급, 더블). 총점이 큰 쪽이 좋다 (BalanceRules.CompareRoll)
     private static string DescribeRoll(GameState state, GameData data, PlayerState player, RollPreview roll)
     {
-        var notes = new List<string> { roll.Grade == RollGrade.Good ? "좋음" : roll.Grade == RollGrade.Bad ? "나쁨" : "보통" };
+        var notes = new List<string> { roll.Score.ToString("+0;-0;0") };
         if (roll.Toll > 0) notes.Add($"통행료 {roll.Toll:N0}");
         if (roll.ReceivesSalary) notes.Add("월급");
         if (roll.IsDouble) notes.Add(roll.RollsAgain ? "더블, 한 번 더" : "더블");
