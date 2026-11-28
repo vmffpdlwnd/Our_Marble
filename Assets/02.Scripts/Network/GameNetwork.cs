@@ -309,12 +309,14 @@ public class GameNetwork : Singleton<GameNetwork>
         SendGameMessage(json);
     }
 
-    public void SendSellPropertiesRequest(List<int> propertyIds)
+    // isTimeout: 매각 창 시간이 끝나 자동으로 고른 땅을 보내는 것인지 (UIManager.SellOnTimeout)
+    public void SendSellPropertiesRequest(List<int> propertyIds, bool isTimeout = false)
     {
         SellPropertiesRequest message = new SellPropertiesRequest
         {
             type = "SELL_PROPERTIES",
-            propertyIds = propertyIds
+            propertyIds = propertyIds,
+            isTimeout = isTimeout
         };
         
         string json = JsonConvert.SerializeObject(message);
