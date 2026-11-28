@@ -34,6 +34,32 @@ public class RollPreview
     public bool IsDouble => Dice1 == Dice2;
 }
 
+/// <summary>순위 보정에서 두 후보 중 하나를 고른 이유. 로그에 남겨 "왜 이게 골라졌는지"를 확인한다. (v1.3.2)</summary>
+public enum RollPickReason
+{
+    Compared,          // 결과를 비교해 더 나쁜 쪽(1등) 또는 더 좋은 쪽(꼴찌)
+    SameFirst,         // 결과가 같아 먼저 굴린 쪽
+    IslandFail,        // 무인도 영업정지: 탈출 실패(더블이 아닌) 쪽 (1등)
+    IslandEscape,      // 무인도 영업정지: 탈출하는(더블인) 쪽 (꼴찌)
+    IslandBothFail,    // 무인도 영업정지: 둘 다 탈출 실패라 먼저 굴린 쪽
+    IslandRerollLimit, // 무인도 영업정지: 다시 굴려도 계속 둘 다 더블이라 나중 쪽 (1등, 거의 일어나지 않는다)
+}
+
+/// <summary>
+/// 순위 보정에서 두 번 굴린 결과. 고른 쪽만 쓰지만, 로그에 두 후보와 이유를 같이 남기려고 모두 돌려준다. (v1.3.2)
+/// </summary>
+public class RollChoice
+{
+    public RollPreview First;     // 먼저 굴린 쪽 [1]
+    public RollPreview Second;    // 나중에 굴린 쪽 [2]
+    public RollPreview Picked;    // 고른 쪽 (First나 Second와 같은 객체)
+    public RollPickReason Reason;
+    public bool IslandLocked;     // 무인도 영업정지 중의 탈출 굴림인지
+    public int Rerolls;           // 1등 무인도 굴림에서 둘 다 더블이라 다시 굴린 횟수
+
+    public bool PickedFirst => Picked == First;
+}
+
 /// <summary>
 /// 지금의 순위 보정 상태. 1등과 꼴찌는 살아 있는 사람 중 RankingRules 순서로 한 명씩 정해진다.
 /// 꺼져 있어도 1등과 꼴찌는 채워 둔다. (F1 개발용 창이 보여 준다) 패널티와 보너스를 줄지는 IsLeader, IsLast로 묻는다.
@@ -223,20 +249,27 @@ public static class BalanceRules
     /// 무인도 영업정지 중이면 결과 비교 대신 더블이 아닌 쪽(탈출 실패)을 쓰고, 둘 다 더블이면 다시 두 번 굴린다.
     /// (결과 비교로는 탈출한 더블이 남의 땅에 서면 탈출 실패와 같은 나쁨이 되어, 탈출이 골라질 수 있기 때문이다)
     /// 무인도 탈출권은 굴리기 전에 이미 써서 영업정지가 풀린 상태로 부르므로, 탈출권을 쓰면 평소처럼 결과를 비교한다.
+    /// 두 후보와 고른 이유를 같이 돌려준다. 쓰는 주사위는 Picked다. (v1.3.2)
     /// </summary>
-    public static RollPreview RollForLeader(GameState state, GameData data, PlayerState player, Func<(int, int)> rollPair)
+    public static RollChoice RollForLeader(GameState state, GameData data, PlayerState player, Func<(int, int)> rollPair)
     {
         RollPreview first = Preview(state, data, player, rollPair());
         RollPreview second = Preview(state, data, player, rollPair());
 
-        if (!IsIslandLocked(data, player)) return PickWorse(first, second);
+        if (!IsIslandLocked(data, player)) return Choose(first, second, PickWorse(first, second));
 
-        for (int i = 0; i < IslandRerollLimit && first.IsDouble && second.IsDouble; i++)
+        int rerolls = 0;
+        for (; rerolls < IslandRerollLimit && first.IsDouble && second.IsDouble; rerolls++)
         {
             first = Preview(state, data, player, rollPair());
             second = Preview(state, data, player, rollPair());
         }
-        return !first.IsDouble ? first : second;
+
+        var choice = new RollChoice { First = first, Second = second, IslandLocked = true, Rerolls = rerolls };
+        if (!first.IsDouble && !second.IsDouble) { choice.Picked = first; choice.Reason = RollPickReason.IslandBothFail; }
+        else if (first.IsDouble && second.IsDouble) { choice.Picked = second; choice.Reason = RollPickReason.IslandRerollLimit; }
+        else { choice.Picked = !first.IsDouble ? first : second; choice.Reason = RollPickReason.IslandFail; }
+        return choice;
     }
 
     // ───────────── 꼴찌 보너스 ─────────────
@@ -245,16 +278,33 @@ public static class BalanceRules
     /// 꼴찌 보너스: 주사위를 두 번 굴려 좋은 결과(PickBetter)를 고른다. rollPair는 주사위 두 개를 굴리는 호스트의 난수다. (RollPair)
     /// 결과가 같으면 더블을 고르므로 더블 확률도 오른다. (한 번 굴림 약 17% → 약 31%. 뉴비의 더블 확률 증가는 따로 겹친다)
     /// 무인도 영업정지 중이면 1등 패널티와 반대로 더블인 쪽(탈출)을 쓴다. 둘 다 더블이 아니면 비교할 것 없이 먼저 굴린 쪽(탈출 실패)이다.
+    /// 두 후보와 고른 이유를 같이 돌려준다. 쓰는 주사위는 Picked다. (v1.3.2)
     /// </summary>
-    public static RollPreview RollForLast(GameState state, GameData data, PlayerState player, Func<(int, int)> rollPair)
+    public static RollChoice RollForLast(GameState state, GameData data, PlayerState player, Func<(int, int)> rollPair)
     {
         RollPreview first = Preview(state, data, player, rollPair());
         RollPreview second = Preview(state, data, player, rollPair());
 
-        if (!IsIslandLocked(data, player)) return PickBetter(first, second);
+        if (!IsIslandLocked(data, player)) return Choose(first, second, PickBetter(first, second));
 
-        if (first.IsDouble && second.IsDouble) return PickBetter(first, second); // 둘 다 탈출이면 도착이 좋은 쪽
-        return second.IsDouble ? second : first;
+        RollChoice choice;
+        if (first.IsDouble && second.IsDouble) choice = Choose(first, second, PickBetter(first, second)); // 둘 다 탈출이면 도착이 좋은 쪽
+        else if (first.IsDouble || second.IsDouble) choice = new RollChoice { First = first, Second = second, Picked = second.IsDouble ? second : first, Reason = RollPickReason.IslandEscape };
+        else choice = new RollChoice { First = first, Second = second, Picked = first, Reason = RollPickReason.IslandBothFail };
+        choice.IslandLocked = true;
+        return choice;
+    }
+
+    // 결과를 비교해 고른 경우의 이유를 채운다. 결과가 같으면 PickBetter, PickWorse가 먼저 굴린 쪽을 고른다
+    private static RollChoice Choose(RollPreview first, RollPreview second, RollPreview picked)
+    {
+        return new RollChoice
+        {
+            First = first,
+            Second = second,
+            Picked = picked,
+            Reason = CompareRoll(first, second) == 0 ? RollPickReason.SameFirst : RollPickReason.Compared,
+        };
     }
 
     private static RollPreview Preview(GameState state, GameData data, PlayerState player, (int dice1, int dice2) dice)
