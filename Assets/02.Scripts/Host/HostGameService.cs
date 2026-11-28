@@ -255,7 +255,9 @@ public class HostGameService : IHostRequestReceiver
 
         Debug.Log($"[HostGameService] 요청 수신: {type} (보낸 사람 {senderId})");
 
-        afkPlayers.Remove(senderId); // 요청을 보내면 AFK가 풀린다. (재접속의 GAME_STATE_REQUEST도 같다)
+        // 요청을 보내면 AFK가 풀린다. (재접속의 GAME_STATE_REQUEST도 같다)
+        // 화면이 사람 대신 보낸 요청은 사람이 돌아왔다는 뜻이 아니라서 풀지 않는다. (IsScreenAutoRequest)
+        if (!IsScreenAutoRequest(type)) afkPlayers.Remove(senderId);
 
         switch (type)
         {
@@ -277,6 +279,16 @@ public class HostGameService : IHostRequestReceiver
                 SendError(senderId, "UNKNOWN_REQUEST", "요청을 처리하지 못했어요");
                 break;
         }
+    }
+
+    /// <summary>
+    /// 사람이 누르지 않았는데 화면이 보낸 요청인지. 이런 요청으로 AFK를 풀면, 이어지는 선택이 AFK 시간(8초)이 아니라
+    /// 일반 제한 시간으로 처리된다. (v1.3.2)
+    /// DRAW_CARD: 황금열쇠 칸에 도착하면 화면이 바로 보낸다. (GameManager.DrawCard)
+    /// </summary>
+    private static bool IsScreenAutoRequest(string type)
+    {
+        return type == "DRAW_CARD";
     }
 
     // ───────────── 요청 처리 ─────────────

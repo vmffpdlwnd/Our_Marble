@@ -1505,7 +1505,12 @@ public class GameManager : Singleton<GameManager>
 
     public void HandleCardDrawn(long playerId, int cardId, long targetPlayerId)
     {
+        // 카드 뽑기 요청은 사람이 누르지 않고 DrawCard가 자동으로 보내므로, 이 알림으로 AFK 여부를 바꾸지 않습니다. (v1.3.2)
+        // HandleRoutine은 내가 보낸 요청이면 AFK를 풀어서, AFK인 사람의 다음 선택(통행료 2배 땅 고르기 등)이 일반 시간으로 열렸습니다.
+        // (sendAndWaiting을 끄면 반대로 정상인 사람이 황금열쇠마다 AFK가 되므로 끄지 않고, 값만 되돌립니다)
+        bool wasAfk = isAfk;
         HandleRoutine();
+        isAfk = wasAfk;
         
         // GameData에서 CardId로 카드 데이터를 조회합니다.
         CardData card = gameData.FindCard(cardId);
