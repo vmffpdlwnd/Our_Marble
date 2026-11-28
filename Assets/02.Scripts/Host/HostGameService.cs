@@ -402,19 +402,20 @@ public class HostGameService : IHostRequestReceiver
         Func<(int, int)> rollPair = () => BalanceRules.RollPair(random, newbieDice);
         if (newbieDice) Debug.Log($"[HostGameService] 뉴비 주사위: {player.Nickname} 더블 {BalanceRules.NewbieDoubleChance:P0}");
 
+        // 두 후보와 고른 이유를 같이 남긴다 (v1.3.2, BalanceRollLog)
         if (balance.IsLeader(player.PlayerId))
         {
-            RollPreview picked = BalanceRules.RollForLeader(state, gameData, player, rollPair);
-            dice1 = picked.Dice1;
-            dice2 = picked.Dice2;
-            Debug.Log($"[HostGameService] 1등 패널티: {player.Nickname} 두 번 굴려 나쁜 쪽을 씀");
+            RollChoice choice = BalanceRules.RollForLeader(state, gameData, player, balance, rollPair);
+            dice1 = choice.Picked.Dice1;
+            dice2 = choice.Picked.Dice2;
+            Debug.Log($"[HostGameService] {BalanceRollLog.Describe("1등 패널티", state, gameData, player, choice, true)}");
         }
         else if (balance.IsLast(player.PlayerId))
         {
-            RollPreview picked = BalanceRules.RollForLast(state, gameData, player, rollPair);
-            dice1 = picked.Dice1;
-            dice2 = picked.Dice2;
-            Debug.Log($"[HostGameService] 꼴찌 보너스: {player.Nickname} 두 번 굴려 좋은 쪽을 씀");
+            RollChoice choice = BalanceRules.RollForLast(state, gameData, player, balance, rollPair);
+            dice1 = choice.Picked.Dice1;
+            dice2 = choice.Picked.Dice2;
+            Debug.Log($"[HostGameService] {BalanceRollLog.Describe("꼴찌 보너스", state, gameData, player, choice, false)}");
         }
         else
         {
@@ -450,9 +451,9 @@ public class HostGameService : IHostRequestReceiver
         int cardId = 0;
         if (cardIds != null && cardIds.Count > 0)
         {
-            // 순위 보정(v1.3): 1등은 나쁜 카드가, 꼴찌는 좋은 카드가 잘 나오고 꼴찌에게는 무인도 카드가 나오지 않는다
+            // 순위 보정(v1.3): 1등은 점수가 낮은 카드가, 꼴찌는 높은 카드가 잘 나오고 꼴찌에게는 무인도 카드가 나오지 않는다 (v1.3.2 점수제)
             RankBalance balance = BalanceRules.GetRankBalance(state, gameData.Properties);
-            cardId = BalanceRules.PickCardId(gameData, balance, player, random.Next);
+            cardId = BalanceRules.PickCardId(state, gameData, balance, player, random.Next);
             card = gameData.FindCard(cardId);
         }
 

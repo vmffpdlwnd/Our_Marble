@@ -21,7 +21,7 @@ except ImportError:
 HAN = re.compile(r'[가-힣]')
 SKIP_DIRS = ('TextMesh Pro', 'Photon', 'Library', 'Demigiant', 'Packages')
 # 개발용 화면과 사용하지 않는 파일은 번역하지 않는다
-SKIP_CODE = ('PhotonDebugPanel', 'UIDebugPanel', 'HostStateCheck', 'BasicBotStrategy')
+SKIP_CODE = ('PhotonDebugPanel', 'UIDebugPanel', 'HostStateCheck', 'BasicBotStrategy', 'BalanceRollLog')
 # 개발자가 보는 오류 설명은 "~합니다/~습니다"로 끝나고, 화면에 보이는 문구는 "~요"로 끝난다. 영어 이름(PlayFab 등)이나 화살표가 있어도 개발자용이다.
 DEV_TEXT = re.compile(r'(니다|니다\.|\))\s*$|PlayFab|Photon|→|[A-Za-z_]{3,}\(')
 

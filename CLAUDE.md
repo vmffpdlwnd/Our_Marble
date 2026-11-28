@@ -60,7 +60,7 @@ AI(Claude)가 이 저장소에서 작업하기 전에 가장 먼저 읽는 안�
 | 자리 비움 버튼 (v1.3.2, 누르면 바로 AFK, 다시 누르거나 직접 고르면 풀림) | `UI/Views/TopBarView`(`SetAfkButton`, `SetAfkState`), `UIManager`의 `ToggleAfk`와 `RefreshAfkButton` → `GameManager.SetAfk` → 요청 `Network/DTO/Game/Send/SetAfkRequest`(`SET_AFK`) → `HostGameService.HandleSetAfk` |
 | 게임 중 나가기 (방과 연결 정리, 이어하기 남김, 파산한 사람은 재접속 막기) | `UIManager.RequestExit` → `SceneFlow.LeaveGameToLobby` → `PhotonLobbyBridge.LeaveGame`, 재접속 막기는 `LocalLobbyHost.RejoinPlayingRoom` + `HostGameService.IsBankrupt` |
 | 게임 규칙(구매, 통행료, 카드, 파산, 순위) | `Rules/` (`TradeRules`, `GameRules`, `CardRules`, `ArrivalRules`, `PropertyRules`, `RankingRules`, `TimeRules`) |
-| 순위 보정(v1.3: 주사위 결과 판정, 1등 패널티, 꼴찌 보너스) | `Rules/BalanceRules` (`PreviewRoll`, `CompareRoll`, `PickBetter`, `PickWorse`) |
+| 순위 보정(v1.3: 주사위 결과 판정, 1등 패널티, 꼴찌 보너스, v1.3.2 점수제) | `Rules/BalanceRules` (점수 상수는 파일 맨 위, `PreviewRoll`, `CompareRoll`, `TileScore`, `CardScore`, `PickCardId`, 두 후보와 고른 이유 `RollChoice`), 후보 로그(v1.3.2)는 `Host/BalanceRollLog` |
 | 호스트가 하는 일(게임 진행, 로비 관리) | `Host/HostGameService`, `Host/LocalLobbyHost`, 봇과 제한 시간은 `Host/HostAutoPlayRunner` |
 | 봇 | `Bot/` (`BasicBotStrategy`, 성향 값은 `BotSettings`) |
 | Photon 연결, 재접속, 방장 승계 | `Network/Photon/` (`PhotonConnection`, `PhotonRejoinLoop`, `PlayerRegistry`) |

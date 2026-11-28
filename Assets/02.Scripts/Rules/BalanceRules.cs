@@ -1,24 +1,6 @@
 using System;
 using System.Collections.Generic;
 
-/// <summary>
-/// 주사위 결과로 도착하는 칸의 좋고 나쁨. 순위 보정에서 두 번 굴린 결과를 비교할 때 쓴다. (값이 클수록 좋다)
-/// </summary>
-public enum RollGrade
-{
-    Bad = 0,    // 남의 땅, 무인도(탈출 실패, 3연속 더블 포함), 세무조사
-    Normal = 1, // 아무 일 없는 칸 (출발 칸에 멈춤, 칸 데이터가 없음)
-    Good = 2,   // 빈 땅, 내 땅, 황금열쇠, 세계여행, 적립금
-}
-
-/// <summary>황금열쇠 카드의 좋고 나쁨. 순위 보정에서 뽑기 가중치를 정할 때 쓴다.</summary>
-public enum CardGrade
-{
-    Bad,    // 무인도, 세금폭탄, 기부금 납부 칸으로, 모두에게 돈 주기, 건물 수리비
-    Normal, // 앞뒤로 이동, 자리 바꾸기
-    Good,   // 돈 받기, 출발지·세계여행·기부금 수령 칸으로, 모두에게서 받기, 통행료 2배, 보관형 전부
-}
-
 /// <summary>주사위를 실제로 반영하지 않고 미리 본 결과. 만들 때 상태(GameState, PlayerState)는 바꾸지 않는다.</summary>
 public class RollPreview
 {
@@ -26,12 +8,38 @@ public class RollPreview
     public int Dice2;
     public DiceMoveKind Kind;   // GameRules.ApplyDice가 돌려줄 Kind와 같다
     public int To;              // 도착 칸 (IslandStay면 지금 칸)
-    public RollGrade Grade;
+    public int Score;           // 총점: 도착 칸 점수 + 월급 + 한 번 더 굴림. 클수록 좋다 (v1.3.2 점수제, BalanceRules 맨 위의 점수 표)
     public long Toll;           // 남의 땅이면 통행료(통행료 카드 할인 전), 아니면 0
     public bool ReceivesSalary; // 출발 지점을 지나 월급을 받는지
     public bool RollsAgain;     // 이동한 뒤 한 번 더 굴리는지 (무인도 탈출 더블과 3연속 더블은 아님)
 
     public bool IsDouble => Dice1 == Dice2;
+}
+
+/// <summary>순위 보정에서 두 후보 중 하나를 고른 이유. 로그에 남겨 "왜 이게 골라졌는지"를 확인한다. (v1.3.2)</summary>
+public enum RollPickReason
+{
+    Compared,          // 결과를 비교해 더 나쁜 쪽(1등) 또는 더 좋은 쪽(꼴찌)
+    SameFirst,         // 결과가 같아 먼저 굴린 쪽
+    IslandFail,        // 무인도 영업정지: 탈출 실패(더블이 아닌) 쪽 (1등)
+    IslandEscape,      // 무인도 영업정지: 탈출하는(더블인) 쪽 (꼴찌)
+    IslandBothFail,    // 무인도 영업정지: 둘 다 탈출 실패라 먼저 굴린 쪽
+    IslandRerollLimit, // 무인도 영업정지: 다시 굴려도 계속 둘 다 더블이라 나중 쪽 (1등, 거의 일어나지 않는다)
+}
+
+/// <summary>
+/// 순위 보정에서 두 번 굴린 결과. 고른 쪽만 쓰지만, 로그에 두 후보와 이유를 같이 남기려고 모두 돌려준다. (v1.3.2)
+/// </summary>
+public class RollChoice
+{
+    public RollPreview First;     // 먼저 굴린 쪽 [1]
+    public RollPreview Second;    // 나중에 굴린 쪽 [2]
+    public RollPreview Picked;    // 고른 쪽 (First나 Second와 같은 객체)
+    public RollPickReason Reason;
+    public bool IslandLocked;     // 무인도 영업정지 중의 탈출 굴림인지
+    public int Rerolls;           // 1등 무인도 굴림에서 둘 다 더블이라 다시 굴린 횟수
+
+    public bool PickedFirst => Picked == First;
 }
 
 /// <summary>
@@ -55,12 +63,35 @@ public class RankBalance
 
 /// <summary>
 /// 순위 보정 규칙 (v1.3). 순위 보정을 켜는 조건(1등과 꼴찌의 보유액 차이)과,
-/// 1등 패널티와 꼴찌 보너스에서 주사위를 두 번 굴려 한쪽을 고를 때의 판정을 맡는다.
-/// 숫자 크기가 아니라 결과로 판단한다: 1순위 도착 칸, 2순위 더블 여부. (기획서 "순위 보정과 뉴비 옵션")
+/// 1등 패널티와 꼴찌 보너스에서 주사위를 두 번 굴려 한쪽을 고를 때의 판정, 황금열쇠 뽑기 가중치를 맡는다.
+/// 숫자 크기가 아니라 결과로 판단한다. v1.3.2부터 결과와 카드를 점수로 매겨 비교한다. (기획서 "순위 보정과 뉴비 옵션")
 /// 판정은 호스트만 하고, 고른 주사위만 알림으로 보내므로 클라이언트와 어긋나지 않는다. 화면을 모른다.
 /// </summary>
 public static class BalanceRules
 {
+    // ───────────── 점수 (v1.3.2 점수제) ─────────────
+    // 주사위 결과와 황금열쇠 카드를 점수로 비교한다. 플레이해 보고 숫자만 고치면 되게 여기에 모아 둔다.
+    // 돈이 오가는 것(통행료, 월급, 기부금, 카드 금액)은 1점 = PointWon원으로 바꾸고, 돈이 아닌 것은 아래 고정 점수다.
+
+    public const long PointWon = 10000;          // 1점이 몇 원인지
+    public const int WorldTravelScore = 30;      // 세계여행 칸: 다음 차례에 원하는 칸으로 간다
+    public const int BuyableLandScore = 20;      // 빈 땅인데 살 돈이 있다 (없으면 0)
+    public const int BuildableLandScore = 15;    // 내 땅인데 지을 수 있다 (최고 단계이거나 돈이 없으면 0)
+    public const int IslandScore = -40;          // 무인도 칸, 무인도에 남음, 3연속 더블, 무인도 카드
+    public const int RollAgainScore = 10;        // 더블로 한 번 더 굴린다
+    public const int TollDoubleScore = 10;       // 통행료 2배 카드 (내 땅이 없으면 0)
+    public const int TollFreeScore = 15;         // 통행료 면제권
+    public const int TollHalfScore = 8;          // 통행료 반값권
+    public const int BuildDiscountScore = 8;     // 건설 할인권
+    public const int IslandEscapeScore = 5;      // 무인도 탈출권 (갇혀야 쓸모 있다)
+    public const int TakeoverShieldScore = 5;    // 인수 방지권 (내 땅이 없으면 0)
+    public const int NestedGoldenKeyScore = 0;   // 카드로 옮겨 간 칸이 또 황금열쇠면 (기대 점수를 끝없이 계산하지 않게 0으로 본다)
+
+    // 황금열쇠 뽑기 가중치. 평소에는 모든 카드가 CardBaseWeight로 같은 확률이다.
+    // 꼴찌와 뉴비는 CardBaseWeight + 점수/2, 1등은 CardBaseWeight - 점수/2이고, CardMinWeight보다 작아지지 않는다.
+    public const int CardBaseWeight = 20;
+    public const int CardMinWeight = 5;
+
     // ───────────── 켜는 조건 ─────────────
 
     /// <summary>
@@ -124,8 +155,9 @@ public static class BalanceRules
     /// 주사위 결과를 상태를 바꾸지 않고 미리 본다.
     /// GameRules.ApplyDice와 같은 순서(무인도 탈출 실패 → 무인도 탈출 → 3연속 더블 → 이동)로 판단한다. ApplyDice를 고치면 여기도 같이 고친다.
     /// 무인도 탈출권은 굴리기 전에 이미 써서 IslandTurnsRemaining이 0이 된 상태로 부른다. (HostGameService.HandleRollDice와 같은 순서)
+    /// balance는 황금열쇠 칸의 기대 점수를 낼 때 쓴다. (1등과 꼴찌는 카드 가중치가 달라서 같은 칸도 점수가 다르다)
     /// </summary>
-    public static RollPreview PreviewRoll(GameState state, GameData data, PlayerState player, int dice1, int dice2)
+    public static RollPreview PreviewRoll(GameState state, GameData data, PlayerState player, RankBalance balance, int dice1, int dice2)
     {
         var preview = new RollPreview { Dice1 = dice1, Dice2 = dice2, To = player.Position };
 
@@ -138,7 +170,7 @@ public static class BalanceRules
         if (islandLocked && !isDouble)
         {
             preview.Kind = DiceMoveKind.IslandStay;
-            preview.Grade = RollGrade.Bad;
+            preview.Score = IslandScore;
             return preview;
         }
 
@@ -151,7 +183,7 @@ public static class BalanceRules
             {
                 preview.Kind = DiceMoveKind.DirectToIsland;
                 preview.To = islandPosition;
-                preview.Grade = RollGrade.Bad;
+                preview.Score = IslandScore;
                 return preview;
             }
         }
@@ -161,7 +193,7 @@ public static class BalanceRules
         {
             // 보드가 없으면 비교할 것이 없다. (ApplyDice도 이 상태에서는 진행할 수 없다)
             preview.Kind = DiceMoveKind.Move;
-            preview.Grade = RollGrade.Normal;
+            preview.Score = 0;
             return preview;
         }
 
@@ -170,7 +202,9 @@ public static class BalanceRules
         preview.To = to;
         preview.ReceivesSalary = to < player.Position;
         preview.RollsAgain = isDouble && !islandLocked && !newbieThirdDouble; // 더블로 무인도를 탈출하거나 뉴비의 세 번째 더블이면 추가 턴이 없다
-        preview.Grade = GradeTile(state, data, player, to, out preview.Toll);
+        preview.Score = TileScore(state, data, player, balance, to, false, out preview.Toll)
+                      + (preview.ReceivesSalary ? SalaryScore(state, data, player) : 0)
+                      + (preview.RollsAgain ? RollAgainScore : 0);
         return preview;
     }
 
@@ -182,23 +216,12 @@ public static class BalanceRules
     }
 
     /// <summary>
-    /// 두 결과를 비교한다. a가 좋으면 양수, b가 좋으면 음수, 같으면 0.
-    ///   1. 도착 칸 등급 (좋음 > 보통 > 나쁨)
-    ///   2. 둘 다 남의 땅이면 통행료가 적은 쪽 (무인도, 세무조사와 남의 땅은 같은 나쁨으로 본다)
-    ///   3. 출발 지점을 지나 월급을 받는 쪽
-    ///   4. 한 번 더 굴리는 쪽(더블)
+    /// 두 결과를 총점(RollPreview.Score)으로 비교한다. a가 좋으면 양수, b가 좋으면 음수, 같으면 0. (v1.3.2 점수제)
+    /// 총점 = 도착 칸 점수(TileScore) + 월급(SalaryScore) + 한 번 더 굴림(RollAgainScore)
     /// </summary>
     public static int CompareRoll(RollPreview a, RollPreview b)
     {
-        if (a.Grade != b.Grade) return a.Grade.CompareTo(b.Grade);
-
-        if (a.Toll > 0 && b.Toll > 0 && a.Toll != b.Toll) return b.Toll.CompareTo(a.Toll);
-
-        if (a.ReceivesSalary != b.ReceivesSalary) return a.ReceivesSalary ? 1 : -1;
-
-        if (a.RollsAgain != b.RollsAgain) return a.RollsAgain ? 1 : -1;
-
-        return 0;
+        return a.Score.CompareTo(b.Score);
     }
 
     /// <summary>좋은 쪽을 고른다. 같으면 first (먼저 굴린 쪽). 꼴찌 보너스에서 쓴다.</summary>
@@ -223,20 +246,27 @@ public static class BalanceRules
     /// 무인도 영업정지 중이면 결과 비교 대신 더블이 아닌 쪽(탈출 실패)을 쓰고, 둘 다 더블이면 다시 두 번 굴린다.
     /// (결과 비교로는 탈출한 더블이 남의 땅에 서면 탈출 실패와 같은 나쁨이 되어, 탈출이 골라질 수 있기 때문이다)
     /// 무인도 탈출권은 굴리기 전에 이미 써서 영업정지가 풀린 상태로 부르므로, 탈출권을 쓰면 평소처럼 결과를 비교한다.
+    /// 두 후보와 고른 이유를 같이 돌려준다. 쓰는 주사위는 Picked다. (v1.3.2)
     /// </summary>
-    public static RollPreview RollForLeader(GameState state, GameData data, PlayerState player, Func<(int, int)> rollPair)
+    public static RollChoice RollForLeader(GameState state, GameData data, PlayerState player, RankBalance balance, Func<(int, int)> rollPair)
     {
-        RollPreview first = Preview(state, data, player, rollPair());
-        RollPreview second = Preview(state, data, player, rollPair());
+        RollPreview first = Preview(state, data, player, balance, rollPair());
+        RollPreview second = Preview(state, data, player, balance, rollPair());
 
-        if (!IsIslandLocked(data, player)) return PickWorse(first, second);
+        if (!IsIslandLocked(data, player)) return Choose(first, second, PickWorse(first, second));
 
-        for (int i = 0; i < IslandRerollLimit && first.IsDouble && second.IsDouble; i++)
+        int rerolls = 0;
+        for (; rerolls < IslandRerollLimit && first.IsDouble && second.IsDouble; rerolls++)
         {
-            first = Preview(state, data, player, rollPair());
-            second = Preview(state, data, player, rollPair());
+            first = Preview(state, data, player, balance, rollPair());
+            second = Preview(state, data, player, balance, rollPair());
         }
-        return !first.IsDouble ? first : second;
+
+        var choice = new RollChoice { First = first, Second = second, IslandLocked = true, Rerolls = rerolls };
+        if (!first.IsDouble && !second.IsDouble) { choice.Picked = first; choice.Reason = RollPickReason.IslandBothFail; }
+        else if (first.IsDouble && second.IsDouble) { choice.Picked = second; choice.Reason = RollPickReason.IslandRerollLimit; }
+        else { choice.Picked = !first.IsDouble ? first : second; choice.Reason = RollPickReason.IslandFail; }
+        return choice;
     }
 
     // ───────────── 꼴찌 보너스 ─────────────
@@ -245,21 +275,38 @@ public static class BalanceRules
     /// 꼴찌 보너스: 주사위를 두 번 굴려 좋은 결과(PickBetter)를 고른다. rollPair는 주사위 두 개를 굴리는 호스트의 난수다. (RollPair)
     /// 결과가 같으면 더블을 고르므로 더블 확률도 오른다. (한 번 굴림 약 17% → 약 31%. 뉴비의 더블 확률 증가는 따로 겹친다)
     /// 무인도 영업정지 중이면 1등 패널티와 반대로 더블인 쪽(탈출)을 쓴다. 둘 다 더블이 아니면 비교할 것 없이 먼저 굴린 쪽(탈출 실패)이다.
+    /// 두 후보와 고른 이유를 같이 돌려준다. 쓰는 주사위는 Picked다. (v1.3.2)
     /// </summary>
-    public static RollPreview RollForLast(GameState state, GameData data, PlayerState player, Func<(int, int)> rollPair)
+    public static RollChoice RollForLast(GameState state, GameData data, PlayerState player, RankBalance balance, Func<(int, int)> rollPair)
     {
-        RollPreview first = Preview(state, data, player, rollPair());
-        RollPreview second = Preview(state, data, player, rollPair());
+        RollPreview first = Preview(state, data, player, balance, rollPair());
+        RollPreview second = Preview(state, data, player, balance, rollPair());
 
-        if (!IsIslandLocked(data, player)) return PickBetter(first, second);
+        if (!IsIslandLocked(data, player)) return Choose(first, second, PickBetter(first, second));
 
-        if (first.IsDouble && second.IsDouble) return PickBetter(first, second); // 둘 다 탈출이면 도착이 좋은 쪽
-        return second.IsDouble ? second : first;
+        RollChoice choice;
+        if (first.IsDouble && second.IsDouble) choice = Choose(first, second, PickBetter(first, second)); // 둘 다 탈출이면 도착이 좋은 쪽
+        else if (first.IsDouble || second.IsDouble) choice = new RollChoice { First = first, Second = second, Picked = second.IsDouble ? second : first, Reason = RollPickReason.IslandEscape };
+        else choice = new RollChoice { First = first, Second = second, Picked = first, Reason = RollPickReason.IslandBothFail };
+        choice.IslandLocked = true;
+        return choice;
     }
 
-    private static RollPreview Preview(GameState state, GameData data, PlayerState player, (int dice1, int dice2) dice)
+    // 결과를 비교해 고른 경우의 이유를 채운다. 결과가 같으면 PickBetter, PickWorse가 먼저 굴린 쪽을 고른다
+    private static RollChoice Choose(RollPreview first, RollPreview second, RollPreview picked)
     {
-        return PreviewRoll(state, data, player, dice.dice1, dice.dice2);
+        return new RollChoice
+        {
+            First = first,
+            Second = second,
+            Picked = picked,
+            Reason = CompareRoll(first, second) == 0 ? RollPickReason.SameFirst : RollPickReason.Compared,
+        };
+    }
+
+    private static RollPreview Preview(GameState state, GameData data, PlayerState player, RankBalance balance, (int dice1, int dice2) dice)
+    {
+        return PreviewRoll(state, data, player, balance, dice.dice1, dice.dice2);
     }
 
     // ───────────── 뉴비 주사위 ─────────────
@@ -285,47 +332,87 @@ public static class BalanceRules
 
     // ───────────── 황금열쇠 ─────────────
 
-    /// <summary>1등이 뽑을 때 나쁜 카드의 가중치. (보통 카드는 1) 지금 덱(나쁨 5장/20장)에서 나쁨이 25% → 40%</summary>
-    public const int LeaderBadCardWeight = 2;
-
-    /// <summary>꼴찌가 뽑을 때 좋은 카드의 가중치. (보통 카드는 1) 무인도 카드를 뺀 덱에서 좋음이 약 63% → 77%</summary>
-    public const int LastGoodCardWeight = 2;
-
     /// <summary>
-    /// 카드의 좋고 나쁨. 카드 에셋마다 적지 않고 효과 종류로 정해서, 새 카드를 넣어도 따로 분류하지 않아도 되게 한다.
-    /// 이동 카드(MoveTo)는 가는 칸의 종류로 정한다. (주사위 결과 판정 GradeTile과 같은 기준)
+    /// 카드 한 장의 점수 (v1.3.2 점수제). from은 카드를 뽑는 칸(황금열쇠 칸)이다. 이동 카드는 그 칸에서 옮겨 갈 칸의 점수로 본다.
+    /// 카드 에셋마다 적지 않고 효과 종류와 금액으로 정해서, 새 카드를 넣어도 따로 점수를 적지 않아도 되게 한다.
+    /// 상황에 따라 바뀐다: 같은 종류의 보관형을 이미 들고 있으면(버려짐) 0, 내 땅이 없으면 통행료 2배와 인수 방지권은 0.
     /// </summary>
-    public static CardGrade GetCardGrade(CardData card)
+    public static int CardScore(GameState state, GameData data, PlayerState player, CardData card, int from)
     {
+        if (card == null) return 0;
+        if (CardRules.IsHeldType(card.effectType) && CardRules.FindHeldCard(data, player, card.effectType) != null) return 0;
+
+        bool ownsLand = state.PropertyStates.Exists(p => p.OwnerId == player.PlayerId);
         switch (card.effectType)
         {
-            case CardEffectType.GoToIsland:
-            case CardEffectType.Penalty:
-            case CardEffectType.PayToAll:
-            case CardEffectType.RepairCost:
-                return CardGrade.Bad;
+            case CardEffectType.Bonus: return Points(card.amount);
+            case CardEffectType.Penalty: return -Points(card.amount);
+            case CardEffectType.GoToIsland: return IslandScore;
+            case CardEffectType.CollectFromAll: return CardRules.OtherActivePlayers(state, player).Count * Points(card.amount);
+            case CardEffectType.PayToAll: return -CardRules.OtherActivePlayers(state, player).Count * Points(card.amount);
+            case CardEffectType.RepairCost: return -CardRules.CountBuildings(state, player.PlayerId) * Points(card.amount);
+            case CardEffectType.SwapPosition: return 0; // 상대가 무작위라 미리 알 수 없다
+            case CardEffectType.TollDouble: return ownsLand ? TollDoubleScore : 0;
 
-            case CardEffectType.MoveBy:
-            case CardEffectType.SwapPosition:
-                return CardGrade.Normal;
+            case CardEffectType.MoveTo: return MoveToScore(state, data, player, from, card.targetTileType);
+            case CardEffectType.MoveBy: return MoveByScore(state, data, player, from, card.steps);
 
-            case CardEffectType.MoveTo:
-                switch (card.targetTileType)
-                {
-                    case TileType.ISLAND:
-                    case TileType.DONATION:
-                        return CardGrade.Bad;
-                    case TileType.START:        // 월급
-                    case TileType.WORLD_TRAVEL:
-                    case TileType.CHARITY:      // 적립금
-                        return CardGrade.Good;
-                    default:
-                        return CardGrade.Normal;
-                }
+            case CardEffectType.TollFree: return TollFreeScore;
+            case CardEffectType.TollHalf: return TollHalfScore;
+            case CardEffectType.IslandEscape: return IslandEscapeScore;
+            case CardEffectType.TakeoverShield: return ownsLand ? TakeoverShieldScore : 0;
+            case CardEffectType.BuildDiscount: return BuildDiscountScore;
+            case CardEffectType.SalaryDouble: return Points(state.Config != null ? state.Config.salaryAmount : 0);
 
-            default:
-                return CardGrade.Good; // 돈 받기, 모두에게서 받기, 통행료 2배, 보관형
+            default: return 0;
         }
+    }
+
+    // MoveTo 카드: from 다음부터 한 바퀴를 돌며 처음 나오는 그 종류의 칸. 출발 칸을 지나거나 도착하면 월급 (CardRules.MoveToTileType과 같은 계산)
+    private static int MoveToScore(GameState state, GameData data, PlayerState player, int from, TileType type)
+    {
+        int boardSize = data.TileCount;
+        for (int step = 1; step <= boardSize; step++)
+        {
+            int to = (from + step) % boardSize;
+            TileData tile = data.GetTile(to);
+            if (tile == null || tile.Type != type) continue;
+
+            bool salary = from + step >= boardSize;
+            return TileScore(state, data, player, null, to, true, out _) + (salary ? SalaryScore(state, data, player) : 0);
+        }
+        return 0; // 그 종류의 칸이 없으면 효과 없이 끝난다
+    }
+
+    // MoveBy 카드: 앞으로 가면 출발 칸을 지날 때 월급, 뒤로 가면 순간이동이라 월급 없음 (CardRules.MoveBy와 같은 계산)
+    private static int MoveByScore(GameState state, GameData data, PlayerState player, int from, int steps)
+    {
+        int boardSize = data.TileCount;
+        if (boardSize <= 0) return 0;
+
+        int to = ((from + steps) % boardSize + boardSize) % boardSize;
+        bool salary = steps > 0 && from + steps >= boardSize;
+        return TileScore(state, data, player, null, to, true, out _) + (salary ? SalaryScore(state, data, player) : 0);
+    }
+
+    /// <summary>
+    /// from 칸(황금열쇠 칸)에서 뽑을 카드의 기대 점수. 이 사람에게 적용되는 뽑기 가중치(CardWeights)로 평균을 낸다.
+    /// 주사위 결과 판정에서 황금열쇠 칸의 점수로 쓴다.
+    /// </summary>
+    public static int ExpectedCardScore(GameState state, GameData data, RankBalance balance, PlayerState player, int from)
+    {
+        IReadOnlyList<int> cardIds = data.CardIds;
+        if (cardIds == null || cardIds.Count == 0) return 0;
+
+        int[] scores = CardScores(state, data, player, from);
+        int[] weights = CardWeights(data, balance, player, scores);
+        long weighted = 0, total = 0;
+        for (int i = 0; i < cardIds.Count; i++)
+        {
+            weighted += (long)weights[i] * scores[i];
+            total += weights[i];
+        }
+        return total > 0 ? (int)Math.Round((double)weighted / total) : 0;
     }
 
     /// <summary>무인도로 보내는 카드인가. 꼴찌에게는 나오지 않는다.</summary>
@@ -337,25 +424,19 @@ public static class BalanceRules
 
     /// <summary>
     /// 황금열쇠를 뽑는다. 순위 보정이 꺼져 있거나 1등, 꼴찌가 아니면 모든 카드가 같은 확률이다. (전과 같음)
-    /// 1등은 나쁜 카드의 가중치가 오르고, 꼴찌와 뉴비는 무인도 카드가 빠지고 좋은 카드의 가중치가 오른다.
+    /// 1등은 점수가 낮은 카드가, 꼴찌와 뉴비는 점수가 높은 카드가 잘 나오고 꼴찌와 뉴비에게는 무인도 카드가 빠진다. (CardWeights)
+    /// 점수는 뽑는 사람의 지금 칸(황금열쇠 칸) 기준이다. (CardScore)
     /// 뉴비가 1등이면 1등 패널티가 먼저라 뉴비 혜택을 받지 않는다. 꼴찌이면서 뉴비여도 혜택은 한 번만 받는다.
     /// randomBelow(n)은 0 이상 n 미만의 수를 주는 호스트의 난수다. 덱이 비어 있으면 0.
     /// </summary>
-    public static int PickCardId(GameData data, RankBalance balance, PlayerState player, Func<int, int> randomBelow)
+    public static int PickCardId(GameState state, GameData data, RankBalance balance, PlayerState player, Func<int, int> randomBelow)
     {
         IReadOnlyList<int> cardIds = data.CardIds;
         if (cardIds == null || cardIds.Count == 0) return 0;
 
-        bool isLeader = balance.IsLeader(player.PlayerId);
-        bool isHelped = !isLeader && (balance.IsLast(player.PlayerId) || player.IsNewbie);
-
-        var weights = new int[cardIds.Count];
+        int[] weights = CardWeights(data, balance, player, CardScores(state, data, player, player.Position));
         int total = 0;
-        for (int i = 0; i < cardIds.Count; i++)
-        {
-            weights[i] = CardWeight(data.FindCard(cardIds[i]), isLeader, isHelped);
-            total += weights[i];
-        }
+        foreach (int weight in weights) total += weight;
 
         // 모든 카드가 빠진 덱(무인도 카드만 있음 등)이면 평소처럼 고른다
         if (total <= 0) return cardIds[randomBelow(cardIds.Count)];
@@ -369,16 +450,33 @@ public static class BalanceRules
         return cardIds[cardIds.Count - 1];
     }
 
-    // 카드 하나의 뽑기 가중치. 0이면 나오지 않는다. isHelped는 꼴찌 보너스나 뉴비 혜택을 받는지
-    private static int CardWeight(CardData card, bool isLeader, bool isHelped)
+    // 덱의 카드마다 점수 (data.CardIds 순서)
+    private static int[] CardScores(GameState state, GameData data, PlayerState player, int from)
     {
-        if (card == null) return 1;
+        IReadOnlyList<int> cardIds = data.CardIds;
+        var scores = new int[cardIds.Count];
+        for (int i = 0; i < cardIds.Count; i++) scores[i] = CardScore(state, data, player, data.FindCard(cardIds[i]), from);
+        return scores;
+    }
 
-        CardGrade grade = GetCardGrade(card);
-        if (isLeader && grade == CardGrade.Bad) return LeaderBadCardWeight;
-        if (isHelped && SendsToIsland(card)) return 0;
-        if (isHelped && grade == CardGrade.Good) return LastGoodCardWeight;
-        return 1;
+    // 덱의 카드마다 뽑기 가중치 (data.CardIds 순서). 0이면 나오지 않는다.
+    // 1등은 점수가 낮을수록, 꼴찌와 뉴비(isHelped)는 높을수록 가중치가 크다. 그 밖의 사람은 모두 같다.
+    private static int[] CardWeights(GameData data, RankBalance balance, PlayerState player, int[] scores)
+    {
+        bool isLeader = balance != null && balance.IsLeader(player.PlayerId);
+        bool isHelped = !isLeader && ((balance != null && balance.IsLast(player.PlayerId)) || player.IsNewbie);
+
+        IReadOnlyList<int> cardIds = data.CardIds;
+        var weights = new int[cardIds.Count];
+        for (int i = 0; i < cardIds.Count; i++)
+        {
+            CardData card = data.FindCard(cardIds[i]);
+            if (card != null && isHelped && SendsToIsland(card)) weights[i] = 0;
+            else if (card != null && isLeader) weights[i] = Math.Max(CardMinWeight, CardBaseWeight - scores[i] / 2);
+            else if (card != null && isHelped) weights[i] = Math.Max(CardMinWeight, CardBaseWeight + scores[i] / 2);
+            else weights[i] = CardBaseWeight;
+        }
+        return weights;
     }
 
     // ───────────── 뉴비 제한 ─────────────
@@ -393,34 +491,48 @@ public static class BalanceRules
         return waitingType == GameMessageType.PROPERTIES_SOLD || waitingType == GameMessageType.DESTINATION_CHOSEN;
     }
 
-    // 도착 칸의 등급. 남의 땅이면 통행료도 알려 준다. (ArrivalRules.ArriveAtTile, TradeRules.ArriveAtProperty와 같은 칸 구분)
-    private static RollGrade GradeTile(GameState state, GameData data, PlayerState player, int position, out long toll)
+    /// <summary>
+    /// 도착 칸의 점수 (v1.3.2 점수제). 남의 땅이면 통행료도 알려 준다. (ArrivalRules.ArriveAtTile, TradeRules.ArriveAtProperty와 같은 칸 구분)
+    /// nested면 황금열쇠 카드로 옮겨 간 칸이라, 그 칸이 또 황금열쇠여도 기대 점수를 다시 계산하지 않는다. (balance는 nested가 아닐 때만 쓴다)
+    /// </summary>
+    public static int TileScore(GameState state, GameData data, PlayerState player, RankBalance balance, int position, bool nested, out long toll)
     {
         toll = 0;
         TileData tile = data.GetTile(position);
-        if (tile == null) return RollGrade.Normal;
+        if (tile == null) return 0;
 
         switch (tile.Type)
         {
-            case TileType.ISLAND:
-            case TileType.DONATION:
-                return RollGrade.Bad;
-
-            case TileType.GOLDEN_KEY:
-            case TileType.WORLD_TRAVEL:
-            case TileType.CHARITY:
-                return RollGrade.Good;
+            case TileType.ISLAND: return IslandScore;
+            case TileType.DONATION: return -Points(state.Config != null ? state.Config.taxAmount : 0);
+            case TileType.CHARITY: return Points(state.WelfareFund); // 쌓인 적립금 (없으면 0)
+            case TileType.WORLD_TRAVEL: return WorldTravelScore;
+            case TileType.GOLDEN_KEY: return nested ? NestedGoldenKeyScore : ExpectedCardScore(state, data, balance, player, position);
 
             case TileType.PROPERTY:
                 PropertyState property = state.PropertyStates.Find(p => p.PropertyId == tile.PropertyId);
-                if (property == null || !property.OwnerId.HasValue || property.OwnerId.Value == player.PlayerId)
-                    return RollGrade.Good; // 빈 땅(구매)이나 내 땅(건설)
+                if (property == null) return 0;
+                if (!property.OwnerId.HasValue) // 빈 땅: 살 돈이 있어야 의미가 있다
+                    return TradeRules.CheckPurchase(data, player, property, true) == TradeError.None ? BuyableLandScore : 0;
+                if (property.OwnerId.Value == player.PlayerId) // 내 땅: 지을 수 있어야 의미가 있다 (건설 할인권을 들고 있으면 할인한 값으로 본다)
+                    return TradeRules.CheckBuild(data, player, property, true, useDiscount: true) == TradeError.None ? BuildableLandScore : 0;
 
                 toll = data.Properties.GetToll(property, state.PropertyStates);
-                return RollGrade.Bad;
+                return -Points(toll);
 
             default:
-                return RollGrade.Normal; // 출발 칸에 멈춤
+                return 0; // 출발 칸에 멈춤
         }
     }
+
+    // 월급의 점수. 월급 2배 카드를 들고 있으면 2배로 본다 (GameRules의 월급과 같다)
+    private static int SalaryScore(GameState state, GameData data, PlayerState player)
+    {
+        long salary = state.Config != null ? state.Config.salaryAmount : 0;
+        if (CardRules.FindHeldCard(data, player, CardEffectType.SalaryDouble) != null) salary *= 2;
+        return Points(salary);
+    }
+
+    // 돈을 점수로. 1점 = PointWon원. 남는 금액은 올려서, 2,000원 통행료처럼 작은 금액도 0점(아무 일 없음)이 되지 않게 한다
+    private static int Points(long won) => won <= 0 ? 0 : (int)((won + PointWon - 1) / PointWon);
 }
