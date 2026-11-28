@@ -149,6 +149,7 @@ public static class TradeRules
         player.Money -= amount;   // 인수자 현금 차감
         owner.Money += amount;    // 원래 주인 현금 증가
         property.OwnerId = player.PlayerId;
+        property.TollDoubleOwnerId = null; // 주인이 바뀌면 2배는 없어진다. 남겨 두면 원래 주인이 다시 인수했을 때 되살아난다 (v1.3.2)
         return amount;
     }
 
@@ -212,6 +213,7 @@ public static class TradeRules
             PropertyState property = FindProperty(state, id);
             property.BuildingLevel = BuildingLevel.Land;
             property.OwnerId = null;
+            property.TollDoubleOwnerId = null; // 주인이 없어지면 2배도 없어진다. 남겨 두면 같은 사람이 다시 샀을 때 되살아난다 (v1.3.2)
         }
 
         player.Money = player.Money + plan.TotalAmount - plan.Toll;
@@ -378,6 +380,7 @@ public static class TradeRules
             liquidated += data.Properties.GetSellValue(property);
             property.OwnerId = null;
             property.BuildingLevel = BuildingLevel.Land;
+            property.TollDoubleOwnerId = null; // 매각(Sell)과 같이 2배 기록도 지운다 (v1.3.2)
         }
         return liquidated;
     }
