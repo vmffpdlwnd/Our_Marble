@@ -30,7 +30,11 @@ public class BoardManager : Singleton<BoardManager>
     private void OnEnable() => GameManager.OnPlayerArrived += HandlePlayerArrived;
     private void OnDisable() => GameManager.OnPlayerArrived -= HandlePlayerArrived;
 
-    private void LateUpdate() => RefreshTollDoubleMarks();
+    private void LateUpdate()
+    {
+        RefreshTollDoubleMarks();
+        RefreshCharityAmounts();
+    }
 
     /// <summary>
     /// 통행료 2배 표시를 GameState에 맞춘다. 주인이 2배를 붙인 땅(TollDoubleOwnerId == OwnerId)만 표시한다.
@@ -49,6 +53,24 @@ public class BoardManager : Singleton<BoardManager>
             PropertyState property = state.PropertyStates.Find(p => p.PropertyId == pair.Value.PropertyId);
             bool marked = property != null && property.OwnerId.HasValue && property.TollDoubleOwnerId == property.OwnerId;
             boardController.SetTollDoubleMark(pair.Key, marked);
+        }
+    }
+
+    /// <summary>
+    /// 기부금 수령 칸에 쌓인 금액(GameState.WelfareFund)을 보여 준다. (v1.3.2)
+    /// 금액이 바뀌는 곳(기부금 납부 칸, 벌금 카드, 수리비 카드, 기부금 수령, 재접속 동기화)이 여러 군데라 통행료 2배 표시처럼 매 프레임 맞춘다.
+    /// 바뀐 칸만 다시 그린다. (BoardController.SetCharityAmount)
+    /// </summary>
+    private void RefreshCharityAmounts()
+    {
+        if (boardController == null || tilesByIndex == null) return;
+        GameState state = GameManager.Instance != null ? GameManager.Instance.gameState : null;
+        if (state == null) return;
+
+        foreach (var pair in tilesByIndex)
+        {
+            if (pair.Value == null || pair.Value.Type != TileType.CHARITY) continue;
+            boardController.SetCharityAmount(pair.Key, state.WelfareFund);
         }
     }
 

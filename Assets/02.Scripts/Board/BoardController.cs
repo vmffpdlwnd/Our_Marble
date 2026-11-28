@@ -37,6 +37,7 @@ public class BoardController : MonoBehaviour
     public IReadOnlyList<BoardTile> BoardTiles => boardTiles;
 
     private bool[] tollDoubleMarks; // 칸마다 통행료 2배 표시를 하고 있는지. 바뀐 칸만 다시 그리려고 들고 있다
+    private long[] charityAmounts;  // 기부금 수령 칸마다 보여 주고 있는 쌓인 금액 (v1.3.2). 바뀐 칸만 다시 그리려고 들고 있다
 
     private bool tileLabelsDrawn; // InitializeBoardTiles가 칸 이름을 그렸는지. 그리기 전에는 언어가 바뀌어도 다시 쓸 것이 없다
 
@@ -66,12 +67,29 @@ public class BoardController : MonoBehaviour
         DrawTileLabel(tileIndex);
     }
 
-    // 칸 이름을 지금 언어로 쓴다. 통행료 2배 표시 중이면 빨간 굵은 글씨에 x2를 붙인다
+    /// <summary>
+    /// 기부금 수령 칸에 쌓인 금액을 보여 준다. (v1.3.2) 칸 이름 밑에 한 줄 작게 붙이고, 0원이면 이름만 보인다.
+    /// (모서리 칸이라 글자 상자가 옆 칸의 두 배이고, 글자 크기가 자동으로 줄어서 두 줄이 들어간다. 프리팹은 고치지 않는다)
+    /// 이미 같은 금액이면 다시 그리지 않는다.
+    /// </summary>
+    public void SetCharityAmount(int tileIndex, long amount)
+    {
+        if (!tileLabelsDrawn || tileIndex < 0 || tileIndex >= boardTiles.Count) return;
+        if (charityAmounts == null || charityAmounts.Length != boardTiles.Count) charityAmounts = new long[boardTiles.Count];
+        if (charityAmounts[tileIndex] == amount) return;
+
+        charityAmounts[tileIndex] = amount;
+        DrawTileLabel(tileIndex);
+    }
+
+    // 칸 이름을 지금 언어로 쓴다. 통행료 2배 표시 중이면 빨간 굵은 글씨에 x2를 붙이고, 기부금이 쌓였으면 밑에 금액을 붙인다
     private void DrawTileLabel(int tileIndex)
     {
         string label = GetTileLabel(BoardManager.Instance.GetTileData(tileIndex));
         bool marked = tollDoubleMarks != null && tileIndex < tollDoubleMarks.Length && tollDoubleMarks[tileIndex];
+        long charity = charityAmounts != null && tileIndex < charityAmounts.Length ? charityAmounts[tileIndex] : 0;
         if (marked) boardTiles[tileIndex].SetText(tollDoubleTextColor, $"<b>{label} x2</b>");
+        else if (charity > 0) boardTiles[tileIndex].SetText(defaultTextColor, $"{label}\n<size=80%><b>{UIPalette.Money(charity)}</b></size>");
         else boardTiles[tileIndex].SetText(defaultTextColor, label);
     }
     public int TileCount => boardTiles.Count;
