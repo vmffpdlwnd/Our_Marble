@@ -1045,6 +1045,7 @@ public class HostGameService : IHostRequestReceiver
     // GameManager.SetAfk (v1.3.2)
     // 상단바의 자리 비움 버튼. 자리는 남의 차례에도 비울 수 있으므로 차례와 단계를 가리지 않고 받는다. (Validate를 쓰지 않는다)
     // 켜면 바로 AFK로 표시해, 지금 이 사람의 입력을 기다리는 중이면 누른 때부터 AFK 시간(8초) 뒤 대신 진행한다.
+    // 끄면 지금 기다리는 중인 입력을 일반 제한 시간으로 처음부터 다시 센다. (화면의 선택창도 같이 처음부터 센다: UIManager.RetimeSelectionTimer)
     // 알림은 보내지 않는다. AFK는 호스트와 그 사람의 화면(GameManager.isAfk)만 아는 값이다.
     private void HandleSetAfk(long senderId, SetAfkRequest request)
     {
@@ -1053,7 +1054,9 @@ public class HostGameService : IHostRequestReceiver
 
         if (!request.afk)
         {
-            if (afkPlayers.Remove(senderId)) Debug.Log($"[HostGameService] 자리 비움 해제: {player.Nickname}");
+            if (!afkPlayers.Remove(senderId)) return;
+            if (WaitingForId() == senderId) waited = 0f;
+            Debug.Log($"[HostGameService] 자리 비움 해제: {player.Nickname}");
             return;
         }
 

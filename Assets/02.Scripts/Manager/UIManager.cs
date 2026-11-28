@@ -257,6 +257,7 @@ public class UIManager : MonoBehaviour
         bool afk = !Game.isAfk;
         Game.SetAfk(afk);
         if (Game.isAfk != afk) return; // 보내지 않았다 (파산했거나 게임이 끝남)
+        RetimeSelectionTimer(afk); // 세고 있던 선택창 시간도 바로 바꾼다 (50초 → 5초)
         ShowToast(afk ? "자리 비움: 내 차례는 잠시 뒤 대신 진행해요" : "자리로 돌아왔어요");
     }
 
@@ -1676,6 +1677,27 @@ public class UIManager : MonoBehaviour
             timerChip.Begin(timerTotal);
             timerChip.SetRemaining(timerRemaining, timerTotal);
         }
+    }
+
+    /// <summary>
+    /// 자리 비움을 켜고 끌 때, 세고 있던 선택창의 제한시간을 바로 새 기준에 맞춘다. (v1.3.2, ToggleAfk)
+    /// 켜면 남은 시간을 AFK 시간(5초)으로 줄인다. 이미 더 짧으면 그대로 둔다. (호스트도 누른 때부터 8초를 센다: HostGameService.HandleSetAfk)
+    /// 끄면 일반 제한시간으로 처음부터 다시 센다. (호스트도 처음부터 다시 센다)
+    /// GameManager.isAfk가 바뀐 뒤에 불러야 CurrentSelectSeconds가 새 기준이 된다.
+    /// </summary>
+    private void RetimeSelectionTimer(bool afk)
+    {
+        if (timerWindow == null) return;
+
+        float seconds = CurrentSelectSeconds;
+        timerTotal = seconds;
+        timerRemaining = afk ? Mathf.Min(timerRemaining, seconds) : seconds;
+        if (timerChip != null)
+        {
+            timerChip.Begin(timerTotal);
+            timerChip.SetRemaining(timerRemaining, timerTotal);
+        }
+        if (timerRemaining > TimerTickSeconds) SoundManager.StopTimerTick(); // 다시 길어졌으면 째깍 소리를 멈춘다
     }
 
     /// <summary>세고 있던 제한시간을 시간 종료 처리 없이 멈추고 표시를 숨긴다.</summary>
