@@ -4,7 +4,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>상단바: 방 정보, 라운드 수, 파산 신청·설정·나가기 버튼. Canvas_TopBar에 붙는다.</summary>
+/// <summary>상단바: 방 정보, 라운드 수, 파산 신청·자리 비움·설정·나가기 버튼. Canvas_TopBar에 붙는다.</summary>
 public class TopBarView : UIView
 {
     [SerializeField] private TMP_Text roomNameText;
@@ -16,8 +16,17 @@ public class TopBarView : UIView
     [SerializeField] private TMP_Text passwordText;
     [SerializeField] private GameObject turnInfo;
 
+    // 복사한 버튼의 배경색. 나가기(연분홍)와 설정(연회색)은 프리팹 색 그대로이고, 복사한 버튼만 코드로 칠해 서로 구분한다 (v1.3.2)
+    private static readonly Color BankruptColor = new Color(1f, 0.6f, 0.6f);    // 파산 신청: 되돌릴 수 없어서 가장 진한 빨강
+    private static readonly Color AfkColor = new Color(1f, 0.95f, 0.7f);        // 자리 비움: 위험하지 않은 연노랑
+    private static readonly Color AfkOnColor = new Color(1f, 0.8f, 0.35f);      // 자리 복귀(AFK 중): 지금 AFK인 게 보이게 진한 노랑
+
     private const float BankruptButtonWidth = 140f; // 나가기 버튼(116)보다 넓게. 영어 "Bankrupt"가 들어가야 한다
     private Button bankruptButton; // 파산 신청 버튼. 프리팹에 없고 나가기 버튼을 복사해 코드로 만든다
+
+    private const float AfkButtonWidth = 140f; // 파산 신청 버튼과 같은 폭
+    private Button afkButton;  // 자리 비움 버튼 (v1.3.2). 파산 신청 버튼과 같이 나가기 버튼을 복사해 만든다
+    private bool? shownAfk;    // 지금 버튼 글자가 어느 쪽인지. 바뀔 때만 다시 묶는다
 
     public override void Bind()
     {
@@ -96,6 +105,7 @@ public class TopBarView : UIView
             if (layout != null) layout.preferredWidth = BankruptButtonWidth;
 
             Loc.Bind(bankruptButton.GetComponentInChildren<TMP_Text>(true), "파산 신청");
+            SetButtonColor(bankruptButton, BankruptColor);
             bankruptButton.gameObject.SetActive(false);
         }
         SetOnClick(bankruptButton, onClick);
@@ -110,5 +120,50 @@ public class TopBarView : UIView
         if (bankruptButton == null) return;
         if (bankruptButton.gameObject.activeSelf != visible) bankruptButton.gameObject.SetActive(visible);
         if (bankruptButton.interactable != interactable) bankruptButton.interactable = interactable;
+    }
+
+    /// <summary>
+    /// 자리 비움 버튼을 만들고 누를 때의 동작을 정한다. 게임 화면(UIManager)에서만 부른다. 이미 만들었으면 동작만 바꾼다. (v1.3.2)
+    /// 파산 신청 버튼처럼 나가기 버튼을 복사해, 파산 신청 버튼 오른쪽(설정 버튼 왼쪽)에 둔다.
+    /// 처음에는 숨겨 두고, 보일지와 글자는 SetAfkState로 정한다.
+    /// </summary>
+    public void SetAfkButton(Action onClick)
+    {
+        if (afkButton == null)
+        {
+            if (exitButton == null) return;
+
+            afkButton = Instantiate(exitButton, exitButton.transform.parent);
+            afkButton.name = "AfkButton";
+            afkButton.transform.SetSiblingIndex(bankruptButton != null ? bankruptButton.transform.GetSiblingIndex() + 1 : 0);
+
+            var layout = afkButton.GetComponent<LayoutElement>();
+            if (layout != null) layout.preferredWidth = AfkButtonWidth;
+
+            afkButton.gameObject.SetActive(false);
+        }
+        SetOnClick(afkButton, onClick);
+    }
+
+    /// <summary>
+    /// 자리 비움 버튼의 상태. visible이 false면 숨긴다. (파산했거나 게임이 끝남)
+    /// afk면 진한 노랑의 "자리 복귀"(누르면 돌아온다), 아니면 연노랑의 "자리 비움"을 보여 준다.
+    /// </summary>
+    public void SetAfkState(bool visible, bool afk)
+    {
+        if (afkButton == null) return;
+        if (afkButton.gameObject.activeSelf != visible) afkButton.gameObject.SetActive(visible);
+
+        if (shownAfk == afk) return;
+        shownAfk = afk;
+        Loc.Bind(afkButton.GetComponentInChildren<TMP_Text>(true), afk ? "자리 복귀" : "자리 비움");
+        SetButtonColor(afkButton, afk ? AfkOnColor : AfkColor);
+    }
+
+    // 버튼 배경(Image)의 색을 바꾼다. 누를 때의 색 변화(Button의 Color Tint)는 이 색에 곱해지므로 그대로 동작한다
+    private static void SetButtonColor(Button button, Color color)
+    {
+        var image = button != null ? button.GetComponent<Image>() : null;
+        if (image != null) image.color = color;
     }
 }

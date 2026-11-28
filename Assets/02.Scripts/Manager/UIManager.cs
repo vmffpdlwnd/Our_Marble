@@ -106,12 +106,14 @@ public class UIManager : MonoBehaviour
 
         // 상단바: 로비에서 넘어온 방 정보 표시, 설정은 설정 창 열기/닫기, 나가기는 확인 후 로비로 돌아간다
         // 파산 신청은 확인 후 호스트에 보낸다. 버튼의 상태는 매 프레임 RefreshBankruptButton이 맞춘다
+        // 자리 비움은 누를 때마다 켜고 끈다. 버튼의 상태는 매 프레임 RefreshAfkButton이 맞춘다 (v1.3.2)
         if (topBar != null)
         {
             RefreshTopBarRoom();
             topBar.SetPassword(LobbyManager.CurrentRoom?.password); // 비밀번호 방이면 상단바에 보인다 (v1.3)
             topBar.SetCallbacks(settings != null ? settings.Open : (Action)null, RequestExit);
             topBar.SetBankruptButton(RequestBankruptcy);
+            topBar.SetAfkButton(ToggleAfk);
         }
     }
 
@@ -246,6 +248,29 @@ public class UIManager : MonoBehaviour
             bankruptConfirmOpen = false;
             exitConfirm.Close();
         }
+    }
+
+    // 자리 비움 버튼 (v1.3.2): 누를 때마다 켜고 끈다. 켜면 내 차례를 AFK 시간(8초) 뒤 대신 진행한다
+    private void ToggleAfk()
+    {
+        if (Game == null) return;
+        bool afk = !Game.isAfk;
+        Game.SetAfk(afk);
+        if (Game.isAfk != afk) return; // 보내지 않았다 (파산했거나 게임이 끝남)
+        RetimeSelectionTimer(afk); // 세고 있던 선택창 시간도 바로 바꾼다 (50초 → 5초)
+        ShowToast(afk ? "자리 비움: 내 차례는 잠시 뒤 대신 진행해요" : "자리로 돌아왔어요");
+    }
+
+    // 자리 비움 버튼을 게임 상태에 맞춘다. 살아 있는 동안 보이고, 글자는 AFK인지(GameManager.isAfk)를 따른다.
+    // AFK는 직접 고르거나 대신 진행될 때도 바뀌므로(GameManager.HandleRoutine) 매 프레임 맞춘다
+    private void RefreshAfkButton()
+    {
+        if (topBar == null) return;
+
+        GameState state = State;
+        PlayerState me = state != null ? GetPlayer(LocalPlayerId) : null;
+        bool visible = Game != null && me != null && !me.IsBankrupt && !state.IsGameOver;
+        topBar.SetAfkState(visible, visible && Game.isAfk);
     }
 
     // 돈이 바뀌면 EconomyManager가 알려준다. 돈 표시와 연출은 여기서 갱신한다.
@@ -1654,6 +1679,27 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 자리 비움을 켜고 끌 때, 세고 있던 선택창의 제한시간을 바로 새 기준에 맞춘다. (v1.3.2, ToggleAfk)
+    /// 켜면 남은 시간을 AFK 시간(5초)으로 줄인다. 이미 더 짧으면 그대로 둔다. (호스트도 누른 때부터 8초를 센다: HostGameService.HandleSetAfk)
+    /// 끄면 일반 제한시간으로 처음부터 다시 센다. (호스트도 처음부터 다시 센다)
+    /// GameManager.isAfk가 바뀐 뒤에 불러야 CurrentSelectSeconds가 새 기준이 된다.
+    /// </summary>
+    private void RetimeSelectionTimer(bool afk)
+    {
+        if (timerWindow == null) return;
+
+        float seconds = CurrentSelectSeconds;
+        timerTotal = seconds;
+        timerRemaining = afk ? Mathf.Min(timerRemaining, seconds) : seconds;
+        if (timerChip != null)
+        {
+            timerChip.Begin(timerTotal);
+            timerChip.SetRemaining(timerRemaining, timerTotal);
+        }
+        if (timerRemaining > TimerTickSeconds) SoundManager.StopTimerTick(); // 다시 길어졌으면 째깍 소리를 멈춘다
+    }
+
     /// <summary>세고 있던 제한시간을 시간 종료 처리 없이 멈추고 표시를 숨긴다.</summary>
     private void StopSelectionTimer()
     {
@@ -1666,6 +1712,7 @@ public class UIManager : MonoBehaviour
     private void Update()
     {
         RefreshBankruptButton();
+        RefreshAfkButton();
 
         if (timerWindow == null) return;
 
